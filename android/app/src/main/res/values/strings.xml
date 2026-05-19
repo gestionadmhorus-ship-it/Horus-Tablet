@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Horus Tablet Campo</string>
+    <string name="title_activity_main">Horus Tablet Campo</string>
+    <string name="package_name">com.horus.campo</string>
+    <string name="custom_url_scheme">com.horus.campo</string>
+</resources>
