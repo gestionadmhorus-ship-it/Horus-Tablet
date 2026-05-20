@@ -32,11 +32,10 @@ jobs:
     - name: Sync Capacitor
       run: |
         npx cap sync android --verbose > sync_log.txt 2>&1 || true
-        git config --global user.email "bot@action.com"
-        git config --global user.name "Bot"
-        git add sync_log.txt
-        git commit -m "chore: upload sync log" || true
-        git push || true
+        echo "## Sync Capacitor Error Log" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        cat sync_log.txt >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
         npx cap sync android
       
     - name: Upload APK
