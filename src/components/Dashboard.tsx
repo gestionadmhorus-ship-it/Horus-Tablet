@@ -216,20 +216,22 @@ const Dashboard: React.FC<DashboardProps> = ({
         @media (max-width: 768px) {
           .dashboard-container {
             padding: 0.8rem;
+            padding-top: 1rem;
           }
           .dashboard-banner {
-            height: 90px;
+            height: 70px;
             border-radius: 12px;
+            margin-top: 2.5rem;
           }
           .dashboard-banner-title {
-            font-size: 1.3rem;
+            font-size: 1.1rem;
           }
           .dashboard-banner-subtitle {
-            font-size: 0.75rem;
+            font-size: 0.65rem;
             letter-spacing: 2px;
           }
           .dashboard-clock-text {
-            font-size: 0.95rem;
+            font-size: 0.85rem;
           }
           .dashboard-grid {
             grid-template-columns: repeat(2, 1fr) !important;
@@ -256,6 +258,34 @@ const Dashboard: React.FC<DashboardProps> = ({
             height: 24px !important;
           }
           .dashboard-footer {
+            display: none !important;
+          }
+          .dashboard-top-actions {
+            top: 0.5rem !important;
+            right: 0.5rem !important;
+            gap: 0.4rem !important;
+          }
+          .dashboard-top-actions button {
+            padding: 0.4rem 0.6rem !important;
+            font-size: 0.7rem !important;
+          }
+          .dashboard-top-actions .sync-label {
+            display: none;
+          }
+          .dashboard-edit-badge {
+            width: 26px !important;
+            height: 26px !important;
+          }
+          .dashboard-edit-badge svg {
+            width: 12px !important;
+            height: 12px !important;
+          }
+          .dashboard-req-badge {
+            font-size: 0.6rem !important;
+            padding: 3px 8px !important;
+            white-space: nowrap;
+          }
+          .dashboard-equipo-badge {
             display: none !important;
           }
         }
@@ -289,7 +319,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               OPERACIONES DE CAMPO
             </h1>
             {deviceName && (
-              <span style={{ 
+              <span className="dashboard-equipo-badge" style={{ 
                 background: 'rgba(0, 242, 255, 0.15)', 
                 color: '#00f2ff', 
                 border: '1px solid rgba(0, 242, 255, 0.4)', 
@@ -313,7 +343,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       </div>
 
       {/* Top-right settings button */}
-      <div style={{ position: 'fixed', top: '2rem', right: '2rem', display: 'flex', gap: '1rem', zIndex: 1000 }}>
+      <div className="dashboard-top-actions" style={{ position: 'fixed', top: '2rem', right: '2rem', display: 'flex', gap: '1rem', zIndex: 1000 }}>
         <button
           onClick={onOpenSync}
           style={{
@@ -333,7 +363,7 @@ const Dashboard: React.FC<DashboardProps> = ({
           }}
           title="Sincronizar Dispositivos P2P"
         >
-          <RefreshCw size={18} className="spinning-on-hover" /> SINCRONIZAR P2P
+          <RefreshCw size={18} className="spinning-on-hover" /><span className="sync-label"> SINCRONIZAR P2P</span>
         </button>
         <button
           onClick={onSettings}
@@ -432,6 +462,7 @@ const Dashboard: React.FC<DashboardProps> = ({
           {hasActiveShift && (
             <button
               onClick={(e) => { e.stopPropagation(); onEditShift(); }}
+              className="dashboard-edit-badge"
               style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,255,136,0.15)', border: '1px solid #00ff88', borderRadius: '50%', width: '36px', height: '36px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#00ff88', boxShadow: '0 0 10px rgba(0,255,136,0.3)' }}
               title="Editar Jornada Activa"
             >
@@ -490,8 +521,8 @@ const Dashboard: React.FC<DashboardProps> = ({
             )}
           </motion.div>
           {!hasActiveShift && (
-            <div style={{ position: 'absolute', top: '-12px', left: '50%', transform: 'translateX(-50%)', background: '#ff0000', color: 'white', padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 'bold' }}>
-              REQUISITO: INICIAR JORNADA
+            <div className="dashboard-req-badge" style={{ position: 'absolute', top: '-12px', left: '50%', transform: 'translateX(-50%)', background: '#ff0000', color: 'white', padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 'bold' }}>
+              REQ: JORNADA
             </div>
           )}
         </div>
@@ -517,8 +548,8 @@ const Dashboard: React.FC<DashboardProps> = ({
             </div>
           </motion.button>
           {!hasActiveFlight && (
-            <div style={{ position: 'absolute', top: '-12px', left: '50%', transform: 'translateX(-50%)', background: '#ff0000', color: 'white', padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 'bold' }}>
-              REQUISITO: REGISTRO DE VUELO
+            <div className="dashboard-req-badge" style={{ position: 'absolute', top: '-12px', left: '50%', transform: 'translateX(-50%)', background: '#ff0000', color: 'white', padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 'bold' }}>
+              REQ: VUELO
             </div>
           )}
         </div>
