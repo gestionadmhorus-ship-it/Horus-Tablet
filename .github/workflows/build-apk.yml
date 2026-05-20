@@ -91,3 +91,11 @@ jobs:
       with:
         name: horus-tablet-campo-apk
         path: android/app/build/outputs/apk/debug/app-debug.apk
+
+    - name: Generate Direct Download Link
+      run: |
+        DOWNLOAD_URL=$(curl --upload-file android/app/build/outputs/apk/debug/app-debug.apk https://transfer.sh/Horus-Tablet-Campo.apk)
+        echo "## 📥 Enlace de Descarga Directa" >> $GITHUB_STEP_SUMMARY
+        echo "Copia y pega el siguiente enlace en el navegador de tu tablet para descargar el APK directamente sin usar la interfaz de GitHub:" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### $DOWNLOAD_URL" >> $GITHUB_STEP_SUMMARY
