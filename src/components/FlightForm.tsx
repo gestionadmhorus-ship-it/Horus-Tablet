@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Save, ArrowLeft } from 'lucide-react';
 import type { FlightData, ListsData } from '../types';
+import { generateId } from '../utils/idGenerator';
 
 interface FlightFormProps {
   onSave: (data: FlightData) => void;
@@ -35,7 +36,7 @@ const FlightForm: React.FC<FlightFormProps> = ({ onSave, onUpdate, onBack, lists
       await window.customAlert('✅ Vuelo actualizado con éxito');
     } else {
       const newData: FlightData = {
-        id: crypto.randomUUID(),
+        id: generateId('VUEL'),
         shiftId: activeShiftId,
         timestamp: `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`,
         ...formData

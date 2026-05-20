@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Save, ArrowLeft, Printer, ShieldCheck } from 'lucide-react';
 import type { VehicleChecklistData, ListsData } from '../types';
+import { generateId } from '../utils/idGenerator';
 
 interface VehicleChecklistFormProps {
   onSave: (data: VehicleChecklistData) => void;
@@ -178,7 +179,7 @@ const VehicleChecklistForm: React.FC<VehicleChecklistFormProps> = ({ onSave, onU
         await window.customAlert('✅ Checklist Vehicular actualizado con éxito');
       } else {
         const newData: VehicleChecklistData = {
-          id: crypto.randomUUID(),
+          id: generateId('CHK'),
           timestamp: `${currentTime.toLocaleDateString()} ${currentTime.toLocaleTimeString()}`,
           vehicleId: formData.vehicleId,
           driver: formData.driver,

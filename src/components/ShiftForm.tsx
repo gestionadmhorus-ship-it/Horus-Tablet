@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Save, ArrowLeft } from 'lucide-react';
 import type { ShiftData, ListsData } from '../types';
+import { generateId } from '../utils/idGenerator';
 
 interface ShiftFormProps {
   onSave: (data: ShiftData) => void;
@@ -60,16 +61,8 @@ const ShiftForm: React.FC<ShiftFormProps> = ({ onSave, onUpdate, onBack, lists, 
       });
       await window.customAlert('✅ Jornada actualizada con éxito');
     } else {
-      // Create new record with DD-MM-YYYY-HHMM format
-      const dd = String(now.getDate()).padStart(2, '0');
-      const mm = String(now.getMonth() + 1).padStart(2, '0');
-      const yyyy = now.getFullYear();
-      const hh = String(now.getHours()).padStart(2, '0');
-      const min = String(now.getMinutes()).padStart(2, '0');
-      const customId = `${dd}-${mm}-${yyyy}-${hh}${min}`;
-
       const newData: ShiftData = {
-        id: customId,
+        id: generateId('JORN'),
         timestamp: `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`,
         coordinator: formData.coordinator,
         assistants: finalAssistants,

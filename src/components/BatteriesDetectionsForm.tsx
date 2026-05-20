@@ -4,6 +4,7 @@ import {
   Battery, AlertTriangle, ChevronRight, ChevronLeft, FileText, Info
 } from 'lucide-react';
 import type { BatteryData, DetectionData, ListsData } from '../types';
+import { generateId } from '../utils/idGenerator';
 
 interface BatteriesDetectionsFormProps {
   onSaveBattery: (data: BatteryData) => void;
@@ -103,7 +104,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
   const handleSaveBattery = async (e: React.FormEvent) => {
     e.preventDefault();
     const now = new Date();
-    onSaveBattery({ id: crypto.randomUUID(), flightId: activeFlightId, timestamp: `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`, ...batteryData });
+    onSaveBattery({ id: generateId('BAT'), flightId: activeFlightId, timestamp: `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`, ...batteryData });
     await window.customAlert('✅ Baterías guardadas con éxito');
     setBatteryData({ pilot: '', droneBatteryName: '', droneBattery: '', controlBatteryName: '', controlBattery: '' });
   };
@@ -112,7 +113,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
     e.preventDefault();
     const now = new Date();
     onSaveDetection({
-      id: crypto.randomUUID(),
+      id: generateId('DET'),
       flightId: activeFlightId,
       timestamp: `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`,
       element: selectedElement,
