@@ -34,6 +34,7 @@ export interface ShiftData {
   vehicle: string;
   drone: string;
   status?: 'active' | 'closed';
+  deviceName?: string;
 }
 
 export interface FlightData {
@@ -44,6 +45,7 @@ export interface FlightData {
   lineName: string;
   authCode: string;
   observations: string;
+  deviceName?: string;
 }
 
 export interface BatteryData {
@@ -55,6 +57,7 @@ export interface BatteryData {
   droneBattery: string;
   controlBatteryName: string; // Alphanumeric ID, max 3 chars
   controlBattery: string;
+  deviceName?: string;
 }
 
 export interface DetectionData {
@@ -67,6 +70,42 @@ export interface DetectionData {
   criticality: string;
   fileName: string;
   observations: string;
+  deviceName?: string;
+}
+
+export interface VehicleChecklistData {
+  id: string;
+  timestamp: string;
+  vehicleId: string;
+  driver: string;
+  mileage: number;
+  checks: {
+    oil: boolean;
+    brakesFluid: boolean;
+    coolant: boolean;
+    steeringFluid: boolean;
+    washerFluid: boolean;
+    tirePressure: boolean;
+    tireWear: boolean;
+    spareWheel: boolean;
+    handbrake: boolean;
+    lights: boolean;
+    mirrors: boolean;
+    horn: boolean;
+    wipers: boolean;
+    seatbelts: boolean;
+    greenCard: boolean;
+    drivingLicense: boolean;
+    fireExtinguisher: boolean;
+    firstAidKit: boolean;
+  };
+  expirations: {
+    fireExtinguisher: string;
+    vtv: string;
+    insurance: string;
+  };
+  observations: string;
+  deviceName?: string;
 }
 
 /* ─── App State ─── */
@@ -75,4 +114,5 @@ export interface AppData {
   flights: FlightData[];
   batteries: BatteryData[];
   detections: DetectionData[];
+  checklists?: VehicleChecklistData[];
 }

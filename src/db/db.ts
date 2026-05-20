@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie';
-import type { ShiftData, FlightData, BatteryData, DetectionData, ListsData } from '../types';
+import type { ShiftData, FlightData, BatteryData, DetectionData, ListsData, VehicleChecklistData } from '../types';
 
 export class MainDatabase extends Dexie {
   shifts!: Table<ShiftData>;
@@ -7,6 +7,7 @@ export class MainDatabase extends Dexie {
   batteries!: Table<BatteryData>;
   detections!: Table<DetectionData>;
   settings!: Table<{ id: string; data: ListsData }>;
+  vehicleChecklists!: Table<VehicleChecklistData>;
 
   constructor() {
     super('TabletCampoDB');
@@ -22,6 +23,10 @@ export class MainDatabase extends Dexie {
       flights: 'id, shiftId, timestamp, pilot',
       batteries: 'id, flightId, timestamp, pilot',
       detections: 'id, flightId, timestamp, element, anomaly'
+    });
+
+    this.version(3).stores({
+      vehicleChecklists: 'id, vehicleId, timestamp'
     });
   }
 }

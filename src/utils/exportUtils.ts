@@ -46,6 +46,7 @@ export const exportToExcel = async (
       ws.columns = [
         { header: 'Fecha', key: 'fecha', width: 14 },
         { header: 'Hora', key: 'hora', width: 12 },
+        { header: 'Dispositivo Origen', key: 'dispositivo', width: 20 },
         { header: 'Nombre de la línea', key: 'linea', width: 25 },
         { header: 'Elemento', key: 'elemento', width: 25 },
         { header: 'Anomalía', key: 'anomalia', width: 25 },
@@ -82,6 +83,7 @@ export const exportToExcel = async (
         const row = ws.addRow({
           fecha,
           hora,
+          dispositivo: det.deviceName || 'Local',
           linea,
           elemento: det.element,
           anomalia: det.anomaly,
@@ -136,6 +138,7 @@ export const exportToExcel = async (
         [
           { header: 'ID', key: 'id', width: 36 },
           { header: 'Fecha/Hora', key: 'timestamp', width: 22 },
+          { header: 'Dispositivo Origen', key: 'deviceName', width: 20 },
           { header: 'Coordinador', key: 'coordinator', width: 25 },
           { header: 'Vehículo', key: 'vehicle', width: 12 },
           { header: 'Dron', key: 'drone', width: 15 },
@@ -148,6 +151,7 @@ export const exportToExcel = async (
         [
           { header: 'ID', key: 'id', width: 36 },
           { header: 'Fecha/Hora', key: 'timestamp', width: 22 },
+          { header: 'Dispositivo Origen', key: 'deviceName', width: 20 },
           { header: 'Piloto', key: 'pilot', width: 25 },
           { header: 'Línea', key: 'lineName', width: 20 },
           { header: 'Código Auth', key: 'authCode', width: 15 },
@@ -161,6 +165,7 @@ export const exportToExcel = async (
         [
           { header: 'ID', key: 'id', width: 36 },
           { header: 'Fecha/Hora', key: 'timestamp', width: 22 },
+          { header: 'Dispositivo Origen', key: 'deviceName', width: 20 },
           { header: 'Piloto', key: 'pilot', width: 25 },
           { header: 'Batería Dron %', key: 'droneBattery', width: 18 },
           { header: 'Batería RC %', key: 'controlBattery', width: 18 },
@@ -176,6 +181,7 @@ export const exportToExcel = async (
     wsDetections.columns = [
       { header: 'Fecha', key: 'fecha', width: 14 },
       { header: 'Hora', key: 'hora', width: 12 },
+      { header: 'Dispositivo Origen', key: 'dispositivo', width: 20 },
       { header: 'Nombre de la línea', key: 'linea', width: 25 },
       { header: 'Elemento', key: 'elemento', width: 25 },
       { header: 'Anomalía', key: 'anomalia', width: 25 },
@@ -211,6 +217,7 @@ export const exportToExcel = async (
       const row = wsDetections.addRow({
         fecha,
         hora,
+        dispositivo: det.deviceName || 'Local',
         linea,
         elemento: det.element,
         anomalia: det.anomaly,
@@ -265,6 +272,7 @@ export const exportToExcel = async (
         [
           { header: 'ID', key: 'id', width: 36 },
           { header: 'Fecha/Hora', key: 'timestamp', width: 22 },
+          { header: 'Dispositivo Origen', key: 'deviceName', width: 20 },
           { header: 'Coordinador', key: 'coordinator', width: 25 },
           { header: 'Vehículo', key: 'vehicle', width: 12 },
           { header: 'Dron', key: 'drone', width: 15 },
@@ -278,6 +286,7 @@ export const exportToExcel = async (
         [
           { header: 'ID', key: 'id', width: 36 },
           { header: 'Fecha/Hora', key: 'timestamp', width: 22 },
+          { header: 'Dispositivo Origen', key: 'deviceName', width: 20 },
           { header: 'Piloto', key: 'pilot', width: 25 },
           { header: 'Línea', key: 'lineName', width: 20 },
           { header: 'Código Auth', key: 'authCode', width: 15 },
@@ -292,6 +301,7 @@ export const exportToExcel = async (
         [
           { header: 'ID', key: 'id', width: 36 },
           { header: 'Fecha/Hora', key: 'timestamp', width: 22 },
+          { header: 'Dispositivo Origen', key: 'deviceName', width: 20 },
           { header: 'Piloto', key: 'pilot', width: 25 },
           { header: 'Batería Dron %', key: 'droneBattery', width: 18 },
           { header: 'Batería RC %', key: 'controlBattery', width: 18 },

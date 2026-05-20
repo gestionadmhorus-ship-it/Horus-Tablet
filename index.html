@@ -16,13 +16,33 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
-      // Register Service Worker for offline capability
+      // Register Service Worker for offline capability (Skip on localhost to prevent stale caching during dev)
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then(() => console.log('✅ Horus SW registered — Offline mode enabled'))
-            .catch((err) => console.log('SW registration failed:', err));
-        });
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+          // Dev cleanup: Unregister service workers and clear cache storage to force fresh loads
+          navigator.serviceWorker.getRegistrations().then((registrations) => {
+            for (const registration of registrations) {
+              registration.unregister().then((success) => {
+                if (success) console.log('🧹 Cleaned up Dev Service Worker from localhost');
+              });
+            }
+          });
+          if ('caches' in window) {
+            caches.keys().then((keys) => {
+              keys.forEach((key) => {
+                caches.delete(key).then(() => {
+                  console.log('🧹 Cleaned Cache Storage:', key);
+                });
+              });
+            });
+          }
+        } else {
+          window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js')
+              .then(() => console.log('✅ Horus SW registered — Offline mode enabled'))
+              .catch((err) => console.log('SW registration failed:', err));
+          });
+        }
       }
     </script>
   </body>

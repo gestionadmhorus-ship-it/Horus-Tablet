@@ -9,6 +9,8 @@ interface SettingsPanelProps {
   lists: ListsData;
   onUpdate: (lists: ListsData) => void;
   onClose: () => void;
+  deviceName: string;
+  onDeviceNameChange: (val: string) => void;
 }
 
 /* ─── Flat list categories (no elements/anomalies) ─── */
@@ -59,7 +61,8 @@ function parsePaste(text: string): { entry: ElementEntry; warnings: string[] } |
 }
 
 /* ═══════════════ COMPONENT ═══════════════ */
-const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose }) => {
+const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose, deviceName, onDeviceNameChange }) => {
+
   /* ─── Flat lists state ─── */
   const [flatInputs, setFlatInputs] = useState<Record<FlatKey, string>>(
     Object.fromEntries(flatCategories.map(c => [c.key, ''])) as Record<FlatKey, string>
@@ -204,6 +207,42 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose 
         <div style={{ flex: 1, overflowY: 'auto', padding: '1rem' }}>
 
           {/* ══════ TAB: FLAT LISTS ══════ */}
+          {activeTab === 'lists' && (
+            <div style={{ ...sectionStyle, padding: '1.25rem', border: '1px solid rgba(0,242,255,0.25)', boxShadow: '0 0 15px rgba(0,242,255,0.05)', marginBottom: '1.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.9rem' }}>
+                <span style={{ fontSize: '1.2rem' }}>🏷️</span>
+                <div>
+                  <p style={{ margin: 0, fontWeight: 700, fontSize: '0.92rem', color: 'white' }}>Nombre del Dispositivo</p>
+                  <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                    Identifica de qué tablet proviene cada registro.
+                  </p>
+                </div>
+              </div>
+              <input
+                type="text"
+                value={deviceName}
+                onChange={e => onDeviceNameChange(e.target.value)}
+                placeholder="Ej: Tablet Alfa, Tablet Beta..."
+                maxLength={30}
+                style={{ width: '100%', fontSize: '0.88rem', padding: '10px 12px' }}
+              />
+              {deviceName.trim() !== '' && (
+                <div style={{
+                  marginTop: '0.6rem',
+                  fontSize: '0.78rem',
+                  color: '#00f2ff',
+                  fontWeight: 900,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.3rem',
+                  textShadow: '0 0 10px rgba(0, 242, 255, 0.4)',
+                  letterSpacing: '0.5px'
+                }}>
+                  ✓ IDENTIDAD ACTIVA GUARDADA Y PERSISTIDA
+                </div>
+              )}
+            </div>
+          )}
           {activeTab === 'lists' && flatCategories.map(cat => (
             <div key={cat.key} style={sectionStyle}>
               <button

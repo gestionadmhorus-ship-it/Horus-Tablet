@@ -3,8 +3,10 @@ import Dashboard from './components/Dashboard';
 import ShiftForm from './components/ShiftForm';
 import FlightForm from './components/FlightForm';
 import BatteriesDetectionsForm from './components/BatteriesDetectionsForm';
+import VehicleChecklistForm from './components/VehicleChecklistForm';
 import SettingsPanel from './components/SettingsPanel';
 import RecordsExplorer from './components/RecordsExplorer';
+import { SyncModal } from './components/SyncModal';
 import { useDatabase } from './hooks/useDatabase';
 import { exportToExcel, exportToJSON } from './utils/exportUtils';
 import { FileJson, Table, X, CheckCircle, Power } from 'lucide-react';
@@ -25,12 +27,30 @@ function App() {
     saveFlight, updateFlight, deleteFlight,
     saveBattery, updateBattery, deleteBattery,
     saveDetection, updateDetection, deleteDetection,
-    updateLists 
+    saveChecklist, updateChecklist, deleteChecklist,
+    updateLists,
+    syncIncomingData
   } = useDatabase();
   
   const [showExportModal, setShowExportModal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [isNewFlightRequested, setIsNewFlightRequested] = useState<boolean>(false);
+  const [editingChecklist, setEditingChecklist] = useState<any>(undefined);
+  const [showSyncModal, setShowSyncModal] = useState(false);
+  const [deviceName, setDeviceName] = useState(() => {
+    let name = localStorage.getItem('horus_device_name');
+    if (!name || !name.trim()) {
+      const generated = `Tablet-${Math.floor(1000 + Math.random() * 9000)}`;
+      localStorage.setItem('horus_device_name', generated);
+      name = generated;
+    }
+    return name;
+  });
+
+  const handleDeviceNameChange = (val: string) => {
+    setDeviceName(val);
+    localStorage.setItem('horus_device_name', val);
+  };
 
   // Reusable custom dialog state
   const [dialog, setDialog] = useState<{
@@ -72,12 +92,40 @@ function App() {
 
   const totalRecords = data.shifts.length + data.flights.length + data.batteries.length + data.detections.length;
 
+  // Helper to chronologically parse locale timestamps like "20/5/2026 07:15:54"
+  const getChronologicalTime = (timestamp: string): number => {
+    if (!timestamp) return 0;
+    const [datePart, timePart, period] = timestamp.split(' ');
+    if (!datePart) return 0;
+    
+    const dateSplit = datePart.split(/[-/]/);
+    if (dateSplit.length === 3) {
+      let d = parseInt(dateSplit[0], 10);
+      let m = parseInt(dateSplit[1], 10);
+      let y = parseInt(dateSplit[2], 10);
+      if (y < 100) y += 2000;
+      // Heuristic: if d > 12, format is dd/mm/yyyy. Otherwise assume dd/mm/yyyy for Argentina context.
+      if (d > 12 || m <= 12) {
+        const timeStr = (timePart || '00:00:00') + (period ? ` ${period}` : '');
+        const isoStr = `${y}-${m.toString().padStart(2, '0')}-${d.toString().padStart(2, '0')} ${timeStr}`;
+        const parsed = new Date(isoStr).getTime();
+        if (!isNaN(parsed)) return parsed;
+      }
+    }
+    // Fallback
+    const fallback = new Date(timestamp).getTime();
+    return isNaN(fallback) ? 0 : fallback;
+  };
+
   // ─── Determine active shift by date + status ───
   const activeLists = { ...lists };
   let activeShiftId: string | undefined;
   
   const todayDateStr = new Date().toLocaleDateString();
-  const latestShift = data.shifts.length > 0 ? data.shifts[data.shifts.length - 1] : undefined;
+  
+  // Sort shifts chronologically before finding the latest
+  const sortedShifts = [...data.shifts].sort((a, b) => getChronologicalTime(a.timestamp) - getChronologicalTime(b.timestamp));
+  const latestShift = sortedShifts.length > 0 ? sortedShifts[sortedShifts.length - 1] : undefined;
 
   // Check if the latest shift is from today but closed (for "Reabrir" button)
   const hasTodayClosedShift = !!(latestShift 
@@ -103,7 +151,9 @@ function App() {
   let activeFlightData: import('./types').FlightData | undefined;
 
   if (data.flights.length > 0) {
-    const latestFlight = data.flights[data.flights.length - 1];
+    // Sort flights chronologically before finding the latest
+    const sortedFlights = [...data.flights].sort((a, b) => getChronologicalTime(a.timestamp) - getChronologicalTime(b.timestamp));
+    const latestFlight = sortedFlights[sortedFlights.length - 1];
     if (activeShiftId && latestFlight && latestFlight.shiftId === activeShiftId) {
       activeFlightId = latestFlight.id;
       activeFlightName = latestFlight.lineName;
@@ -145,6 +195,7 @@ function App() {
               setCurrentPage(page);
             }}
             onSettings={() => setShowSettings(true)}
+            onOpenSync={() => setShowSyncModal(true)}
             hasActiveShift={!!activeShiftId}
             hasActiveFlight={!!activeFlightId}
             onCloseShift={handleCloseShift}
@@ -154,6 +205,11 @@ function App() {
             activeFlightName={activeFlightName}
             onEditShift={handleEditShift}
             onEditFlight={handleEditFlight}
+            onNewFlight={() => {
+              setIsNewFlightRequested(true);
+              setCurrentPage('flight');
+            }}
+            deviceName={deviceName}
           />
         );
       case 'shift':
@@ -191,6 +247,24 @@ function App() {
             activeFlightName={activeFlightName}
           />
         );
+      case 'checklist':
+        return (
+          <VehicleChecklistForm
+            onSave={saveChecklist}
+            onUpdate={updateChecklist}
+            onBack={() => {
+              if (editingChecklist) {
+                setEditingChecklist(undefined);
+                setCurrentPage('explorer');
+              } else {
+                setCurrentPage('dashboard');
+              }
+            }}
+            lists={lists}
+            history={data.checklists || []}
+            editData={editingChecklist}
+          />
+        );
       case 'explorer':
         return (
           <RecordsExplorer 
@@ -205,6 +279,14 @@ function App() {
             onDeleteBattery={deleteBattery}
             onUpdateDetection={updateDetection}
             onDeleteDetection={deleteDetection}
+            onUpdateChecklist={updateChecklist}
+            onDeleteChecklist={deleteChecklist}
+            onViewChecklist={(item) => {
+              setEditingChecklist(item);
+              setCurrentPage('checklist');
+            }}
+            onSyncReceived={syncIncomingData}
+            onOpenSync={() => setShowSyncModal(true)}
           />
         );
       default:
@@ -215,6 +297,7 @@ function App() {
               setCurrentPage(page);
             }}
             onSettings={() => setShowSettings(true)}
+            onOpenSync={() => setShowSyncModal(true)}
             hasActiveShift={!!activeShiftId}
             hasActiveFlight={!!activeFlightId}
             onCloseShift={handleCloseShift}
@@ -224,6 +307,11 @@ function App() {
             activeFlightName={activeFlightName}
             onEditShift={handleEditShift}
             onEditFlight={handleEditFlight}
+            onNewFlight={() => {
+              setIsNewFlightRequested(true);
+              setCurrentPage('flight');
+            }}
+            deviceName={deviceName}
           />
         );
     }
@@ -241,6 +329,11 @@ function App() {
 
   return (
     <div style={appStyle}>
+      {/* Global Logo - Visible on all screens, hidden in print */}
+      <div className="no-print" style={{ position: 'absolute', top: '1.5rem', left: '2rem', zIndex: 1000, pointerEvents: 'none' }}>
+        <img src="/logo_horus_nuevo.png" alt="Horus Logo" style={{ height: '45px', filter: 'drop-shadow(0px 0px 10px rgba(0,0,0,0.8))' }} />
+      </div>
+
       {renderPage()}
 
       {/* Settings Panel */}
@@ -249,8 +342,18 @@ function App() {
           lists={lists}
           onUpdate={updateLists}
           onClose={() => setShowSettings(false)}
+          deviceName={deviceName}
+          onDeviceNameChange={handleDeviceNameChange}
         />
       )}
+
+      {/* Global Sync Modal */}
+      <SyncModal
+        isOpen={showSyncModal}
+        onClose={() => setShowSyncModal(false)}
+        data={data}
+        onSyncReceived={syncIncomingData}
+      />
 
       {/* Export Modal */}
       {showExportModal && (

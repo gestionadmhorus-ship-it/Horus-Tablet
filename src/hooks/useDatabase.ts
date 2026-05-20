@@ -9,6 +9,7 @@ export function useDatabase() {
   const flights = useLiveQuery(() => db.flights.toArray()) || [];
   const batteries = useLiveQuery(() => db.batteries.toArray()) || [];
   const detections = useLiveQuery(() => db.detections.toArray()) || [];
+  const checklists = useLiveQuery(() => db.vehicleChecklists.toArray()) || [];
   
   // 2. Settings management (ListsData)
   const settingsRow = useLiveQuery(() => db.settings.get('current'));
@@ -32,6 +33,7 @@ export function useDatabase() {
         try {
           const localLists = JSON.parse(localListsStr);
           await db.settings.put({ id: 'current', data: localLists });
+          localStorage.removeItem('field_ops_lists_v3');
           console.log('✅ Lists migrated from Legacy Storage');
         } catch (e) { console.error('Migration error (lists):', e); }
       }
@@ -48,34 +50,81 @@ export function useDatabase() {
             await db.detections.bulkAdd(localData.detections);
             console.log('✅ Record data migrated to Database');
           }
+          localStorage.removeItem('field_ops_data_v2');
         } catch (e) { console.error('Migration error (data):', e); }
       }
     };
     migrate();
   }, [settingsRow]);
 
+  const getDeviceName = () => {
+    let name = localStorage.getItem('horus_device_name');
+    if (!name || !name.trim()) {
+      const generated = `Tablet-${Math.floor(1000 + Math.random() * 9000)}`;
+      localStorage.setItem('horus_device_name', generated);
+      name = generated;
+    }
+    return name;
+  };
+
   // 4. Save/Update/Delete functions
-  const saveShift = (item: ShiftData) => db.shifts.add(item);
-  const updateShift = (item: ShiftData) => db.shifts.put(item);
+  const saveShift = (item: ShiftData) => db.shifts.add({ ...item, deviceName: item.deviceName || getDeviceName() });
+  const updateShift = (item: ShiftData) => db.shifts.put({ ...item, deviceName: item.deviceName || getDeviceName() });
   const deleteShift = (id: string) => db.shifts.delete(id);
 
-  const saveFlight = (item: FlightData) => db.flights.add(item);
-  const updateFlight = (item: FlightData) => db.flights.put(item);
+  const saveFlight = (item: FlightData) => db.flights.add({ ...item, deviceName: item.deviceName || getDeviceName() });
+  const updateFlight = (item: FlightData) => db.flights.put({ ...item, deviceName: item.deviceName || getDeviceName() });
   const deleteFlight = (id: string) => db.flights.delete(id);
 
-  const saveBattery = (item: BatteryData) => db.batteries.add(item);
-  const updateBattery = (item: BatteryData) => db.batteries.put(item);
+  const saveBattery = (item: BatteryData) => db.batteries.add({ ...item, deviceName: item.deviceName || getDeviceName() });
+  const updateBattery = (item: BatteryData) => db.batteries.put({ ...item, deviceName: item.deviceName || getDeviceName() });
   const deleteBattery = (id: string) => db.batteries.delete(id);
 
-  const saveDetection = (item: DetectionData) => db.detections.add(item);
-  const updateDetection = (item: DetectionData) => db.detections.put(item);
+  const saveDetection = (item: DetectionData) => db.detections.add({ ...item, deviceName: item.deviceName || getDeviceName() });
+  const updateDetection = (item: DetectionData) => db.detections.put({ ...item, deviceName: item.deviceName || getDeviceName() });
   const deleteDetection = (id: string) => db.detections.delete(id);
   
+  const saveChecklist = (item: any) => db.vehicleChecklists.add({ ...item, deviceName: item.deviceName || getDeviceName() });
+  const updateChecklist = (item: any) => db.vehicleChecklists.put({ ...item, deviceName: item.deviceName || getDeviceName() });
+  const deleteChecklist = (id: string) => db.vehicleChecklists.delete(id);
+  
   const updateLists = (newList: ListsData) => db.settings.put({ id: 'current', data: newList });
+ 
+  // ─── Transactional merger for incoming P2P data payload ───
+  const syncIncomingData = async (incoming: AppData) => {
+    await db.transaction('rw', [db.shifts, db.flights, db.batteries, db.detections, db.vehicleChecklists], async () => {
+      if (incoming.shifts && incoming.shifts.length > 0) {
+        for (const item of incoming.shifts) {
+          await db.shifts.put(item);
+        }
+      }
+      if (incoming.flights && incoming.flights.length > 0) {
+        for (const item of incoming.flights) {
+          await db.flights.put(item);
+        }
+      }
+      if (incoming.batteries && incoming.batteries.length > 0) {
+        for (const item of incoming.batteries) {
+          await db.batteries.put(item);
+        }
+      }
+      if (incoming.detections && incoming.detections.length > 0) {
+        for (const item of incoming.detections) {
+          await db.detections.put(item);
+        }
+      }
+      const checklistsToSync = incoming.checklists || (incoming as any).vehicleChecklists;
+      if (checklistsToSync && checklistsToSync.length > 0) {
+        for (const item of checklistsToSync) {
+          await db.vehicleChecklists.put(item);
+        }
+      }
+    });
+  };
 
   // 5. Aggregate object for export
-  const fullData: AppData = { shifts, flights, batteries, detections };
-
+  const fullData: AppData = { shifts, flights, batteries, detections, checklists };
+ 
   return {
     fullData,
     lists,
@@ -83,6 +132,8 @@ export function useDatabase() {
     saveFlight, updateFlight, deleteFlight,
     saveBattery, updateBattery, deleteBattery,
     saveDetection, updateDetection, deleteDetection,
-    updateLists
+    saveChecklist, updateChecklist, deleteChecklist,
+    updateLists,
+    syncIncomingData
   };
 }

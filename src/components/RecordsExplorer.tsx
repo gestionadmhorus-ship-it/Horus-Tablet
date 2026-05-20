@@ -1,9 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import { 
   ArrowLeft, Search, Calendar, Edit2, Trash2, 
-  Download, LayoutDashboard, Plane, Cpu, AlertTriangle, Save, X
+  Download, LayoutDashboard, Plane, Cpu, AlertTriangle, Save, X, ShieldCheck, Printer,
+  RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import PrintableChecklistBatch from './PrintableChecklistBatch';
 import type { 
   ShiftData, FlightData, BatteryData, DetectionData, AppData, ListsData 
 } from '../types';
@@ -21,9 +23,14 @@ interface RecordsExplorerProps {
   onDeleteBattery: (id: string) => void;
   onUpdateDetection: (item: DetectionData) => void;
   onDeleteDetection: (id: string) => void;
+  onUpdateChecklist?: (item: any) => void;
+  onDeleteChecklist?: (id: string) => void;
+  onViewChecklist?: (item: any) => void;
+  onSyncReceived?: (incomingData: AppData) => Promise<void>;
+  onOpenSync?: () => void;
 }
 
-type RecordType = 'shifts' | 'flights' | 'batteries' | 'detections';
+type RecordType = 'shifts' | 'flights' | 'batteries' | 'detections' | 'checklists';
 
 const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
   const [activeTable, setActiveTable] = useState<RecordType>('flights');
@@ -76,7 +83,8 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
           { value: 'coordinator', label: 'Coordinador' },
           { value: 'vehicle', label: 'Vehículo' },
           { value: 'drone', label: 'Dron' },
-          { value: 'assistants', label: 'Asistentes' }
+          { value: 'assistants', label: 'Asistentes' },
+          { value: 'deviceName', label: 'Dispositivo Origen' }
         ];
       case 'flights':
         return [
@@ -86,7 +94,8 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
           { value: 'authCode', label: 'Código Auth' },
           { value: 'coordinator', label: 'Coordinador' },
           { value: 'vehicle', label: 'Vehículo' },
-          { value: 'drone', label: 'Dron' }
+          { value: 'drone', label: 'Dron' },
+          { value: 'deviceName', label: 'Dispositivo Origen' }
         ];
       case 'batteries':
         return [
@@ -97,7 +106,8 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
           { value: 'controlBattery', label: 'Batería RC' },
           { value: 'coordinator', label: 'Coordinador' },
           { value: 'vehicle', label: 'Vehículo' },
-          { value: 'drone', label: 'Dron' }
+          { value: 'drone', label: 'Dron' },
+          { value: 'deviceName', label: 'Dispositivo Origen' }
         ];
       case 'detections':
         return [
@@ -111,7 +121,16 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
           { value: 'observations', label: 'Observaciones' },
           { value: 'coordinator', label: 'Coordinador' },
           { value: 'vehicle', label: 'Vehículo' },
-          { value: 'drone', label: 'Dron' }
+          { value: 'drone', label: 'Dron' },
+          { value: 'deviceName', label: 'Dispositivo Origen' }
+        ];
+      case 'checklists':
+        return [
+          { value: 'all', label: 'Todos los campos' },
+          { value: 'vehicleId', label: 'Unidad' },
+          { value: 'driver', label: 'Responsable' },
+          { value: 'observations', label: 'Observaciones' },
+          { value: 'deviceName', label: 'Dispositivo Origen' }
         ];
       default:
         return [{ value: 'all', label: 'Todos los campos' }];
@@ -189,14 +208,18 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
       if (searchField === 'fileName') return (item.fileName || '').toLowerCase().includes(term);
       if (searchField === 'droneBattery') return String(item.droneBattery || '').includes(term);
       if (searchField === 'controlBattery') return String(item.controlBattery || '').includes(term);
+      if (searchField === 'vehicleId') return (item.vehicleId || '').toLowerCase().includes(term);
+      if (searchField === 'driver') return (item.driver || '').toLowerCase().includes(term);
+      if (searchField === 'deviceName') return (item.deviceName || '').toLowerCase().includes(term);
 
       return false;
     }).sort((a, b) => b.timestamp.localeCompare(a.timestamp));
   }, [props.data, activeTable, searchTerm, searchField, startDate, endDate, flightMap, shiftMap]);
 
   const handleExportFiltered = () => {
+    if (activeTable === 'checklists') return;
     exportToExcel(props.data, {
-      activeTable,
+      activeTable: activeTable as any,
       filteredData
     });
   };
@@ -208,6 +231,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
     if (activeTable === 'flights') props.onDeleteFlight(id);
     if (activeTable === 'batteries') props.onDeleteBattery(id);
     if (activeTable === 'detections') props.onDeleteDetection(id);
+    if (activeTable === 'checklists' && props.onDeleteChecklist) props.onDeleteChecklist(id);
   };
 
   const handleSaveEdit = (updatedData: any) => {
@@ -215,16 +239,24 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
     if (activeTable === 'flights') props.onUpdateFlight(updatedData);
     if (activeTable === 'batteries') props.onUpdateBattery(updatedData);
     if (activeTable === 'detections') props.onUpdateDetection(updatedData);
+    if (activeTable === 'checklists' && props.onUpdateChecklist) props.onUpdateChecklist(updatedData);
     setEditingRecord(null);
   };
 
   return (
     <div className="container" style={{ maxWidth: '1300px', paddingBottom: '5rem' }}>
+      {/* Hide UI when printing bulk checklists */}
+      <div className="records-explorer-ui">
       {/* Header Navigation */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '3rem', borderBottom: '2px solid rgba(255,255,255,0.1)', paddingBottom: '2rem' }}>
-        <button onClick={props.onBack} className="btn-3d" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: '#000', color: 'var(--primary)', border: '1px solid var(--primary)', padding: '1rem 2rem' }}>
-          <ArrowLeft size={20} /> VOLVER AL MENÚ
-        </button>
+        <div style={{ display: 'flex', gap: '1rem' }}>
+          <button onClick={props.onBack} className="btn-3d" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: '#000', color: 'var(--primary)', border: '1px solid var(--primary)', padding: '1rem 2rem' }}>
+            <ArrowLeft size={20} /> VOLVER AL MENÚ
+          </button>
+          <button onClick={props.onOpenSync} className="btn-3d" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'rgba(0,255,136,0.1)', color: '#00ff88', border: '1px solid #00ff88', padding: '1rem 2rem' }}>
+            <RefreshCw size={20} /> SINCRONIZAR
+          </button>
+        </div>
         <div style={{ textAlign: 'right' }}>
           <h2 style={{ fontSize: '2.5rem', fontWeight: 900, margin: 0, color: 'white', textTransform: 'uppercase' }}>Historial Técnico</h2>
           <p style={{ color: 'var(--primary)', fontWeight: 900, margin: 0, letterSpacing: '4px', background: '#000', display: 'inline-block', padding: '2px 10px', fontSize: '0.8rem', border: '1px solid var(--primary)' }}>HORUS DRON</p>
@@ -238,6 +270,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
           { id: 'flights', label: 'Vuelos', icon: Plane },
           { id: 'batteries', label: 'Baterías', icon: Cpu },
           { id: 'detections', label: 'Detecciones', icon: AlertTriangle },
+          { id: 'checklists', label: 'Inspecciones', icon: ShieldCheck },
         ].map(tab => (
           <button
             key={tab.id}
@@ -329,9 +362,18 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
             />
           </div>
         </div>
-        <button onClick={handleExportFiltered} className="btn-3d" style={{ width: '100%', height: '58px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem' }}>
-          <Download size={24} /> EXPORTAR
-        </button>
+        <div style={{ display: 'flex', gap: '0.5rem', flexDirection: 'column', height: '100%', justifyContent: 'flex-end' }}>
+          {activeTable === 'checklists' && (
+            <button onClick={() => window.print()} className="btn-3d" style={{ width: '100%', height: '58px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', background: '#ff6600', color: 'black', border: '1px solid #ff6600' }}>
+              <Printer size={18} /> IMPRIMIR LOTES
+            </button>
+          )}
+          {activeTable !== 'checklists' && (
+            <button onClick={handleExportFiltered} className="btn-3d" style={{ width: '100%', height: '58px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem' }}>
+              <Download size={20} /> EXPORTAR
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Records Table */}
@@ -345,6 +387,8 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
                 {activeTable === 'flights' && <><th style={{ padding: '1.2rem', color: 'white' }}>Piloto</th><th style={{ padding: '1.2rem', color: 'white' }}>Línea</th><th style={{ padding: '1.2rem', color: 'white' }}>Obs.</th></>}
                 {activeTable === 'batteries' && <><th style={{ padding: '1.2rem', color: 'white' }}>Piloto</th><th style={{ padding: '1.2rem', color: 'white' }}>ID Dron</th><th style={{ padding: '1.2rem', color: 'white' }}>Bat. Dron</th><th style={{ padding: '1.2rem', color: 'white' }}>ID RC</th><th style={{ padding: '1.2rem', color: 'white' }}>Bat. RC</th></>}
                 {activeTable === 'detections' && <><th style={{ padding: '1.2rem', color: 'white' }}>Elemento</th><th style={{ padding: '1.2rem', color: 'white' }}>Anomalía</th><th style={{ padding: '1.2rem', color: 'white' }}>Criticidad</th></>}
+                {activeTable === 'checklists' && <><th style={{ padding: '1.2rem', color: 'white' }}>Unidad</th><th style={{ padding: '1.2rem', color: 'white' }}>Responsable</th><th style={{ padding: '1.2rem', color: 'white' }}>Kilometraje</th></>}
+                <th style={{ padding: '1.2rem', color: 'white' }}>Origen</th>
                 <th style={{ padding: '1.2rem', textAlign: 'right', color: 'white' }}>Acciones</th>
               </tr>
             </thead>
@@ -396,13 +440,43 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
                       </td>
                     </>
                   )}
+                  {activeTable === 'checklists' && (
+                    <>
+                      <td style={{ padding: '1.2rem', color: 'white', fontWeight: 800 }}>{item.vehicleId}</td>
+                      <td style={{ padding: '1.2rem', color: 'white' }}>{item.driver}</td>
+                      <td style={{ padding: '1.2rem', color: '#ff6600', fontWeight: 800 }}>{item.mileage} km</td>
+                    </>
+                  )}
+
+                  <td style={{ padding: '1.2rem', color: '#a0aec0', fontSize: '0.85rem', fontWeight: 600 }}>
+                    {item.deviceName ? (
+                      <span style={{ color: '#00f2ff', border: '1px solid rgba(0,242,255,0.2)', padding: '2px 8px', borderRadius: '4px', background: 'rgba(0,242,255,0.05)', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '0.5px' }}>
+                        {item.deviceName}
+                      </span>
+                    ) : (
+                      <span style={{ opacity: 0.5 }}>Local</span>
+                    )}
+                  </td>
 
                   <td style={{ padding: '1.2rem', textAlign: 'right' }}>
                     <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
                       <button 
-                        onClick={() => setEditingRecord({ type: activeTable, data: item })}
-                        style={{ background: 'rgba(240,196,25,0.1)', border: '1px solid var(--primary)', borderRadius: '4px', color: 'var(--primary)', padding: '10px', cursor: 'pointer' }}
-                        title="Editar"
+                        onClick={() => {
+                          if (activeTable === 'checklists' && props.onViewChecklist) {
+                            props.onViewChecklist(item);
+                          } else {
+                            setEditingRecord({ type: activeTable, data: item });
+                          }
+                        }}
+                        style={{ 
+                          background: activeTable === 'checklists' ? 'rgba(255,102,0,0.1)' : 'rgba(240,196,25,0.1)', 
+                          border: activeTable === 'checklists' ? '1px solid #ff6600' : '1px solid var(--primary)', 
+                          borderRadius: '4px', 
+                          color: activeTable === 'checklists' ? '#ff6600' : 'var(--primary)', 
+                          padding: '10px', 
+                          cursor: 'pointer' 
+                        }}
+                        title={activeTable === 'checklists' ? "Ver Planilla Completa / Imprimir" : "Editar"}
                       >
                         <Edit2 size={18} />
                       </button>
@@ -419,7 +493,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
               ))}
               {filteredData.length === 0 && (
                 <tr>
-                  <td colSpan={6} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                  <td colSpan={7} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
                     No se encontraron registros con los filtros aplicados.
                   </td>
                 </tr>
@@ -441,6 +515,14 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
           />
         )}
       </AnimatePresence>
+      </div> {/* end records-explorer-ui */}
+
+      {/* Render the printable batch strictly for checklists, hidden from screen via CSS */}
+      {activeTable === 'checklists' && (
+        <PrintableChecklistBatch data={filteredData as any} />
+      )}
+
+
     </div>
   );
 };
@@ -571,6 +653,31 @@ const EditModal: React.FC<{
               <div>
                 <label>Observaciones</label>
                 <textarea value={formData.observations} onChange={e => setFormData({ ...formData, observations: e.target.value })} rows={3} />
+              </div>
+            </>
+          )}
+
+          {type === 'checklists' && (
+            <>
+              <div className="grid-cols-2">
+                <div>
+                  <label>Unidad</label>
+                  <input type="text" value={formData.vehicleId || ''} onChange={e => setFormData({ ...formData, vehicleId: e.target.value })} />
+                </div>
+                <div>
+                  <label>Responsable</label>
+                  <input type="text" value={formData.driver || ''} onChange={e => setFormData({ ...formData, driver: e.target.value })} />
+                </div>
+              </div>
+              <div className="grid-cols-2">
+                <div>
+                  <label>Kilometraje</label>
+                  <input type="number" value={formData.mileage || ''} onChange={e => setFormData({ ...formData, mileage: e.target.value })} />
+                </div>
+              </div>
+              <div>
+                <label>Observaciones</label>
+                <textarea value={formData.observations || ''} onChange={e => setFormData({ ...formData, observations: e.target.value })} rows={3} />
               </div>
             </>
           )}
