@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Server, User } from 'lucide-react';
 import type { AppRole } from '../types';
 import { Html5Qrcode } from 'html5-qrcode';
@@ -26,44 +26,59 @@ export function RoleSetup({ onComplete }: RoleSetupProps) {
     setScanning(true);
   };
 
+  // Stable ref for onComplete to avoid re-running the effect on every render
+  const onCompleteRef = useRef(onComplete);
+  useEffect(() => { onCompleteRef.current = onComplete; }, [onComplete]);
+
   useEffect(() => {
     if (!scanning) return;
 
-    const qrScanner = new Html5Qrcode("reader");
+    const qrScanner = new Html5Qrcode('reader');
+    // Guard flag: ensures stop() is called exactly once
+    let isStopping = false;
 
-    // Start directly with the environment (back) camera — no UI, no prompt
-    qrScanner.start(
-      { facingMode: "environment" },
-      { fps: 10, qrbox: { width: 250, height: 250 } },
-      (decodedText) => {
-        qrScanner.stop().then(() => {
+    const handleSuccess = (decodedText: string) => {
+      if (isStopping) return;
+      isStopping = true;
+      qrScanner.stop()
+        .catch(() => {})
+        .finally(() => {
           setScanning(false);
-          onComplete('client', deviceName.trim(), decodedText, undefined);
+          onCompleteRef.current('client', deviceName.trim(), decodedText, undefined);
         });
-      },
-      () => {
-        // Ignore per-frame decode errors (normal when no QR in frame)
-      }
-    ).catch((err) => {
-      console.error('Camera start error:', err);
-      // Fallback: if environment camera fails, try any available camera
-      qrScanner.start(
-        { facingMode: "user" },
-        { fps: 10, qrbox: { width: 250, height: 250 } },
-        (decodedText) => {
-          qrScanner.stop().then(() => {
-            setScanning(false);
-            onComplete('client', deviceName.trim(), decodedText, undefined);
-          });
-        },
-        () => {}
-      ).catch(console.error);
-    });
+    };
+
+    const startScanner = () => {
+      qrScanner
+        .start(
+          { facingMode: 'environment' },
+          { fps: 10, qrbox: { width: 250, height: 250 } },
+          handleSuccess,
+          () => {} // per-frame error: ignore
+        )
+        .catch(() => {
+          // Fallback: front camera if no back camera available
+          qrScanner
+            .start(
+              { facingMode: 'user' },
+              { fps: 10, qrbox: { width: 250, height: 250 } },
+              handleSuccess,
+              () => {}
+            )
+            .catch(console.error);
+        });
+    };
+
+    startScanner();
 
     return () => {
-      qrScanner.stop().catch(() => {});
+      // Cleanup: only stop if not already stopping from success callback
+      if (!isStopping) {
+        isStopping = true;
+        qrScanner.stop().catch(() => {});
+      }
     };
-  }, [scanning, deviceName, onComplete]);
+  }, [scanning, deviceName]); // onComplete excluded — using ref above
 
   const handleCompleteServer = () => {
     const myId = generateUUID();

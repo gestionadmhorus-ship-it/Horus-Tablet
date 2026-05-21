@@ -94,11 +94,18 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
   }, []);
 
   const removeKnownClient = async (client: string) => {
-    const ok = await window.customConfirm(`¿Eliminar al explorador "${client}" de la red? Deberá escanear el QR nuevamente para reconectarse.`);
+    const ok = await window.customConfirm(`¿Eliminar al explorador "${client}" de la red?\nNo podrá sincronizar hasta que sea retirado del bloqueo.`);
     if (!ok) return;
-    const updated = knownClients.filter(c => c !== client);
-    localStorage.setItem('horus_known_clients', JSON.stringify(updated));
-    setKnownClients(updated);
+    // 1. Remove from known list (UI)
+    const updatedKnown = knownClients.filter(c => c !== client);
+    localStorage.setItem('horus_known_clients', JSON.stringify(updatedKnown));
+    setKnownClients(updatedKnown);
+    // 2. Add to blocked list so useAutoSync rejects future reconnections
+    const currentBlocked: string[] = JSON.parse(localStorage.getItem('horus_blocked_clients') || '[]');
+    if (!currentBlocked.includes(client)) {
+      currentBlocked.push(client);
+      localStorage.setItem('horus_blocked_clients', JSON.stringify(currentBlocked));
+    }
   };
 
   const handleUnbindClient = async () => {
