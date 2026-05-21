@@ -1,12 +1,17 @@
 {
-  "appId": "com.horus.tableta-campo",
-  "productName": "Horus Tablet Campo - Jefe",
+  "appId": "com.horus.hermes2",
+  "productName": "Hermes II",
+  "copyright": "Horus Dron — Imágenes Aéreas",
+  "extraMetadata": {
+    "main": "dist-electron/main.js"
+  },
   "directories": {
     "output": "release-electron"
   },
   "files": [
     "dist/**/*",
-    "dist-electron/**/*"
+    "dist-electron/**/*",
+    "!node_modules/**/*"
   ],
   "win": {
     "target": "nsis",
@@ -16,6 +21,6 @@
     "oneClick": false,
     "allowToChangeInstallationDirectory": true,
     "createDesktopShortcut": true,
-    "shortcutName": "Horus Jefe"
+    "shortcutName": "Hermes II"
   }
 }

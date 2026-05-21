@@ -1,8 +1,11 @@
 {
   "name": "tablet-campo",
   "private": true,
-  "version": "0.0.0",
+  "version": "2.0.0",
   "type": "module",
+  "description": "Hermes II — Sistema de inspección de campo para Horus Dron",
+  "author": "Horus Dron",
+  "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
