@@ -1,7 +1,7 @@
 {
-  "name": "Horus Tablet Campo",
-  "short_name": "Horus Campo",
-  "description": "Sistema táctico de operaciones de campo con drones",
+  "name": "Hermes II — Horus Dron",
+  "short_name": "Hermes II",
+  "description": "Sistema de inspección de campo con drones — Horus Dron Imágenes Aéreas",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0A0F1A",
@@ -22,3 +22,4 @@
     }
   ]
 }
+
