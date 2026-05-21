@@ -5,7 +5,6 @@ import { motion } from 'framer-motion';
 interface DashboardProps {
   onNavigate: (page: string) => void;
   onSettings: () => void;
-  onOpenSync: () => void;
   hasActiveShift: boolean;
   hasActiveFlight: boolean;
   onCloseShift: () => void;
@@ -17,12 +16,14 @@ interface DashboardProps {
   onEditFlight: () => void;
   onNewFlight: () => void;
   deviceName?: string;
+  syncStatus?: string;
+  appRole?: string | null;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ 
-  onNavigate, onSettings, onOpenSync, hasActiveShift, hasActiveFlight, onCloseShift, 
+  onNavigate, onSettings, hasActiveShift, hasActiveFlight, onCloseShift, 
   onReopenShift, hasTodayClosedShift, activeShiftId, activeFlightName,
-  onEditShift, onEditFlight, onNewFlight, deviceName
+  onEditShift, onEditFlight, onNewFlight, deviceName, syncStatus, appRole
 }) => {
   const [currentTime, setCurrentTime] = React.useState(new Date());
 
@@ -342,29 +343,26 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* Top-right settings button */}
-      <div className="dashboard-top-actions" style={{ position: 'fixed', top: '2rem', right: '2rem', display: 'flex', gap: '1rem', zIndex: 1000 }}>
-        <button
-          onClick={onOpenSync}
-          style={{
+      {/* Top-right settings and status */}
+      <div className="dashboard-top-actions" style={{ position: 'fixed', top: '2rem', right: '2rem', display: 'flex', gap: '1rem', zIndex: 1000, alignItems: 'center' }}>
+        {syncStatus && (
+          <div style={{
             background: 'rgba(0,0,0,0.8)',
-            border: '1px solid #00f2d1',
+            border: `1px solid ${appRole === 'server' ? 'var(--primary)' : '#00f2d1'}`,
             borderRadius: '4px',
-            color: '#00f2d1',
-            cursor: 'pointer',
+            color: appRole === 'server' ? 'var(--primary)' : '#00f2d1',
             padding: '0.8rem 1.2rem',
             display: 'flex',
             alignItems: 'center',
             gap: '0.5rem',
-            transition: 'all 0.3s ease',
-            boxShadow: '0 0 15px rgba(0,242,255,0.2)',
+            boxShadow: `0 0 15px ${appRole === 'server' ? 'rgba(240,196,25,0.2)' : 'rgba(0,242,255,0.2)'}`,
             fontWeight: 'bold',
-            fontSize: '0.9rem'
-          }}
-          title="Sincronizar Dispositivos P2P"
-        >
-          <RefreshCw size={18} className="spinning-on-hover" /><span className="sync-label"> SINCRONIZAR P2P</span>
-        </button>
+            fontSize: '0.8rem'
+          }}>
+            <RefreshCw size={16} className={syncStatus.includes('✅') || syncStatus.includes('⚠️') || syncStatus.includes('❌') ? '' : 'spinning'} />
+            <span className="sync-label">{syncStatus}</span>
+          </div>
+        )}
         <button
           onClick={onSettings}
           style={{

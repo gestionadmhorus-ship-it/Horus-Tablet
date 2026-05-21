@@ -1,8 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { 
   ArrowLeft, Search, Calendar, Edit2, Trash2, 
-  Download, LayoutDashboard, Plane, Cpu, AlertTriangle, Save, X, ShieldCheck, Printer,
-  RefreshCw
+  Download, LayoutDashboard, Plane, Cpu, AlertTriangle, Save, X, ShieldCheck, Printer
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import PrintableChecklistBatch from './PrintableChecklistBatch';
@@ -27,7 +26,6 @@ interface RecordsExplorerProps {
   onDeleteChecklist?: (id: string) => void;
   onViewChecklist?: (item: any) => void;
   onSyncReceived?: (incomingData: AppData) => Promise<void>;
-  onOpenSync?: () => void;
 }
 
 type RecordType = 'shifts' | 'flights' | 'batteries' | 'detections' | 'checklists';
@@ -252,9 +250,6 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
         <div style={{ display: 'flex', gap: '1rem' }}>
           <button onClick={props.onBack} className="btn-3d" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: '#000', color: 'var(--primary)', border: '1px solid var(--primary)', padding: '1rem 2rem' }}>
             <ArrowLeft size={20} /> VOLVER AL MENÚ
-          </button>
-          <button onClick={props.onOpenSync} className="btn-3d" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'rgba(0,255,136,0.1)', color: '#00ff88', border: '1px solid #00ff88', padding: '1rem 2rem' }}>
-            <RefreshCw size={20} /> SINCRONIZAR
           </button>
         </div>
         <div style={{ textAlign: 'right' }}>

@@ -35,6 +35,7 @@ export interface ShiftData {
   drone: string;
   status?: 'active' | 'closed';
   deviceName?: string;
+  isSynced?: boolean;
 }
 
 export interface FlightData {
@@ -46,6 +47,7 @@ export interface FlightData {
   authCode: string;
   observations: string;
   deviceName?: string;
+  isSynced?: boolean;
 }
 
 export interface BatteryData {
@@ -58,6 +60,7 @@ export interface BatteryData {
   controlBatteryName: string; // Alphanumeric ID, max 3 chars
   controlBattery: string;
   deviceName?: string;
+  isSynced?: boolean;
 }
 
 export interface DetectionData {
@@ -71,6 +74,7 @@ export interface DetectionData {
   fileName: string;
   observations: string;
   deviceName?: string;
+  isSynced?: boolean;
 }
 
 export interface VehicleChecklistData {
@@ -106,6 +110,7 @@ export interface VehicleChecklistData {
   };
   observations: string;
   deviceName?: string;
+  isSynced?: boolean;
 }
 
 /* ─── App State ─── */
@@ -115,4 +120,15 @@ export interface AppData {
   batteries: BatteryData[];
   detections: DetectionData[];
   checklists?: VehicleChecklistData[];
+}
+
+/* ─── Sync Configuration ─── */
+export type AppRole = 'server' | 'client' | 'unassigned';
+
+export interface SyncConfig {
+  role: AppRole;
+  deviceId: string; // Used to identify the sender (e.g. "Dron-Alfa")
+  myServerId?: string; // The generated UUID if this device is the server
+  targetServerId?: string; // The scanned UUID of the boss if this is a client
+  blockedClients?: string[]; // Array of deviceNames that the server ignores
 }

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import {
   X, Plus, Trash2, ChevronDown, ChevronUp, Settings,
-  ClipboardPaste, BookOpen, CheckCircle, AlertCircle, ChevronRight
+  ClipboardPaste, BookOpen, CheckCircle, AlertCircle, ChevronRight, Wifi, ShieldAlert
 } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import type { ListsData, ElementEntry, AnomalyEntry } from '../types';
 
 interface SettingsPanelProps {
@@ -75,7 +76,42 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
   const [pasteText, setPasteText] = useState('');
   const [parseResult, setParseResult] = useState<{ type: 'success' | 'error' | 'warning'; msg: string } | null>(null);
   const [kbExpanded, setKbExpanded] = useState<Record<string, boolean>>({});
-  const [activeTab, setActiveTab] = useState<'lists' | 'knowledge'>('lists');
+  const [activeTab, setActiveTab] = useState<'lists' | 'knowledge' | 'connection'>('lists');
+
+  /* ─── Connection state ─── */
+  const appRole = localStorage.getItem('horus_sync_role');
+  const myServerId = localStorage.getItem('horus_my_server_id');
+  const [knownClients, setKnownClients] = useState<string[]>(() => {
+    return JSON.parse(localStorage.getItem('horus_known_clients') || '[]');
+  });
+  const [blockedClients, setBlockedClients] = useState<string[]>(() => {
+    return JSON.parse(localStorage.getItem('horus_blocked_clients') || '[]');
+  });
+
+  React.useEffect(() => {
+    const handleUpdate = () => {
+      setKnownClients(JSON.parse(localStorage.getItem('horus_known_clients') || '[]'));
+    };
+    window.addEventListener('horus_known_clients_updated', handleUpdate);
+    return () => window.removeEventListener('horus_known_clients_updated', handleUpdate);
+  }, []);
+
+  const toggleBlockClient = (client: string) => {
+    setBlockedClients(prev => {
+      const newBlocked = prev.includes(client) ? prev.filter(c => c !== client) : [...prev, client];
+      localStorage.setItem('horus_blocked_clients', JSON.stringify(newBlocked));
+      return newBlocked;
+    });
+  };
+
+  const handleUnbindClient = async () => {
+    const ok = await window.customConfirm('¿Estás seguro de desvincularte del Jefe actual? Deberás escanear un nuevo QR para volver a sincronizar.');
+    if (ok) {
+      localStorage.removeItem('horus_target_server_id');
+      localStorage.removeItem('horus_sync_role');
+      window.location.reload();
+    }
+  };
 
   /* ─── Flat list helpers ─── */
   const toggleFlat = (key: string) => setFlatExpanded(p => ({ ...p, [key]: !p[key] }));
@@ -144,7 +180,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
   };
 
   /* ─── Styles ─── */
-  const tabBtnStyle = (tab: 'lists' | 'knowledge'): React.CSSProperties => ({
+  const tabBtnStyle = (tab: 'lists' | 'knowledge' | 'connection'): React.CSSProperties => ({
     flex: 1, padding: '0.75rem', border: 'none', cursor: 'pointer',
     fontWeight: 700, fontSize: '0.82rem', textTransform: 'uppercase', letterSpacing: '0.5px',
     background: activeTab === tab ? 'rgba(0,242,255,0.1)' : 'transparent',
@@ -198,7 +234,12 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
           </button>
           <button onClick={() => setActiveTab('knowledge')} style={tabBtnStyle('knowledge')}>
             <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
-              <BookOpen size={14} /> Base de Conocimiento
+              <BookOpen size={14} /> Base C.
+            </span>
+          </button>
+          <button onClick={() => setActiveTab('connection')} style={tabBtnStyle('connection')}>
+            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
+              <Wifi size={14} /> Red
             </span>
           </button>
         </div>
@@ -411,6 +452,76 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
                 )}
               </div>
             </>
+          )}
+
+          {/* ══════ TAB: CONNECTION ══════ */}
+          {activeTab === 'connection' && (
+            <div style={{ padding: '0.5rem' }}>
+              {appRole === 'server' ? (
+                <>
+                  <div style={{ ...sectionStyle, padding: '1.5rem', textAlign: 'center', border: '1px solid var(--primary)', background: 'rgba(240,196,25,0.05)' }}>
+                    <h3 style={{ color: 'white', marginTop: 0, marginBottom: '0.5rem' }}>Tu Código QR de Jefe</h3>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
+                      Muestra este código a los exploradores para que se vinculen a tu red.
+                    </p>
+                    <div style={{ background: 'white', padding: '1rem', display: 'inline-block', borderRadius: '12px' }}>
+                      {myServerId ? (
+                        <QRCodeSVG value={myServerId} size={200} />
+                      ) : (
+                        <p style={{color: 'black'}}>Error: No hay ID generado.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{ ...sectionStyle, padding: '1.25rem' }}>
+                    <h3 style={{ color: 'white', marginTop: 0, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <ShieldAlert size={18} color="var(--primary)" /> Exploradores Conocidos
+                    </h3>
+                    {knownClients.length === 0 ? (
+                      <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textAlign: 'center' }}>Aún no se ha conectado ningún explorador.</p>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        {knownClients.map(client => {
+                          const isBlocked = blockedClients.includes(client);
+                          return (
+                            <div key={client} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.05)', padding: '0.75rem', borderRadius: '8px' }}>
+                              <span style={{ color: isBlocked ? '#ff4444' : 'white', fontWeight: 'bold', textDecoration: isBlocked ? 'line-through' : 'none' }}>
+                                {client}
+                              </span>
+                              <button 
+                                onClick={() => toggleBlockClient(client)}
+                                style={{ 
+                                  background: isBlocked ? 'rgba(0,255,136,0.1)' : 'rgba(255,68,68,0.1)', 
+                                  color: isBlocked ? '#00ff88' : '#ff4444', 
+                                  border: `1px solid ${isBlocked ? '#00ff88' : '#ff4444'}`,
+                                  padding: '0.4rem 0.8rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold'
+                                }}
+                              >
+                                {isBlocked ? 'Permitir' : 'Bloquear'}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div style={{ ...sectionStyle, padding: '1.5rem', textAlign: 'center', border: '1px solid #ff4444', background: 'rgba(255,68,68,0.05)' }}>
+                  <h3 style={{ color: '#ff4444', marginTop: 0, marginBottom: '0.5rem' }}>Zona de Peligro</h3>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '2rem' }}>
+                    Si cambiaste de escuadrón, puedes desvincularte del Jefe actual. Deberás escanear el QR del nuevo Jefe para volver a operar.
+                  </p>
+                  <button
+                    onClick={handleUnbindClient}
+                    className="btn-3d"
+                    style={{ width: '100%', padding: '1rem', background: '#ff4444', color: 'black', fontWeight: 'bold' }}
+                  >
+                    Desvincular Jefe Actual
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </div>
 

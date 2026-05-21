@@ -6,8 +6,10 @@ import BatteriesDetectionsForm from './components/BatteriesDetectionsForm';
 import VehicleChecklistForm from './components/VehicleChecklistForm';
 import SettingsPanel from './components/SettingsPanel';
 import RecordsExplorer from './components/RecordsExplorer';
-import { SyncModal } from './components/SyncModal';
+import { RoleSetup } from './components/RoleSetup';
+import type { AppRole } from './types';
 import { useDatabase } from './hooks/useDatabase';
+import { useAutoSync } from './hooks/useAutoSync';
 import { exportToExcel, exportToJSON } from './utils/exportUtils';
 import { FileJson, Table, X, CheckCircle, Power } from 'lucide-react';
 
@@ -29,14 +31,15 @@ function App() {
     saveDetection, updateDetection, deleteDetection,
     saveChecklist, updateChecklist, deleteChecklist,
     updateLists,
-    syncIncomingData
+    syncIncomingData,
+    getUnsyncedData,
+    markDataAsSynced
   } = useDatabase();
   
   const [showExportModal, setShowExportModal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [isNewFlightRequested, setIsNewFlightRequested] = useState<boolean>(false);
   const [editingChecklist, setEditingChecklist] = useState<any>(undefined);
-  const [showSyncModal, setShowSyncModal] = useState(false);
   const [deviceName, setDeviceName] = useState(() => {
     let name = localStorage.getItem('horus_device_name');
     if (!name || !name.trim()) {
@@ -46,6 +49,17 @@ function App() {
     }
     return name;
   });
+  
+  const [appRole, setAppRole] = useState<AppRole | null>(() => {
+    return (localStorage.getItem('horus_sync_role') as AppRole) || null;
+  });
+
+  const { syncStatus } = useAutoSync(
+    appRole,
+    getUnsyncedData,
+    markDataAsSynced,
+    syncIncomingData
+  );
 
   const handleDeviceNameChange = (val: string) => {
     setDeviceName(val);
@@ -195,7 +209,6 @@ function App() {
               setCurrentPage(page);
             }}
             onSettings={() => setShowSettings(true)}
-            onOpenSync={() => setShowSyncModal(true)}
             hasActiveShift={!!activeShiftId}
             hasActiveFlight={!!activeFlightId}
             onCloseShift={handleCloseShift}
@@ -210,6 +223,8 @@ function App() {
               setCurrentPage('flight');
             }}
             deviceName={deviceName}
+            syncStatus={syncStatus}
+            appRole={appRole}
           />
         );
       case 'shift':
@@ -286,7 +301,6 @@ function App() {
               setCurrentPage('checklist');
             }}
             onSyncReceived={syncIncomingData}
-            onOpenSync={() => setShowSyncModal(true)}
           />
         );
       default:
@@ -297,7 +311,6 @@ function App() {
               setCurrentPage(page);
             }}
             onSettings={() => setShowSettings(true)}
-            onOpenSync={() => setShowSyncModal(true)}
             hasActiveShift={!!activeShiftId}
             hasActiveFlight={!!activeFlightId}
             onCloseShift={handleCloseShift}
@@ -312,6 +325,8 @@ function App() {
               setCurrentPage('flight');
             }}
             deviceName={deviceName}
+            syncStatus={syncStatus}
+            appRole={appRole}
           />
         );
     }
@@ -326,6 +341,21 @@ function App() {
       ? 'inset 0 0 50px rgba(0, 255, 136, 0.15)' // Glowing green
       : 'inset 0 0 50px rgba(255, 0, 0, 0.15)',  // Glowing red
   };
+
+  if (!appRole) {
+    return (
+      <RoleSetup 
+        onComplete={(role, newDeviceName, targetServerId, myServerId) => {
+          localStorage.setItem('horus_sync_role', role);
+          if (targetServerId) localStorage.setItem('horus_target_server_id', targetServerId);
+          if (myServerId) localStorage.setItem('horus_my_server_id', myServerId);
+          
+          setAppRole(role);
+          handleDeviceNameChange(newDeviceName);
+        }} 
+      />
+    );
+  }
 
   return (
     <div style={appStyle}>
@@ -346,14 +376,6 @@ function App() {
           onDeviceNameChange={handleDeviceNameChange}
         />
       )}
-
-      {/* Global Sync Modal */}
-      <SyncModal
-        isOpen={showSyncModal}
-        onClose={() => setShowSyncModal(false)}
-        data={data}
-        onSyncReceived={syncIncomingData}
-      />
 
       {/* Export Modal */}
       {showExportModal && (

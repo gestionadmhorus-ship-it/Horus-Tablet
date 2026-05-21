@@ -122,6 +122,26 @@ export function useDatabase() {
     });
   };
 
+  const getUnsyncedData = async (): Promise<AppData> => {
+    const s = await db.shifts.filter((i) => !i.isSynced).toArray();
+    const f = await db.flights.filter((i) => !i.isSynced).toArray();
+    const b = await db.batteries.filter((i) => !i.isSynced).toArray();
+    const d = await db.detections.filter((i) => !i.isSynced).toArray();
+    const c = await db.vehicleChecklists.filter((i) => !i.isSynced).toArray();
+    return { shifts: s, flights: f, batteries: b, detections: d, checklists: c };
+  };
+
+  const markDataAsSynced = async (data: AppData) => {
+    await db.transaction('rw', [db.shifts, db.flights, db.batteries, db.detections, db.vehicleChecklists], async () => {
+      if (data.shifts) for (const i of data.shifts) await db.shifts.update(i.id, { isSynced: true });
+      if (data.flights) for (const i of data.flights) await db.flights.update(i.id, { isSynced: true });
+      if (data.batteries) for (const i of data.batteries) await db.batteries.update(i.id, { isSynced: true });
+      if (data.detections) for (const i of data.detections) await db.detections.update(i.id, { isSynced: true });
+      if (data.checklists) for (const i of data.checklists) await db.vehicleChecklists.update(i.id, { isSynced: true });
+    });
+  };
+
+
   // 5. Aggregate object for export
   const fullData: AppData = { shifts, flights, batteries, detections, checklists };
  
@@ -134,6 +154,8 @@ export function useDatabase() {
     saveDetection, updateDetection, deleteDetection,
     saveChecklist, updateChecklist, deleteChecklist,
     updateLists,
-    syncIncomingData
+    syncIncomingData,
+    getUnsyncedData,
+    markDataAsSynced
   };
 }
