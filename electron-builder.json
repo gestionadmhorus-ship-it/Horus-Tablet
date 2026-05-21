@@ -1,0 +1,21 @@
+{
+  "appId": "com.horus.tableta-campo",
+  "productName": "Horus Tablet Campo - Jefe",
+  "directories": {
+    "output": "release-electron"
+  },
+  "files": [
+    "dist/**/*",
+    "dist-electron/**/*"
+  ],
+  "win": {
+    "target": "nsis",
+    "icon": "horus_icon.ico"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "shortcutName": "Horus Jefe"
+  }
+}

@@ -1,7 +1,8 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
 import { DEFAULT_LISTS, type ListsData, type AppData, type ShiftData, type FlightData, type BatteryData, type DetectionData } from '../types';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+import { persistToDisk, loadFromDisk } from '../services/NativeStorage';
 
 export function useDatabase() {
   // 1. Live Queries for real-time UI updates
@@ -144,7 +145,43 @@ export function useDatabase() {
 
   // 5. Aggregate object for export
   const fullData: AppData = { shifts, flights, batteries, detections, checklists };
- 
+
+  // 6. Auto-persist to physical disk on every data change
+  //    - In Electron (.exe): writes to Mis Documentos/Horus_Datos/
+  //    - In Capacitor (APK): writes to Android internal storage
+  //    - In browser (dev): no-op, Dexie handles everything
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    if (shifts.length > 0 || flights.length > 0 || batteries.length > 0 || detections.length > 0 || checklists.length > 0) {
+      persistToDisk(fullData).catch(e => console.error('[DB] persist error:', e));
+    }
+  }, [shifts, flights, batteries, detections, checklists]);
+
+  // 7. Load from physical disk on first boot and seed Dexie if DB is empty
+  useEffect(() => {
+    const seedFromDisk = async () => {
+      const diskData = await loadFromDisk();
+      if (!diskData) return;
+      const count = await db.shifts.count();
+      if (count === 0 && diskData.shifts && diskData.shifts.length > 0) {
+        console.log('[NativeStorage] Seeding Dexie from physical disk backup...');
+        await db.transaction('rw', [db.shifts, db.flights, db.batteries, db.detections, db.vehicleChecklists], async () => {
+          await db.shifts.bulkPut(diskData.shifts);
+          await db.flights.bulkPut(diskData.flights || []);
+          await db.batteries.bulkPut(diskData.batteries || []);
+          await db.detections.bulkPut(diskData.detections || []);
+          await db.vehicleChecklists.bulkPut(diskData.checklists || []);
+        });
+        console.log('[NativeStorage] ✅ Restored from physical disk.');
+      }
+    };
+    seedFromDisk();
+  }, []);
+
   return {
     fullData,
     lists,
