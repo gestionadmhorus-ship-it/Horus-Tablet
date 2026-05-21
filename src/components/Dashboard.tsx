@@ -291,7 +291,7 @@ const Dashboard: React.FC<DashboardProps> = ({
           }
         }
       `}} />
-      {/* Top Banner Image with Dark Tactical Overlay */}
+      {/* Top Banner with Hermes II branding, logo and role */}
       <div 
         className="dashboard-banner"
         style={{ 
@@ -302,22 +302,24 @@ const Dashboard: React.FC<DashboardProps> = ({
         <img 
           src="file:///C:/Users/Adelio/.gemini/antigravity/brain/2fe9f4cc-a8ec-4eb6-afba-f0db33e886bd/drone_inspection_banner_1778596743258.png" 
           alt="Dron Horus" 
-          style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.6 }}
+          style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.5 }}
         />
-        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, var(--bg-dark), transparent)' }} />
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, var(--bg-dark) 10%, transparent 70%)' }} />
+
+        {/* Left: App name + subtitle */}
         <div style={{ position: 'absolute', bottom: '1rem', left: '2rem' }}>
           <p 
             style={{ color: hasActiveShift ? '#00ff88' : '#ff0000', transition: 'color 0.5s ease', margin: 0 }} 
             className="dashboard-banner-subtitle"
           >
-            HORUS DRON
+            HORUS DRON — IMÁGENES AÉREAS
           </p>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
             <h1 
               style={{ textShadow: `0 0 20px ${hasActiveShift ? 'rgba(0,255,136,0.5)' : 'rgba(255,0,0,0.5)'}`, margin: 0 }} 
               className="dashboard-banner-title"
             >
-              OPERACIONES DE CAMPO
+              HERMES <em style={{ fontStyle: 'italic' }}>II</em>
             </h1>
             {deviceName && (
               <span className="dashboard-equipo-badge" style={{ 
@@ -336,10 +338,31 @@ const Dashboard: React.FC<DashboardProps> = ({
                 boxShadow: '0 0 15px rgba(0, 242, 255, 0.25)',
                 marginTop: '0.2rem'
               }}>
-                ⚙️ EQUIPO: {deviceName}
+                ⚙️ {deviceName}
               </span>
             )}
           </div>
+        </div>
+
+        {/* Right: Logo + Role badge */}
+        <div style={{ position: 'absolute', bottom: '1rem', right: '1.5rem', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.5rem' }}>
+          <img src="/logo_horus_nuevo.png" alt="Horus Dron" style={{ height: '44px', filter: 'drop-shadow(0 0 8px rgba(240,196,25,0.5))', opacity: 0.95 }} />
+          {appRole && (
+            <span style={{
+              background: appRole === 'server' ? 'rgba(240,196,25,0.15)' : 'rgba(0,255,136,0.12)',
+              color: appRole === 'server' ? 'var(--primary)' : '#00ff88',
+              border: `1px solid ${appRole === 'server' ? 'rgba(240,196,25,0.5)' : 'rgba(0,255,136,0.4)'}`,
+              padding: '3px 10px',
+              borderRadius: '6px',
+              fontSize: '0.72rem',
+              fontWeight: 900,
+              textTransform: 'uppercase',
+              letterSpacing: '1.5px',
+              boxShadow: `0 0 12px ${appRole === 'server' ? 'rgba(240,196,25,0.2)' : 'rgba(0,255,136,0.15)'}`,
+            }}>
+              {appRole === 'server' ? '★ JEFE' : '▲ EXPLORADOR'}
+            </span>
+          )}
         </div>
       </div>
 

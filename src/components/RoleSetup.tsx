@@ -72,11 +72,20 @@ export function RoleSetup({ onComplete }: RoleSetupProps) {
         boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
         textAlign: 'center'
       }}>
-        <img src="/logo_horus_nuevo.png" alt="Horus Logo" style={{ height: '60px', marginBottom: '2rem' }} />
-        
-        <h2 style={{ fontSize: '1.8rem', marginBottom: '0.5rem', color: 'white' }}>Configuración Inicial</h2>
-        <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem' }}>
-          Define el rol de este dispositivo en la red local.
+        {/* Logo + Branding */}
+        <div style={{ marginBottom: '1.5rem' }}>
+          <img src="/logo_horus_nuevo.png" alt="Horus Dron" style={{ height: '70px', marginBottom: '0.75rem' }} />
+          <h1 style={{ fontSize: '2rem', fontWeight: 900, letterSpacing: '3px', color: 'var(--primary)', margin: 0, textTransform: 'uppercase' }}>
+            Hermes <span style={{ fontStyle: 'italic' }}>II</span>
+          </h1>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', letterSpacing: '2px', textTransform: 'uppercase', margin: '0.25rem 0 0 0' }}>
+            Horus Dron — Imágenes Aéreas
+          </p>
+        </div>
+
+        <h2 style={{ fontSize: '1.2rem', marginBottom: '0.5rem', color: 'white' }}>Configuración Inicial</h2>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem', fontSize: '0.9rem' }}>
+          Define el rol de este dispositivo en la red.
         </p>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '2rem' }}>
