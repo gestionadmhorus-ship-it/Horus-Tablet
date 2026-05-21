@@ -49,12 +49,12 @@ const FlightForm: React.FC<FlightFormProps> = ({ onSave, onUpdate, onBack, lists
 
   return (
     <div className="container" style={{ paddingBottom: '4rem' }}>
-      <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-        <button onClick={onBack} className="btn-3d" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: '#000', color: 'var(--primary)', border: '1px solid var(--primary)' }}>
+      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+        <button onClick={onBack} className="btn-3d" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: '#000', color: 'var(--primary)', border: '1px solid var(--primary)', flexShrink: 0 }}>
           <ArrowLeft size={20} /> VOLVER AL MENÚ
         </button>
         {isEditMode && onRegisterNew && (
-          <button onClick={onRegisterNew} className="btn-3d" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: '#000', color: '#00ff88', border: '1px solid #00ff88' }}>
+          <button onClick={onRegisterNew} className="btn-3d" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: '#000', color: '#00ff88', border: '1px solid #00ff88', flexShrink: 0 }}>
             + REGISTRAR NUEVO VUELO
           </button>
         )}

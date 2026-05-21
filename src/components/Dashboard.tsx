@@ -216,77 +216,106 @@ const Dashboard: React.FC<DashboardProps> = ({
 
         @media (max-width: 768px) {
           .dashboard-container {
-            padding: 0.8rem;
-            padding-top: 1rem;
+            padding: 0.6rem;
+            padding-top: 0.6rem;
           }
           .dashboard-banner {
             height: 90px;
-            border-radius: 12px;
+            border-radius: 10px;
           }
           .dashboard-banner-title {
-            font-size: 1.1rem;
+            font-size: 1rem;
           }
           .dashboard-banner-subtitle {
-            font-size: 0.65rem;
-            letter-spacing: 2px;
+            font-size: 0.55rem;
+            letter-spacing: 1.5px;
+          }
+          .dashboard-clock-section {
+            margin: 0.4rem 0 !important;
           }
           .dashboard-clock-text {
-            font-size: 0.85rem;
+            font-size: 0.8rem;
           }
           .dashboard-grid {
             grid-template-columns: repeat(2, 1fr) !important;
             gap: 0.5rem;
           }
+          /* En móvil: todas las tarjetas ocupan 1 columna salvo vehicular que va full */
           .col-span-2 { grid-column: span 1 !important; }
           .col-span-3 { grid-column: span 1 !important; }
           .mobile-full-width { grid-column: span 2 !important; }
-          
+
           .dashboard-card {
-            padding: 0.6rem;
-            gap: 0.25rem;
-            min-height: 80px;
-            border-radius: 12px;
+            padding: 0.65rem 0.5rem;
+            gap: 0.2rem;
+            min-height: 85px;
+            border-radius: 10px;
           }
           .dashboard-card-title {
-            font-size: 0.85rem !important;
+            font-size: 0.78rem !important;
+            letter-spacing: 0 !important;
           }
           .dashboard-card-desc {
             display: none !important;
           }
           .dashboard-card svg {
-            width: 24px !important;
-            height: 24px !important;
+            width: 22px !important;
+            height: 22px !important;
           }
           .dashboard-footer {
             display: none !important;
           }
+          /* Settings/sync — pegados al borde superior derecho pero DEBAJO del banner */
           .dashboard-top-actions {
-            top: 0.5rem !important;
-            right: 0.5rem !important;
-            gap: 0.4rem !important;
+            position: absolute !important;
+            top: 0.4rem !important;
+            right: 0.4rem !important;
+            gap: 0.3rem !important;
           }
           .dashboard-top-actions button {
-            padding: 0.4rem 0.6rem !important;
-            font-size: 0.7rem !important;
+            padding: 0.35rem 0.5rem !important;
+            font-size: 0.65rem !important;
           }
           .dashboard-top-actions .sync-label {
             display: none;
           }
           .dashboard-edit-badge {
-            width: 26px !important;
-            height: 26px !important;
+            width: 24px !important;
+            height: 24px !important;
           }
           .dashboard-edit-badge svg {
-            width: 12px !important;
-            height: 12px !important;
+            width: 11px !important;
+            height: 11px !important;
           }
+          /* REQ badges: dentro del flujo, no sobreposicion */
           .dashboard-req-badge {
-            font-size: 0.6rem !important;
-            padding: 3px 8px !important;
-            white-space: nowrap;
+            position: static !important;
+            transform: none !important;
+            display: inline-block !important;
+            font-size: 0.55rem !important;
+            padding: 2px 6px !important;
+            margin-top: 4px;
+            border-radius: 4px !important;
           }
           .dashboard-equipo-badge {
             display: none !important;
+          }
+          /* Banner: ocultar logo derecho en pantalla muy pequeña */
+          .dashboard-banner-right-logo {
+            display: none !important;
+          }
+        }
+
+        @media (max-width: 400px) {
+          .dashboard-banner-title {
+            font-size: 0.9rem !important;
+          }
+          .dashboard-card {
+            min-height: 75px !important;
+            padding: 0.5rem 0.4rem !important;
+          }
+          .dashboard-card-title {
+            font-size: 0.72rem !important;
           }
         }
       `}} />
@@ -541,7 +570,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             )}
           </motion.div>
           {!hasActiveShift && (
-            <div className="dashboard-req-badge" style={{ position: 'absolute', top: '-12px', left: '50%', transform: 'translateX(-50%)', background: '#ff0000', color: 'white', padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 'bold' }}>
+            <div className="dashboard-req-badge" style={{ position: 'absolute', top: '-10px', left: '50%', transform: 'translateX(-50%)', background: '#ff0000', color: 'white', padding: '3px 10px', borderRadius: '20px', fontSize: '0.72rem', fontWeight: 'bold', whiteSpace: 'nowrap', zIndex: 10 }}>
               REQ: JORNADA
             </div>
           )}
@@ -568,7 +597,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             </div>
           </motion.button>
           {!hasActiveFlight && (
-            <div className="dashboard-req-badge" style={{ position: 'absolute', top: '-12px', left: '50%', transform: 'translateX(-50%)', background: '#ff0000', color: 'white', padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 'bold' }}>
+            <div className="dashboard-req-badge" style={{ position: 'absolute', top: '-10px', left: '50%', transform: 'translateX(-50%)', background: '#ff0000', color: 'white', padding: '3px 10px', borderRadius: '20px', fontSize: '0.72rem', fontWeight: 'bold', whiteSpace: 'nowrap', zIndex: 10 }}>
               REQ: VUELO
             </div>
           )}

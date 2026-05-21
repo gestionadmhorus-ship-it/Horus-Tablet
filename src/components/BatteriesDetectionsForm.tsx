@@ -149,26 +149,26 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
           <button 
             onClick={() => setActivePanel('batteries')} 
             style={{
-              flex: 1, padding: '1.5rem', border: 'none', cursor: 'pointer',
-              fontWeight: 900, fontSize: '1rem', textTransform: 'uppercase', letterSpacing: '2px',
+              flex: 1, padding: 'clamp(0.75rem, 3vw, 1.5rem)', border: 'none', cursor: 'pointer',
+              fontWeight: 900, fontSize: 'clamp(0.75rem, 2vw, 1rem)', textTransform: 'uppercase', letterSpacing: '1px',
               transition: 'all 0.2s ease',
               background: activePanel === 'batteries' ? 'var(--primary)' : 'transparent',
               color: activePanel === 'batteries' ? 'black' : '#666',
             }}
           >
-            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem' }}><Battery size={22} /> Baterías</span>
+            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}><Battery size={20} /> Baterías</span>
           </button>
           <button 
             onClick={() => setActivePanel('detections')} 
             style={{
-              flex: 1, padding: '1.5rem', border: 'none', cursor: 'pointer',
-              fontWeight: 900, fontSize: '1rem', textTransform: 'uppercase', letterSpacing: '2px',
+              flex: 1, padding: 'clamp(0.75rem, 3vw, 1.5rem)', border: 'none', cursor: 'pointer',
+              fontWeight: 900, fontSize: 'clamp(0.75rem, 2vw, 1rem)', textTransform: 'uppercase', letterSpacing: '1px',
               transition: 'all 0.2s ease',
               background: activePanel === 'detections' ? 'var(--primary)' : 'transparent',
               color: activePanel === 'detections' ? 'black' : '#666',
             }}
           >
-            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem' }}><AlertTriangle size={22} /> Detecciones</span>
+            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}><AlertTriangle size={20} /> Detecciones</span>
           </button>
         </div>
 
