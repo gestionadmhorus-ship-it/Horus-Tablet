@@ -1,9 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Server, User } from 'lucide-react';
 import type { AppRole } from '../types';
-
-import { useEffect } from 'react';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import { Html5Qrcode } from 'html5-qrcode';
 
 interface RoleSetupProps {
   onComplete: (role: AppRole, deviceName: string, targetServerId?: string, myServerId?: string) => void;
@@ -29,24 +27,42 @@ export function RoleSetup({ onComplete }: RoleSetupProps) {
   };
 
   useEffect(() => {
-    if (scanning) {
-      const scanner = new Html5QrcodeScanner(
-        "reader",
-        { fps: 10, qrbox: {width: 250, height: 250} },
-        /* verbose= */ false
-      );
-      scanner.render((decodedText) => {
-        scanner.clear();
-        setScanning(false);
-        onComplete('client', deviceName.trim(), decodedText, undefined);
-      }, () => {
-        // ignore errors during scanning, happens every frame it doesn't see a QR
-      });
+    if (!scanning) return;
 
-      return () => {
-        scanner.clear().catch(e => console.error(e));
-      };
-    }
+    const qrScanner = new Html5Qrcode("reader");
+
+    // Start directly with the environment (back) camera — no UI, no prompt
+    qrScanner.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: { width: 250, height: 250 } },
+      (decodedText) => {
+        qrScanner.stop().then(() => {
+          setScanning(false);
+          onComplete('client', deviceName.trim(), decodedText, undefined);
+        });
+      },
+      () => {
+        // Ignore per-frame decode errors (normal when no QR in frame)
+      }
+    ).catch((err) => {
+      console.error('Camera start error:', err);
+      // Fallback: if environment camera fails, try any available camera
+      qrScanner.start(
+        { facingMode: "user" },
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        (decodedText) => {
+          qrScanner.stop().then(() => {
+            setScanning(false);
+            onComplete('client', deviceName.trim(), decodedText, undefined);
+          });
+        },
+        () => {}
+      ).catch(console.error);
+    });
+
+    return () => {
+      qrScanner.stop().catch(() => {});
+    };
   }, [scanning, deviceName, onComplete]);
 
   const handleCompleteServer = () => {

@@ -84,9 +84,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
   const [knownClients, setKnownClients] = useState<string[]>(() => {
     return JSON.parse(localStorage.getItem('horus_known_clients') || '[]');
   });
-  const [blockedClients, setBlockedClients] = useState<string[]>(() => {
-    return JSON.parse(localStorage.getItem('horus_blocked_clients') || '[]');
-  });
 
   React.useEffect(() => {
     const handleUpdate = () => {
@@ -96,12 +93,12 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
     return () => window.removeEventListener('horus_known_clients_updated', handleUpdate);
   }, []);
 
-  const toggleBlockClient = (client: string) => {
-    setBlockedClients(prev => {
-      const newBlocked = prev.includes(client) ? prev.filter(c => c !== client) : [...prev, client];
-      localStorage.setItem('horus_blocked_clients', JSON.stringify(newBlocked));
-      return newBlocked;
-    });
+  const removeKnownClient = async (client: string) => {
+    const ok = await window.customConfirm(`¿Eliminar al explorador "${client}" de la red? Deberá escanear el QR nuevamente para reconectarse.`);
+    if (!ok) return;
+    const updated = knownClients.filter(c => c !== client);
+    localStorage.setItem('horus_known_clients', JSON.stringify(updated));
+    setKnownClients(updated);
   };
 
   const handleUnbindClient = async () => {
@@ -481,27 +478,26 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
                       <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textAlign: 'center' }}>Aún no se ha conectado ningún explorador.</p>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        {knownClients.map(client => {
-                          const isBlocked = blockedClients.includes(client);
-                          return (
-                            <div key={client} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.05)', padding: '0.75rem', borderRadius: '8px' }}>
-                              <span style={{ color: isBlocked ? '#ff4444' : 'white', fontWeight: 'bold', textDecoration: isBlocked ? 'line-through' : 'none' }}>
-                                {client}
-                              </span>
-                              <button 
-                                onClick={() => toggleBlockClient(client)}
-                                style={{ 
-                                  background: isBlocked ? 'rgba(0,255,136,0.1)' : 'rgba(255,68,68,0.1)', 
-                                  color: isBlocked ? '#00ff88' : '#ff4444', 
-                                  border: `1px solid ${isBlocked ? '#00ff88' : '#ff4444'}`,
-                                  padding: '0.4rem 0.8rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold'
-                                }}
-                              >
-                                {isBlocked ? 'Permitir' : 'Bloquear'}
-                              </button>
+                        {knownClients.map(client => (
+                          <div key={client} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(0,255,136,0.05)', padding: '0.75rem', borderRadius: '8px', border: '1px solid rgba(0,255,136,0.15)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#00ff88', boxShadow: '0 0 6px #00ff88' }} />
+                              <span style={{ color: 'white', fontWeight: 'bold' }}>{client}</span>
                             </div>
-                          );
-                        })}
+                            <button 
+                              onClick={() => removeKnownClient(client)}
+                              style={{ 
+                                background: 'rgba(255,68,68,0.12)', 
+                                color: '#ff6060', 
+                                border: '1px solid rgba(255,68,68,0.4)',
+                                padding: '0.35rem 0.8rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 'bold',
+                                display: 'flex', alignItems: 'center', gap: '0.4rem'
+                              }}
+                            >
+                              <Trash2 size={13} /> Eliminar
+                            </button>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>
