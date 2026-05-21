@@ -2,12 +2,18 @@
   --primary: #F0C419;      /* Horus Yellow - High Visibility */
   --secondary: #000000;    /* Deep Black */
   --accent: #FFD700;       
-  --bg-dark: #0A0F1A;      /* Tactical Dark Blue-Black */
-  --card-bg: rgba(255, 255, 255, 0.04);
-  --glass-border: rgba(240, 196, 25, 0.3);
+  --bg-dark: #050811;      /* Deep Modern Ink Blue-Black for OLED/Outdoor Contrast */
+  --card-bg: rgba(13, 20, 38, 0.6);
+  --glass-border: rgba(240, 196, 25, 0.18);
   --text-primary: #FFFFFF;
-  --text-secondary: #A0AEC0;
-  --shadow-glow: 0 0 20px rgba(240, 196, 25, 0.15);
+  --text-secondary: #94A3B8;
+  --shadow-glow: 0 0 25px rgba(240, 196, 25, 0.12);
+  
+  /* Electric neon palettes for modern high-contrast design */
+  --neon-cyan: #00f2ff;
+  --neon-green: #00ff88;
+  --neon-orange: #ff6600;
+  --neon-red: #ff1744;
 }
 
 * {
@@ -23,23 +29,25 @@ body {
   color: var(--text-primary);
   min-height: 100vh;
   overflow-x: hidden;
-  color-scheme: dark; /* CRITICAL: Forces browser UI (dropdowns) to dark mode */
+  color-scheme: dark; /* Forces browser UI (dropdowns) to dark mode */
   background-image: 
-    radial-gradient(circle at 50% 50%, rgba(15, 23, 42, 0.5) 0%, var(--bg-dark) 100%),
-    url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h20v20H0V0zm20 20h20v20H20V20z' fill='%23ffffff' fill-opacity='0.02' fill-rule='evenodd'/%3E%3C/svg%3E");
+    radial-gradient(circle at 50% 10%, rgba(240, 196, 25, 0.04) 0%, transparent 50%),
+    radial-gradient(circle at 0% 100%, rgba(0, 242, 255, 0.02) 0%, transparent 40%),
+    url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h20v20H0V0zm20 20h20v20H20V20z' fill='%23ffffff' fill-opacity='0.015' fill-rule='evenodd'/%3E%3C/svg%3E");
+  background-attachment: fixed;
 }
 
-/* Tactical Top Line */
+/* Tactical Top Glow Line */
 body::before {
   content: '';
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, #000, var(--primary), #000);
+  height: 3px;
+  background: linear-gradient(90deg, transparent, var(--primary), transparent);
   z-index: 2000;
-  box-shadow: 0 0 15px var(--primary);
+  box-shadow: 0 0 20px var(--primary);
 }
 
 #root {
@@ -47,56 +55,60 @@ body::before {
   z-index: 2;
 }
 
-/* Modern Tactical Card */
+/* Modern Tactical Card - Glassmorphism */
 .glass {
-  background: rgba(10, 15, 26, 0.95);
-  backdrop-filter: blur(10px);
-  border: 1px solid var(--glass-border);
-  border-radius: 8px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+  background: rgba(10, 16, 32, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  box-shadow: 
+    0 15px 35px rgba(0, 0, 0, 0.6),
+    inset 0 1px 1px rgba(255, 255, 255, 0.05);
 }
 
 /* High Contrast Button */
 .btn-3d {
   position: relative;
-  padding: 1.1rem 2.2rem;
-  border: 2px solid var(--primary);
+  padding: 1rem 2rem;
+  border: 1.5px solid var(--primary);
   background: var(--primary);
   color: #000;
-  font-weight: 900;
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 2px;
-  border-radius: 4px;
+  letter-spacing: 1.5px;
+  border-radius: 8px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px rgba(240, 196, 25, 0.15);
 }
 
 .btn-3d:active {
-  transform: translateY(2px);
+  transform: scale(0.97);
 }
 
 .btn-3d:hover {
   background: #000;
   color: var(--primary) !important;
-  box-shadow: 0 0 20px rgba(240, 196, 25, 0.6);
+  box-shadow: 0 0 25px rgba(240, 196, 25, 0.4);
 }
 
 /* Form Styles - Optimized for Outdoor High Contrast */
 input, select, textarea {
   width: 100%;
-  padding: 18px;
-  background: #000000; /* Pure black for maximum contrast */
-  border: 2px solid #333333;
-  border-radius: 4px;
-  color: #FFFFFF; /* White text is much more readable in light backgrounds than yellow */
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.8); /* Pure black base for maximum contrast */
+  border: 1.5px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  color: #FFFFFF;
   font-family: inherit;
   
   /* CRITICAL iOS SAFEGUARD: font-size must be at least 16px to prevent automatic zooming on iPads/iPhones */
-  font-size: max(16px, 1.1rem);
+  font-size: max(16px, 1.05rem);
   font-weight: 700;
   transition: all 0.2s ease;
   
-  /* CRITICAL iOS SAFEGUARD: Completely override native Apple WebKit styles (white backgrounds, rounded corners, inner shadows) */
+  /* CRITICAL iOS SAFEGUARD: Completely override native Apple WebKit styles */
   -webkit-appearance: none;
   appearance: none;
 }
@@ -106,7 +118,7 @@ input:focus, select:focus, textarea:focus {
   outline: none;
   border-color: var(--primary);
   box-shadow: 0 0 15px rgba(240, 196, 25, 0.3);
-  color: var(--primary); /* Turn yellow only when focused/active */
+  color: var(--primary);
 }
 
 /* Dropdown arrow for custom select */
@@ -119,31 +131,28 @@ select {
 
 label {
   display: block;
-  margin-bottom: 12px;
-  font-size: 0.9rem;
-  color: var(--primary);
-  font-weight: 900;
+  margin-bottom: 10px;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 2.5px;
-  text-shadow: 0 0 10px rgba(240, 196, 25, 0.2);
+  letter-spacing: 2px;
 }
 
 .container {
-  max-width: 1200px;
+  max-width: 1100px;
   margin: 0 auto;
-  padding: 2.5rem;
+  padding: 2rem;
   box-sizing: border-box;
 }
 
 .grid-cols-2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 2rem;
+  gap: 1.5rem;
 }
 
-/* ────── RESPONSIVE DESIGN & iOS GUARANTEES ────── */
-
-/* Scrolling Containers Guarantee (Buttery Smooth Momentum Scrolling on iOS) */
+/* Scrolling Containers Guarantee */
 .scroll-container, select, table, .table-container {
   -webkit-overflow-scrolling: touch;
 }
@@ -151,39 +160,37 @@ label {
 /* TABLETS (iPads Portrait & Smaller Screens) */
 @media (max-width: 1024px) {
   .container {
-    padding: 1.5rem;
+    padding: 1.25rem;
     max-width: 100%;
   }
   
-  /* Make buttons and fields slightly larger for touch */
   .btn-3d {
-    padding: 1.2rem;
+    padding: 1.1rem;
   }
   
   input, select, textarea {
-    padding: 20px;
+    padding: 18px;
   }
 }
 
 /* MÓVILES (iPhones & Smartphones) */
 @media (max-width: 768px) {
-  /* Force 1 Column Layout globally to prevent horizontal scroll */
   .grid-cols-2 {
     grid-template-columns: 1fr;
-    gap: 1.2rem;
+    gap: 1rem;
   }
 
   .container {
-    padding: 1rem;
+    padding: 0.75rem;
   }
 
   /* Responsive typography */
-  h1 { font-size: 1.8rem !important; }
-  h2 { font-size: 1.5rem !important; }
-  h3 { font-size: 1.2rem !important; }
+  h1 { font-size: 1.6rem !important; }
+  h2 { font-size: 1.35rem !important; }
+  h3 { font-size: 1.15rem !important; }
 
-  /* Ensure dialogs aren't too padded on mobile */
   .glass {
-    padding: 1.5rem !important;
+    border-radius: 12px;
   }
 }
+

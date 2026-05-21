@@ -47,29 +47,33 @@ const Dashboard: React.FC<DashboardProps> = ({
           padding: 2.5rem;
           box-sizing: border-box;
           overflow: hidden;
-          background: rgba(10, 15, 26, 0.45);
-          backdrop-filter: blur(25px);
-          border: 1px solid rgba(240, 196, 25, 0.12);
-          border-radius: 24px;
+          background: rgba(8, 14, 28, 0.65);
+          backdrop-filter: blur(30px);
+          -webkit-backdrop-filter: blur(30px);
+          border: 1px solid rgba(255, 255, 255, 0.07);
+          border-radius: 28px;
           box-shadow: 
-            0 25px 50px -12px rgba(0, 0, 0, 0.8),
-            0 0 40px rgba(240, 196, 25, 0.03),
-            inset 0 0 20px rgba(255, 255, 255, 0.02);
+            0 30px 60px -15px rgba(0, 0, 0, 0.9),
+            inset 0 1px 1px rgba(255, 255, 255, 0.05);
         }
         
         .dashboard-banner {
           width: 100%;
-          height: 130px;
-          border-radius: 16px;
+          height: 135px;
+          border-radius: 20px;
           overflow: hidden;
           position: relative;
           border-bottom: 2px solid var(--banner-border);
-          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+          box-shadow: 
+            0 10px 30px rgba(0, 0, 0, 0.5),
+            0 0 25px var(--banner-shadow);
           flex-shrink: 0;
+          transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
         }
+
         
         .dashboard-banner-title {
-          font-size: 2rem;
+          font-size: 2.2rem;
           font-weight: 900;
           margin: 0;
           letter-spacing: 1px;
@@ -78,21 +82,21 @@ const Dashboard: React.FC<DashboardProps> = ({
         .dashboard-banner-subtitle {
           font-weight: 900;
           text-transform: uppercase;
-          letter-spacing: 6px;
-          font-size: 0.9rem;
+          letter-spacing: 5px;
+          font-size: 0.85rem;
           margin-bottom: 0.1rem;
         }
 
         .dashboard-reopen-banner {
           background: rgba(255,165,0,0.06);
-          border: 1px solid rgba(255, 165, 0, 0.3);
+          border: 1px solid rgba(255, 165, 0, 0.25);
           color: #ffa500; 
           padding: 0.6rem 1.2rem;
-          border-radius: 10px;
+          border-radius: 12px;
           display: flex;
           align-items: center;
           justify-content: space-between;
-          box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+          box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
           flex-shrink: 0;
           font-size: 0.9rem;
         }
@@ -105,11 +109,11 @@ const Dashboard: React.FC<DashboardProps> = ({
         
         .dashboard-clock-text {
           font-size: 1.15rem;
-          font-weight: 900;
+          font-weight: 800;
           color: white;
           letter-spacing: 1px;
         }
-
+ 
         .dashboard-grid {
           display: grid;
           grid-template-columns: repeat(6, 1fr);
@@ -119,9 +123,10 @@ const Dashboard: React.FC<DashboardProps> = ({
         }
         
         .dashboard-card {
-          background: rgba(10, 15, 26, 0.7);
-          border: 1px solid rgba(240, 196, 25, 0.1);
-          border-radius: 16px;
+          position: relative;
+          background: rgba(13, 20, 38, 0.4);
+          border: 1px solid rgba(255, 255, 255, 0.05);
+          border-radius: 20px;
           padding: 1.5rem 1rem;
           display: flex;
           flex-direction: column;
@@ -130,45 +135,67 @@ const Dashboard: React.FC<DashboardProps> = ({
           gap: 0.75rem;
           text-align: center;
           height: 100%;
-          min-height: 120px;
-          transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+          min-height: 125px;
+          transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+          box-shadow: 
+            0 6px 20px rgba(0, 0, 0, 0.4),
+            inset 0 1px 0 rgba(255, 255, 255, 0.02);
+          overflow: hidden;
         }
         
+        /* Subtle glow line decoration on hover */
+        .dashboard-card::after {
+          content: '';
+          position: absolute;
+          bottom: 0;
+          left: 10%;
+          right: 10%;
+          height: 2px;
+          background: var(--card-glow, var(--primary));
+          opacity: 0;
+          transition: opacity 0.3s ease;
+          border-radius: 2px;
+          box-shadow: 0 0 10px var(--card-glow, var(--primary));
+        }
+
         .dashboard-card:hover {
-          transform: translateY(-4px);
-          background: rgba(240, 196, 25, 0.06);
-          border-color: var(--primary);
+          transform: translateY(-4px) scale(1.02);
+          background: rgba(240, 196, 25, 0.03);
+          border-color: rgba(240, 196, 25, 0.25);
           box-shadow: 
-            0 12px 28px rgba(0, 0, 0, 0.6),
-            0 0 20px rgba(240, 196, 25, 0.2);
+            0 15px 30px rgba(0, 0, 0, 0.65),
+            0 0 20px rgba(240, 196, 25, 0.12);
+        }
+        
+        .dashboard-card:hover::after {
+          opacity: 0.8;
         }
 
         .dashboard-card.card-vuelo-activo {
-          border-color: rgba(0, 255, 136, 0.2);
+          --card-glow: var(--neon-green);
         }
         .dashboard-card.card-vuelo-activo:hover {
-          border-color: #00ff88;
-          background: rgba(0, 255, 136, 0.05);
+          border-color: rgba(0, 255, 136, 0.25);
+          background: rgba(0, 255, 136, 0.02);
           box-shadow: 
-            0 12px 28px rgba(0, 0, 0, 0.6),
-            0 0 20px rgba(0, 255, 136, 0.2);
+            0 15px 30px rgba(0, 0, 0, 0.65),
+            0 0 20px rgba(0, 255, 136, 0.12);
         }
 
         .dashboard-card.card-vehicular {
-          border-color: rgba(255, 102, 0, 0.2);
+          --card-glow: var(--neon-orange);
         }
         .dashboard-card.card-vehicular:hover {
-          border-color: #ff6600;
-          background: rgba(255, 102, 0, 0.05);
+          border-color: rgba(255, 102, 0, 0.25);
+          background: rgba(255, 102, 0, 0.02);
           box-shadow: 
-            0 12px 28px rgba(0, 0, 0, 0.6),
-            0 0 20px rgba(255, 102, 0, 0.2);
+            0 15px 30px rgba(0, 0, 0, 0.65),
+            0 0 20px rgba(255, 102, 0, 0.12);
         }
         
         .dashboard-card-title {
-          font-size: 1.15rem !important;
-          font-weight: 900;
+          font-size: 1.1rem !important;
+          font-weight: 800;
           text-transform: uppercase;
           margin: 0;
           color: white;
@@ -177,16 +204,16 @@ const Dashboard: React.FC<DashboardProps> = ({
         
         .dashboard-card-desc {
           color: var(--text-secondary);
-          font-size: 0.78rem !important;
-          font-weight: 600;
+          font-size: 0.76rem !important;
+          font-weight: 500;
           margin: 0;
-          line-height: 1.3;
+          line-height: 1.35;
         }
         
         .dashboard-footer {
           padding: 0.75rem 0 0 0;
           text-align: center;
-          opacity: 0.4;
+          opacity: 0.3;
           flex-shrink: 0;
         }
 
