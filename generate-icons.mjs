@@ -40,6 +40,8 @@ async function main() {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     await resize(src, path.join(dir, 'ic_launcher.png'), size);
     await resize(src, path.join(dir, 'ic_launcher_round.png'), size);
+    // ic_launcher_foreground is what Android 8+ adaptive icons actually display
+    await resize(src, path.join(dir, 'ic_launcher_foreground.png'), size);
   }
   console.log('✅ Android icons updated');
   console.log('\n🎉 All icons generated successfully!');
