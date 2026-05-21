@@ -4,6 +4,8 @@ import ShiftForm from './components/ShiftForm';
 import FlightForm from './components/FlightForm';
 import BatteriesDetectionsForm from './components/BatteriesDetectionsForm';
 import VehicleChecklistForm from './components/VehicleChecklistForm';
+import { DroneChecklistForm } from './components/DroneChecklistForm';
+import { ChecklistSelector } from './components/ChecklistSelector';
 import SettingsPanel from './components/SettingsPanel';
 import RecordsExplorer from './components/RecordsExplorer';
 import { RoleSetup } from './components/RoleSetup';
@@ -30,6 +32,7 @@ function App() {
     saveBattery, updateBattery, deleteBattery,
     saveDetection, updateDetection, deleteDetection,
     saveChecklist, updateChecklist, deleteChecklist,
+    saveDroneChecklist, updateDroneChecklist, deleteDroneChecklist,
     updateLists,
     syncIncomingData,
     getUnsyncedData,
@@ -264,6 +267,19 @@ function App() {
         );
       case 'checklist':
         return (
+          <ChecklistSelector
+            onSelect={(type) => {
+              if (type === 'vehicle') {
+                setCurrentPage('checklist-vehicular');
+              } else {
+                setCurrentPage('checklist-dron');
+              }
+            }}
+            onBack={() => setCurrentPage('dashboard')}
+          />
+        );
+      case 'checklist-vehicular':
+        return (
           <VehicleChecklistForm
             onSave={saveChecklist}
             onUpdate={updateChecklist}
@@ -272,11 +288,29 @@ function App() {
                 setEditingChecklist(undefined);
                 setCurrentPage('explorer');
               } else {
-                setCurrentPage('dashboard');
+                setCurrentPage('checklist');
               }
             }}
             lists={lists}
             history={data.checklists || []}
+            editData={editingChecklist}
+          />
+        );
+      case 'checklist-dron':
+        return (
+          <DroneChecklistForm
+            onSave={saveDroneChecklist}
+            onUpdate={updateDroneChecklist}
+            onBack={() => {
+              if (editingChecklist) {
+                setEditingChecklist(undefined);
+                setCurrentPage('explorer');
+              } else {
+                setCurrentPage('checklist');
+              }
+            }}
+            lists={lists}
+            history={data.droneChecklists || []}
             editData={editingChecklist}
           />
         );
@@ -294,11 +328,25 @@ function App() {
             onDeleteBattery={deleteBattery}
             onUpdateDetection={updateDetection}
             onDeleteDetection={deleteDetection}
-            onUpdateChecklist={updateChecklist}
-            onDeleteChecklist={deleteChecklist}
+            onUpdateChecklist={(item) => {
+              if ('droneId' in item) {
+                updateDroneChecklist(item);
+              } else {
+                updateChecklist(item);
+              }
+            }}
+            onDeleteChecklist={(id) => {
+              // Intenta borrar de ambos stores
+              deleteChecklist(id);
+              deleteDroneChecklist(id);
+            }}
             onViewChecklist={(item) => {
               setEditingChecklist(item);
-              setCurrentPage('checklist');
+              if ('droneId' in item) {
+                setCurrentPage('checklist-dron');
+              } else {
+                setCurrentPage('checklist-vehicular');
+              }
             }}
             onSyncReceived={syncIncomingData}
           />

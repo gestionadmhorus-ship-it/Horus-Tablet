@@ -32,6 +32,7 @@ type RecordType = 'shifts' | 'flights' | 'batteries' | 'detections' | 'checklist
 
 const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
   const [activeTable, setActiveTable] = useState<RecordType>('flights');
+  const [checklistSubtype, setChecklistSubtype] = useState<'vehicle' | 'drone'>('vehicle');
   const [searchTerm, setSearchTerm] = useState('');
   const [searchField, setSearchField] = useState('all');
   const [startDate, setStartDate] = useState('');
@@ -123,6 +124,15 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
           { value: 'deviceName', label: 'Dispositivo Origen' }
         ];
       case 'checklists':
+        if (checklistSubtype === 'drone') {
+          return [
+            { value: 'all', label: 'Todos los campos' },
+            { value: 'droneId', label: 'Dron' },
+            { value: 'pilot', label: 'Piloto' },
+            { value: 'observations', label: 'Observaciones' },
+            { value: 'deviceName', label: 'Dispositivo Origen' }
+          ];
+        }
         return [
           { value: 'all', label: 'Todos los campos' },
           { value: 'vehicleId', label: 'Unidad' },
@@ -137,7 +147,14 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
 
   // Filter Logic
   const filteredData = useMemo(() => {
-    const list = props.data[activeTable] as any[];
+    let list: any[] = [];
+    if (activeTable === 'checklists') {
+      list = checklistSubtype === 'drone' 
+        ? (props.data.droneChecklists || []) 
+        : (props.data.checklists || []);
+    } else {
+      list = props.data[activeTable] as any[];
+    }
     
     // Convert boundary date strings ("YYYY-MM-DD") to Date objects
     const start = startDate ? new Date(startDate + 'T00:00:00') : null;
@@ -175,7 +192,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
 
       // Specific field search logic
       if (searchField === 'all') {
-        const ownValues = Object.values(item).join(' ').toLowerCase();
+        const ownValues = Object.values(item).map(v => typeof v === 'object' ? '' : String(v)).join(' ').toLowerCase();
         const relatedValues = [
           flight?.pilot,
           flight?.lineName,
@@ -207,12 +224,13 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
       if (searchField === 'droneBattery') return String(item.droneBattery || '').includes(term);
       if (searchField === 'controlBattery') return String(item.controlBattery || '').includes(term);
       if (searchField === 'vehicleId') return (item.vehicleId || '').toLowerCase().includes(term);
+      if (searchField === 'droneId') return (item.droneId || '').toLowerCase().includes(term);
       if (searchField === 'driver') return (item.driver || '').toLowerCase().includes(term);
       if (searchField === 'deviceName') return (item.deviceName || '').toLowerCase().includes(term);
 
       return false;
     }).sort((a, b) => b.timestamp.localeCompare(a.timestamp));
-  }, [props.data, activeTable, searchTerm, searchField, startDate, endDate, flightMap, shiftMap]);
+  }, [props.data, activeTable, checklistSubtype, searchTerm, searchField, startDate, endDate, flightMap, shiftMap]);
 
   const handleExportFiltered = () => {
     if (activeTable === 'checklists') return;
@@ -259,13 +277,13 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
       </div>
 
       {/* Table Selector Tabs */}
-      <div style={{ display: 'flex', gap: '1rem', marginBottom: '2.5rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
+      <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
         {[
           { id: 'shifts', label: 'Jornadas', icon: LayoutDashboard },
           { id: 'flights', label: 'Vuelos', icon: Plane },
           { id: 'batteries', label: 'Baterías', icon: Cpu },
           { id: 'detections', label: 'Detecciones', icon: AlertTriangle },
-          { id: 'checklists', label: 'Inspecciones', icon: ShieldCheck },
+          { id: 'checklists', label: 'Checklist Diario', icon: ShieldCheck },
         ].map(tab => (
           <button
             key={tab.id}
@@ -285,6 +303,48 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
           </button>
         ))}
       </div>
+
+      {/* Subtype selector for checklists */}
+      {activeTable === 'checklists' && (
+        <div style={{ display: 'flex', gap: '1rem', marginBottom: '2.5rem', justifyContent: 'center' }}>
+          <button
+            onClick={() => { setChecklistSubtype('vehicle'); setSearchField('all'); setSearchTerm(''); }}
+            className="btn-3d"
+            style={{
+              padding: '0.8rem 1.5rem',
+              borderRadius: '8px',
+              border: '1px solid',
+              borderColor: checklistSubtype === 'vehicle' ? 'var(--neon-orange)' : 'rgba(255,255,255,0.1)',
+              background: checklistSubtype === 'vehicle' ? 'rgba(255, 102, 0, 0.1)' : 'rgba(0,0,0,0.3)',
+              color: checklistSubtype === 'vehicle' ? 'var(--neon-orange)' : '#FFF',
+              fontWeight: 800,
+              fontSize: '0.82rem',
+              cursor: 'pointer',
+              boxShadow: checklistSubtype === 'vehicle' ? '0 0 15px rgba(255, 102, 0, 0.15)' : 'none'
+            }}
+          >
+            🚜 CHECKLIST VEHICULAR
+          </button>
+          <button
+            onClick={() => { setChecklistSubtype('drone'); setSearchField('all'); setSearchTerm(''); }}
+            className="btn-3d"
+            style={{
+              padding: '0.8rem 1.5rem',
+              borderRadius: '8px',
+              border: '1px solid',
+              borderColor: checklistSubtype === 'drone' ? 'var(--neon-green)' : 'rgba(255,255,255,0.1)',
+              background: checklistSubtype === 'drone' ? 'rgba(0, 255, 136, 0.1)' : 'rgba(0,0,0,0.3)',
+              color: checklistSubtype === 'drone' ? 'var(--neon-green)' : '#FFF',
+              fontWeight: 800,
+              fontSize: '0.82rem',
+              cursor: 'pointer',
+              boxShadow: checklistSubtype === 'drone' ? '0 0 15px rgba(0, 255, 136, 0.15)' : 'none'
+            }}
+          >
+            🚁 CHECKLIST DE DRON
+          </button>
+        </div>
+      )}
 
       {/* Filters Bar */}
       <div className="glass" style={{ padding: '2rem', marginBottom: '2.5rem', display: 'grid', gridTemplateColumns: '1.8fr 1fr 1fr 160px', gap: '1.5rem', alignItems: 'end', background: 'rgba(0,0,0,0.4)', border: '1px solid var(--glass-border)' }}>
@@ -382,7 +442,21 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
                 {activeTable === 'flights' && <><th style={{ padding: '1.2rem', color: 'white' }}>Piloto</th><th style={{ padding: '1.2rem', color: 'white' }}>Línea</th><th style={{ padding: '1.2rem', color: 'white' }}>Obs.</th></>}
                 {activeTable === 'batteries' && <><th style={{ padding: '1.2rem', color: 'white' }}>Piloto</th><th style={{ padding: '1.2rem', color: 'white' }}>ID Dron</th><th style={{ padding: '1.2rem', color: 'white' }}>Bat. Dron</th><th style={{ padding: '1.2rem', color: 'white' }}>ID RC</th><th style={{ padding: '1.2rem', color: 'white' }}>Bat. RC</th></>}
                 {activeTable === 'detections' && <><th style={{ padding: '1.2rem', color: 'white' }}>Elemento</th><th style={{ padding: '1.2rem', color: 'white' }}>Anomalía</th><th style={{ padding: '1.2rem', color: 'white' }}>Criticidad</th></>}
-                {activeTable === 'checklists' && <><th style={{ padding: '1.2rem', color: 'white' }}>Unidad</th><th style={{ padding: '1.2rem', color: 'white' }}>Responsable</th><th style={{ padding: '1.2rem', color: 'white' }}>Kilometraje</th></>}
+                {activeTable === 'checklists' && (
+                  checklistSubtype === 'drone' ? (
+                    <>
+                      <th style={{ padding: '1.2rem', color: 'white' }}>Dron</th>
+                      <th style={{ padding: '1.2rem', color: 'white' }}>Piloto</th>
+                      <th style={{ padding: '1.2rem', color: 'white' }}>Estado General</th>
+                    </>
+                  ) : (
+                    <>
+                      <th style={{ padding: '1.2rem', color: 'white' }}>Unidad</th>
+                      <th style={{ padding: '1.2rem', color: 'white' }}>Responsable</th>
+                      <th style={{ padding: '1.2rem', color: 'white' }}>Kilometraje</th>
+                    </>
+                  )
+                )}
                 <th style={{ padding: '1.2rem', color: 'white' }}>Origen</th>
                 <th style={{ padding: '1.2rem', textAlign: 'right', color: 'white' }}>Acciones</th>
               </tr>
@@ -436,11 +510,19 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
                     </>
                   )}
                   {activeTable === 'checklists' && (
-                    <>
-                      <td style={{ padding: '1.2rem', color: 'white', fontWeight: 800 }}>{item.vehicleId}</td>
-                      <td style={{ padding: '1.2rem', color: 'white' }}>{item.driver}</td>
-                      <td style={{ padding: '1.2rem', color: '#ff6600', fontWeight: 800 }}>{item.mileage} km</td>
-                    </>
+                    checklistSubtype === 'drone' ? (
+                      <>
+                        <td style={{ padding: '1.2rem', color: 'white', fontWeight: 800 }}>{item.droneId}</td>
+                        <td style={{ padding: '1.2rem', color: 'white' }}>{item.pilot}</td>
+                        <td style={{ padding: '1.2rem', color: 'var(--neon-green)', fontWeight: 800 }}>✓ COMPLETO</td>
+                      </>
+                    ) : (
+                      <>
+                        <td style={{ padding: '1.2rem', color: 'white', fontWeight: 800 }}>{item.vehicleId}</td>
+                        <td style={{ padding: '1.2rem', color: 'white' }}>{item.driver}</td>
+                        <td style={{ padding: '1.2rem', color: '#ff6600', fontWeight: 800 }}>{item.mileage} km</td>
+                      </>
+                    )
                   )}
 
                   <td style={{ padding: '1.2rem', color: '#a0aec0', fontSize: '0.85rem', fontWeight: 600 }}>

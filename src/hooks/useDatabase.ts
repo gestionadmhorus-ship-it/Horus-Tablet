@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
-import { DEFAULT_LISTS, type ListsData, type AppData, type ShiftData, type FlightData, type BatteryData, type DetectionData } from '../types';
+import { DEFAULT_LISTS, type ListsData, type AppData, type ShiftData, type FlightData, type BatteryData, type DetectionData, type DroneChecklistData } from '../types';
 import { useEffect, useRef } from 'react';
 import { persistToDisk, loadFromDisk } from '../services/NativeStorage';
 
@@ -11,6 +11,7 @@ export function useDatabase() {
   const batteries = useLiveQuery(() => db.batteries.toArray()) || [];
   const detections = useLiveQuery(() => db.detections.toArray()) || [];
   const checklists = useLiveQuery(() => db.vehicleChecklists.toArray()) || [];
+  const droneChecklists = useLiveQuery(() => db.droneChecklists.toArray()) || [];
   
   // 2. Settings management (ListsData)
   const settingsRow = useLiveQuery(() => db.settings.get('current'));
@@ -88,12 +89,16 @@ export function useDatabase() {
   const saveChecklist = (item: any) => db.vehicleChecklists.add({ ...item, deviceName: item.deviceName || getDeviceName() });
   const updateChecklist = (item: any) => db.vehicleChecklists.put({ ...item, deviceName: item.deviceName || getDeviceName() });
   const deleteChecklist = (id: string) => db.vehicleChecklists.delete(id);
+
+  const saveDroneChecklist = (item: DroneChecklistData) => db.droneChecklists.add({ ...item, deviceName: item.deviceName || getDeviceName() });
+  const updateDroneChecklist = (item: DroneChecklistData) => db.droneChecklists.put({ ...item, deviceName: item.deviceName || getDeviceName() });
+  const deleteDroneChecklist = (id: string) => db.droneChecklists.delete(id);
   
   const updateLists = (newList: ListsData) => db.settings.put({ id: 'current', data: newList });
  
   // ─── Transactional merger for incoming P2P data payload ───
   const syncIncomingData = async (incoming: AppData) => {
-    await db.transaction('rw', [db.shifts, db.flights, db.batteries, db.detections, db.vehicleChecklists], async () => {
+    await db.transaction('rw', [db.shifts, db.flights, db.batteries, db.detections, db.vehicleChecklists, db.droneChecklists], async () => {
       if (incoming.shifts && incoming.shifts.length > 0) {
         for (const item of incoming.shifts) {
           await db.shifts.put(item);
@@ -120,6 +125,11 @@ export function useDatabase() {
           await db.vehicleChecklists.put(item);
         }
       }
+      if (incoming.droneChecklists && incoming.droneChecklists.length > 0) {
+        for (const item of incoming.droneChecklists) {
+          await db.droneChecklists.put(item);
+        }
+      }
     });
   };
 
@@ -129,22 +139,24 @@ export function useDatabase() {
     const b = await db.batteries.filter((i) => !i.isSynced).toArray();
     const d = await db.detections.filter((i) => !i.isSynced).toArray();
     const c = await db.vehicleChecklists.filter((i) => !i.isSynced).toArray();
-    return { shifts: s, flights: f, batteries: b, detections: d, checklists: c };
+    const dc = await db.droneChecklists.filter((i) => !i.isSynced).toArray();
+    return { shifts: s, flights: f, batteries: b, detections: d, checklists: c, droneChecklists: dc };
   };
 
   const markDataAsSynced = async (data: AppData) => {
-    await db.transaction('rw', [db.shifts, db.flights, db.batteries, db.detections, db.vehicleChecklists], async () => {
+    await db.transaction('rw', [db.shifts, db.flights, db.batteries, db.detections, db.vehicleChecklists, db.droneChecklists], async () => {
       if (data.shifts) for (const i of data.shifts) await db.shifts.update(i.id, { isSynced: true });
       if (data.flights) for (const i of data.flights) await db.flights.update(i.id, { isSynced: true });
       if (data.batteries) for (const i of data.batteries) await db.batteries.update(i.id, { isSynced: true });
       if (data.detections) for (const i of data.detections) await db.detections.update(i.id, { isSynced: true });
       if (data.checklists) for (const i of data.checklists) await db.vehicleChecklists.update(i.id, { isSynced: true });
+      if (data.droneChecklists) for (const i of data.droneChecklists) await db.droneChecklists.update(i.id, { isSynced: true });
     });
   };
 
 
   // 5. Aggregate object for export
-  const fullData: AppData = { shifts, flights, batteries, detections, checklists };
+  const fullData: AppData = { shifts, flights, batteries, detections, checklists, droneChecklists };
 
   // 6. Auto-persist to physical disk on every data change
   //    - In Electron (.exe): writes to Mis Documentos/Horus_Datos/
@@ -156,10 +168,10 @@ export function useDatabase() {
       isFirstRender.current = false;
       return;
     }
-    if (shifts.length > 0 || flights.length > 0 || batteries.length > 0 || detections.length > 0 || checklists.length > 0) {
+    if (shifts.length > 0 || flights.length > 0 || batteries.length > 0 || detections.length > 0 || checklists.length > 0 || droneChecklists.length > 0) {
       persistToDisk(fullData).catch(e => console.error('[DB] persist error:', e));
     }
-  }, [shifts, flights, batteries, detections, checklists]);
+  }, [shifts, flights, batteries, detections, checklists, droneChecklists]);
 
   // 7. Load from physical disk on first boot and seed Dexie if DB is empty
   useEffect(() => {
@@ -169,12 +181,13 @@ export function useDatabase() {
       const count = await db.shifts.count();
       if (count === 0 && diskData.shifts && diskData.shifts.length > 0) {
         console.log('[NativeStorage] Seeding Dexie from physical disk backup...');
-        await db.transaction('rw', [db.shifts, db.flights, db.batteries, db.detections, db.vehicleChecklists], async () => {
+        await db.transaction('rw', [db.shifts, db.flights, db.batteries, db.detections, db.vehicleChecklists, db.droneChecklists], async () => {
           await db.shifts.bulkPut(diskData.shifts);
           await db.flights.bulkPut(diskData.flights || []);
           await db.batteries.bulkPut(diskData.batteries || []);
           await db.detections.bulkPut(diskData.detections || []);
           await db.vehicleChecklists.bulkPut(diskData.checklists || []);
+          await db.droneChecklists.bulkPut(diskData.droneChecklists || []);
         });
         console.log('[NativeStorage] ✅ Restored from physical disk.');
       }
@@ -190,6 +203,7 @@ export function useDatabase() {
     saveBattery, updateBattery, deleteBattery,
     saveDetection, updateDetection, deleteDetection,
     saveChecklist, updateChecklist, deleteChecklist,
+    saveDroneChecklist, updateDroneChecklist, deleteDroneChecklist,
     updateLists,
     syncIncomingData,
     getUnsyncedData,

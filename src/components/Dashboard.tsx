@@ -646,22 +646,22 @@ const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </motion.button>
  
-        {/* ─── Checklist Vehicular ─── */}
+        {/* ─── Checklist Diario ─── */}
         <motion.button
           whileTap={{ scale: 0.98 }}
           onClick={() => onNavigate('checklist')}
-          className="dashboard-card col-span-3 mobile-full-width card-vehicular"
+          className="dashboard-card col-span-3 mobile-full-width"
           style={{ 
             cursor: 'pointer', 
-            background: 'rgba(255,102,0,0.03)'
+            background: 'rgba(240,196,25,0.03)'
           }}
         >
-          <div style={{ color: '#ff6600' }}>
+          <div style={{ color: 'var(--primary)' }}>
             <ShieldCheck size={36} />
           </div>
           <div>
-            <h2 className="dashboard-card-title" style={{ color: '#ff6600' }}>Inspección Vehicular</h2>
-            <p className="dashboard-card-desc" style={{ color: 'white' }}>Checklist diario y vencimientos.</p>
+            <h2 className="dashboard-card-title" style={{ color: 'var(--primary)' }}>Checklist Diario</h2>
+            <p className="dashboard-card-desc" style={{ color: 'white' }}>Inspecciones obligatorias de vehículo y dron.</p>
           </div>
         </motion.button>
       </div>

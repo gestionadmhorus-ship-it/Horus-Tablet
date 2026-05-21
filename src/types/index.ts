@@ -113,6 +113,47 @@ export interface VehicleChecklistData {
   isSynced?: boolean;
 }
 
+export interface DroneChecklistData {
+  id: string;
+  timestamp: string;
+  pilot: string;
+  droneId: string;
+  checks: {
+    // Fase 1: Inspección Física (Dron y Control APAGADOS)
+    frameSecured: boolean;
+    landingGearLocked: boolean;
+    propellersIntact: boolean;
+    motorsFreeSpinning: boolean;
+    batterySecured: boolean;
+    cameraProtectorRemoved: boolean;
+    sdCardInsertedPhysically: boolean;
+    areaSecured: boolean;
+
+    // Fase 2: Puesta en Marcha y Enlace (Encendido)
+    rcAntennasDeployed: boolean;
+    rcSticksCentered: boolean;
+    appStarted: boolean;
+    dronePoweredOn: boolean;
+    rcDroneLinked: boolean;
+
+    // Fase 3: Verificación Sistémica (Sistema Conectado)
+    systemBatteriesChecked: boolean;
+    imuCompassCalibrated: boolean;
+    gpsLockOptimal: boolean;
+    rthParamsConfigured: boolean;
+    obstacleAvoidanceActive: boolean;
+    cameraFeedFluid: boolean;
+
+    // Fase 4: Vuelo y Prueba Inmediata (Despegue)
+    casesClosedAndStored: boolean;
+    takeoffAreaClear: boolean;
+    hoverTestPassed: boolean;
+  };
+  observations: string;
+  deviceName?: string;
+  isSynced?: boolean;
+}
+
 /* ─── App State ─── */
 export interface AppData {
   shifts: ShiftData[];
@@ -120,6 +161,7 @@ export interface AppData {
   batteries: BatteryData[];
   detections: DetectionData[];
   checklists?: VehicleChecklistData[];
+  droneChecklists?: DroneChecklistData[];
 }
 
 /* ─── Sync Configuration ─── */
