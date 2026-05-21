@@ -220,9 +220,8 @@ const Dashboard: React.FC<DashboardProps> = ({
             padding-top: 1rem;
           }
           .dashboard-banner {
-            height: 70px;
+            height: 90px;
             border-radius: 12px;
-            margin-top: 2.5rem;
           }
           .dashboard-banner-title {
             font-size: 1.1rem;

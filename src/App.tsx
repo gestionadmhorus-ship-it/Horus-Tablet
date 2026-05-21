@@ -359,18 +359,21 @@ function App() {
 
   return (
     <div style={appStyle}>
-      {/* Global Logo + App Name - Visible on all inner screens, hidden in print and hidden on dashboard (it has its own banner) */}
-      <div className="no-print" style={{ position: 'absolute', top: '1.5rem', left: '2rem', zIndex: 1000, pointerEvents: 'none', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-        <img src="/logo_horus_nuevo.png" alt="Horus Dron" style={{ height: '40px', filter: 'drop-shadow(0px 0px 10px rgba(0,0,0,0.8))' }} />
-        <div style={{ lineHeight: 1.1 }}>
-          <div style={{ fontSize: '1.1rem', fontWeight: 900, letterSpacing: '2px', color: 'var(--primary)', textTransform: 'uppercase' }}>
-            Hermes <em style={{ fontStyle: 'italic' }}>II</em>
-          </div>
-          <div style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.4)', letterSpacing: '1px', textTransform: 'uppercase' }}>
-            Horus Dron
+      {/* Global Logo + App Name - Only shown on inner pages (forms, records, etc)
+           Hidden on Dashboard which has its own full banner with logo */}
+      {currentPage !== 'dashboard' && (
+        <div className="no-print" style={{ position: 'absolute', top: '1.5rem', left: '2rem', zIndex: 1000, pointerEvents: 'none', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <img src="/logo_horus_nuevo.png" alt="Horus Dron" style={{ height: '40px', filter: 'drop-shadow(0px 0px 10px rgba(0,0,0,0.8))' }} />
+          <div style={{ lineHeight: 1.1 }}>
+            <div style={{ fontSize: '1.1rem', fontWeight: 900, letterSpacing: '2px', color: 'var(--primary)', textTransform: 'uppercase' }}>
+              Hermes <em style={{ fontStyle: 'italic' }}>II</em>
+            </div>
+            <div style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.4)', letterSpacing: '1px', textTransform: 'uppercase' }}>
+              Horus Dron
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {renderPage()}
 
