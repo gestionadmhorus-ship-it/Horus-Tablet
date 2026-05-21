@@ -4,9 +4,11 @@ import electron from 'vite-plugin-electron';
 
 const isElectronBuild = process.env['BUILD_TARGET'] === 'electron';
 
-
 // https://vite.dev/config/
 export default defineConfig({
+  // CRITICAL for Electron: relative paths so file:// protocol resolves assets.
+  // For web/Android builds, base '/' is correct for HTTP servers.
+  base: isElectronBuild ? './' : '/',
   plugins: [
     react(),
     // Only activates when BUILD_TARGET=electron — zero impact on APK builds
@@ -40,8 +42,7 @@ export default defineConfig({
       : []),
   ],
   server: {
-    host: true, // Expose on local network (0.0.0.0)
+    host: true,
     port: 5173,
   },
 });
-

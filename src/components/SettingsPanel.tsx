@@ -4,6 +4,7 @@ import {
   ClipboardPaste, BookOpen, CheckCircle, AlertCircle, ChevronRight, Wifi, ShieldAlert
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
+import { Peer } from 'peerjs';
 import type { ListsData, ElementEntry, AnomalyEntry } from '../types';
 
 interface SettingsPanelProps {
@@ -110,11 +111,32 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
 
   const handleUnbindClient = async () => {
     const ok = await window.customConfirm('¿Estás seguro de desvincularte del Jefe actual? Deberás escanear un nuevo QR para volver a sincronizar.');
-    if (ok) {
+    if (!ok) return;
+
+    const doUnbind = () => {
       localStorage.removeItem('horus_target_server_id');
       localStorage.removeItem('horus_sync_role');
       window.location.reload();
-    }
+    };
+
+    const targetServerId = localStorage.getItem('horus_target_server_id');
+    if (!targetServerId) { doUnbind(); return; }
+
+    // Try to notify server before disconnecting (3s timeout)
+    try {
+      const tempPeer = new Peer({ debug: 0 });
+      const giveUp = setTimeout(() => { tempPeer.destroy(); doUnbind(); }, 3000);
+
+      tempPeer.on('open', () => {
+        const conn = tempPeer.connect(targetServerId);
+        conn.on('open', () => {
+          conn.send({ type: 'DISCONNECT', deviceName });
+          setTimeout(() => { clearTimeout(giveUp); tempPeer.destroy(); doUnbind(); }, 600);
+        });
+        conn.on('error', () => { clearTimeout(giveUp); tempPeer.destroy(); doUnbind(); });
+      });
+      tempPeer.on('error', () => { clearTimeout(giveUp); doUnbind(); });
+    } catch { doUnbind(); }
   };
 
   /* ─── Flat list helpers ─── */

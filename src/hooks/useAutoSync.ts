@@ -56,11 +56,26 @@ export function useAutoSync(
           if (!isActive) return;
           
           conn.on('data', async (data: any) => {
+
+            // ── Explorador notifica desvinculación ──
+            if (data.type === 'DISCONNECT') {
+              const name = data.deviceName as string | undefined;
+              if (name) {
+                const known: string[] = JSON.parse(localStorage.getItem('horus_known_clients') || '[]');
+                const updated = known.filter(c => c !== name);
+                localStorage.setItem('horus_known_clients', JSON.stringify(updated));
+                window.dispatchEvent(new Event('horus_known_clients_updated'));
+                setSyncStatus(`🔌 "${name}" se ha desvinculado.`);
+                setTimeout(() => { if (isActive) setSyncStatus('📡 Servidor: En línea y escuchando.'); }, 3000);
+              }
+              conn.close();
+              return;
+            }
+
             if (data.type === 'SYNC_PAYLOAD' && data.payload) {
               const blockedListStr = localStorage.getItem('horus_blocked_clients') || '[]';
               const blockedClients: string[] = JSON.parse(blockedListStr);
               
-              // Basic check, assume payload has at least one record with deviceName
               let senderDeviceName = 'Unknown';
               const p = data.payload;
               if (p.shifts?.[0]) senderDeviceName = p.shifts[0].deviceName;
@@ -69,9 +84,11 @@ export function useAutoSync(
               else if (p.detections?.[0]) senderDeviceName = p.detections[0].deviceName;
 
               if (blockedClients.includes(senderDeviceName)) {
-                console.warn('Conexión rechazada de dispositivo bloqueado:', senderDeviceName);
-                conn.send({ type: 'SYNC_ERROR', message: 'Acceso denegado.' });
+                // Notify client it was removed; auto-unblock so re-pairing is possible
+                conn.send({ type: 'SYNC_ERROR', code: 'REMOVED_BY_SERVER', message: 'Fuiste eliminado de la red por el Jefe.' });
                 conn.close();
+                const updatedBlocked = blockedClients.filter(c => c !== senderDeviceName);
+                localStorage.setItem('horus_blocked_clients', JSON.stringify(updatedBlocked));
                 return;
               }
 
@@ -81,7 +98,6 @@ export function useAutoSync(
                 if (!known.includes(senderDeviceName)) {
                   known.push(senderDeviceName);
                   localStorage.setItem('horus_known_clients', JSON.stringify(known));
-                  // dispatch custom event to update settings panel in real time if open
                   window.dispatchEvent(new Event('horus_known_clients_updated'));
                 }
               }
@@ -164,6 +180,17 @@ export function useAutoSync(
               }, 3000);
               setIsSyncing(false);
               conn.close();
+            } else if (data.type === 'SYNC_ERROR' && data.code === 'REMOVED_BY_SERVER') {
+              // Jefe eliminated this device — reset config and go back to RoleSetup
+              setSyncStatus('⚠️ El Jefe te ha eliminado de la red. Vuelve a escanear el QR.');
+              setIsSyncing(false);
+              conn.close();
+              isActive = false;
+              setTimeout(() => {
+                localStorage.removeItem('horus_target_server_id');
+                localStorage.removeItem('horus_sync_role');
+                window.location.reload();
+              }, 2500);
             }
           });
 

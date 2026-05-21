@@ -12,10 +12,10 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.json" />
     <title>Hermes II — Horus Dron</title>
+    <script type="module" src="/src/main.tsx"></script>
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
     <script>
       // Register Service Worker for offline capability (Skip on localhost to prevent stale caching during dev)
       if ('serviceWorker' in navigator) {
