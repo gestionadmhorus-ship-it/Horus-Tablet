@@ -14,6 +14,7 @@ interface BatteriesDetectionsFormProps {
   lists: ListsData;
   activeFlightId?: string;
   activeFlightName?: string;
+  activeFlightCategory?: string;
 }
 
 type ActivePanel = 'batteries' | 'detections';
@@ -65,7 +66,7 @@ const BatteryBar: React.FC<{ value: string }> = ({ value }) => {
 
 /* ═══════════════ COMPONENT ═══════════════ */
 const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
-  onSaveBattery, onSaveDetection, onBack, lists, activeFlightId, activeFlightName
+  onSaveBattery, onSaveDetection, onBack, lists, activeFlightId, activeFlightName, activeFlightCategory
 }) => {
   const [activePanel, setActivePanel] = useState<ActivePanel>('batteries');
 
@@ -82,9 +83,15 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
 
 
   /* ─── Cascading logic ─── */
-  const elementNames = lists.elements.map(e => e.name);
+  // Filter elements by the active flight's category (or show all if flight or element lacks a category)
+  const filteredElementsList = lists.elements.filter(el => {
+    if (!activeFlightCategory || !el.category) return true;
+    return el.category === activeFlightCategory;
+  });
 
-  const filteredAnomalies = lists.elements
+  const elementNames = filteredElementsList.map(e => e.name);
+
+  const filteredAnomalies = filteredElementsList
     .find(e => e.name === selectedElement)
     ?.anomalies.map(a => a.name) ?? [];
 
@@ -96,7 +103,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
 
   const handleAnomalyChange = (name: string) => {
     setSelectedAnomaly(name);
-    const el = lists.elements.find(e => e.name === selectedElement);
+    const el = filteredElementsList.find(e => e.name === selectedElement);
     const anom = el?.anomalies.find(a => a.name === name);
     setRecommendation(anom?.recommendation || '');
   };
@@ -119,6 +126,10 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
 
   const handleSaveDetection = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!criticality) {
+      await window.customAlert('⚠️ Por favor selecciona un nivel de criticidad antes de guardar.');
+      return;
+    }
     const now = new Date();
     onSaveDetection({
       id: generateId('DET'),
@@ -182,7 +193,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
 
         {/* ────── BATTERIES PANEL ────── */}
         {activePanel === 'batteries' && (
-          <form onSubmit={handleSaveBattery} style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          <form onSubmit={handleSaveBattery} className="form-scroll-container" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
               <div style={{ background: 'rgba(0,194,255,0.12)', padding: '0.6rem', borderRadius: '10px', color: '#00c2ff' }}><Battery size={24} /></div>
               <div style={{ textAlign: 'center' }}>
@@ -268,7 +279,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
 
         {/* ────── DETECTIONS PANEL ────── */}
         {activePanel === 'detections' && (
-          <form onSubmit={handleSaveDetection} style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          <form onSubmit={handleSaveDetection} className="form-scroll-container" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
               <div style={{ background: 'rgba(0,255,136,0.1)', padding: '0.6rem', borderRadius: '10px', color: 'var(--accent)' }}><AlertTriangle size={24} /></div>
               <div style={{ textAlign: 'center' }}>
@@ -369,16 +380,59 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
               </div>
             )}
 
-            {/* ─ Criticidad ─ */}
-            <SmartSelect
-              label="Criticidad"
-              options={lists.criticalities}
-              value={criticality}
-              onChange={setCriticality}
-              required
-              emptyMsg="Sin criticidades — agrega en ⚙️ → Listas"
-              style={{ color: critColors[criticality] || 'white', fontWeight: 600 }}
-            />
+            {/* ─ Criticidad (Botones directos táctiles) ─ */}
+            <div>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Criticidad</label>
+              {lists.criticalities.length === 0 ? (
+                <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                  Sin criticidades — agrega en ⚙️ → Listas
+                </div>
+              ) : (
+                <div style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: '0.75rem',
+                  marginTop: '0.5rem',
+                  width: '100%'
+                }}>
+                  {lists.criticalities.map(crit => {
+                    const isSelected = criticality === crit;
+                    const baseColor = critColors[crit] || '#94A3B8';
+                    return (
+                      <button
+                        key={crit}
+                        type="button"
+                        onClick={() => setCriticality(crit)}
+                        style={{
+                          flex: '1 1 calc(20% - 0.75rem)',
+                          minWidth: '90px',
+                          padding: '12px 10px',
+                          borderRadius: '8px',
+                          border: `2px solid ${baseColor}`,
+                          background: isSelected ? baseColor : 'rgba(0,0,0,0.85)',
+                          color: isSelected ? '#000000' : baseColor,
+                          fontWeight: 900,
+                          fontSize: '0.85rem',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.5px',
+                          cursor: 'pointer',
+                          textAlign: 'center',
+                          boxShadow: isSelected
+                            ? `0 0 15px ${baseColor}`
+                            : 'none',
+                          transition: 'all 0.2s ease',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                      >
+                        {crit}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
 
             {/* ─ Archivo del Dron ─ */}
             <div>

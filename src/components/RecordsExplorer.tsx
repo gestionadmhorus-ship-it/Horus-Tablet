@@ -433,7 +433,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
 
       {/* Records Table */}
       <div className="glass" style={{ overflow: 'hidden', background: '#000', border: '1px solid var(--glass-border)' }}>
-        <div style={{ overflowX: 'auto' }}>
+        <div className="table-responsive-wrapper">
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead>
               <tr style={{ background: 'rgba(240,196,25,0.1)', borderBottom: '2px solid var(--primary)' }}>

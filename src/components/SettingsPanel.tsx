@@ -6,6 +6,7 @@ import {
 import { QRCodeSVG } from 'qrcode.react';
 import { Peer } from 'peerjs';
 import type { ListsData, ElementEntry, AnomalyEntry } from '../types';
+import { INSPECTION_CATEGORIES } from '../types';
 import { HorusSyncManager } from '../utils/legacySync';
 
 interface SettingsPanelProps {
@@ -33,7 +34,7 @@ const criticalityColors: Record<string, string> = {
 };
 
 /* ─── Excel paste parser ─── */
-function parsePaste(text: string): { entry: ElementEntry; warnings: string[] } | { error: string } {
+function parsePaste(text: string, category: string): { entry: ElementEntry; warnings: string[] } | { error: string } {
   const lines = text
     .trim()
     .split(/\r?\n/)
@@ -61,7 +62,7 @@ function parsePaste(text: string): { entry: ElementEntry; warnings: string[] } |
   }
 
   if (anomalies.length === 0) return { error: 'No se encontraron filas de anomalías válidas.' };
-  return { entry: { name: elementName, anomalies }, warnings };
+  return { entry: { name: elementName, category, anomalies }, warnings };
 }
 
 /* ═══════════════ COMPONENT ═══════════════ */
@@ -142,6 +143,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
 
   /* ─── Knowledge base state ─── */
   const [pasteText, setPasteText] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('Otros');
   const [parseResult, setParseResult] = useState<{ type: 'success' | 'error' | 'warning'; msg: string } | null>(null);
   const [kbExpanded, setKbExpanded] = useState<Record<string, boolean>>({});
   const [activeTab, setActiveTab] = useState<'lists' | 'knowledge' | 'connection'>('lists');
@@ -224,7 +226,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
   /* ─── Knowledge base helpers ─── */
   const processPaste = () => {
     setParseResult(null);
-    const result = parsePaste(pasteText);
+    const result = parsePaste(pasteText, selectedCategory);
     if ('error' in result) { setParseResult({ type: 'error', msg: result.error }); return; }
 
     const { entry, warnings } = result;
@@ -236,17 +238,17 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
       const existing = lists.elements[existingIdx];
       const existingNames = existing.anomalies.map(a => a.name.toLowerCase());
       const newAnomalies = entry.anomalies.filter(a => !existingNames.includes(a.name.toLowerCase()));
-      const merged: ElementEntry = { ...existing, anomalies: [...existing.anomalies, ...newAnomalies] };
+      const merged: ElementEntry = { ...existing, category: selectedCategory, anomalies: [...existing.anomalies, ...newAnomalies] };
       updatedElements = lists.elements.map((e, i) => i === existingIdx ? merged : e);
       setParseResult({
         type: warnings.length ? 'warning' : 'success',
-        msg: `Elemento "${entry.name}" actualizado. +${newAnomalies.length} anomalías nuevas.${warnings.length ? ' Avisos: ' + warnings.join('; ') : ''}`
+        msg: `Elemento "${entry.name}" actualizado en categoría "${selectedCategory}". +${newAnomalies.length} anomalías nuevas.${warnings.length ? ' Avisos: ' + warnings.join('; ') : ''}`
       });
     } else {
       updatedElements = [...lists.elements, entry];
       setParseResult({
         type: warnings.length ? 'warning' : 'success',
-        msg: `Elemento "${entry.name}" cargado con ${entry.anomalies.length} anomalías.${warnings.length ? ' Avisos: ' + warnings.join('; ') : ''}`
+        msg: `Elemento "${entry.name}" cargado en categoría "${selectedCategory}" con ${entry.anomalies.length} anomalías.${warnings.length ? ' Avisos: ' + warnings.join('; ') : ''}`
       });
     }
 
@@ -446,6 +448,29 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
                   </div>
                 </div>
 
+                <div style={{ marginBottom: '0.75rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '4px', fontWeight: 600 }}>
+                    Categoría de esta planilla:
+                  </label>
+                  <select
+                    value={selectedCategory}
+                    onChange={e => setSelectedCategory(e.target.value)}
+                    style={{
+                      width: '100%',
+                      background: 'black',
+                      border: '1px solid rgba(0,242,255,0.3)',
+                      color: 'white',
+                      fontSize: '0.85rem',
+                      padding: '8px 10px',
+                      borderRadius: '8px'
+                    }}
+                  >
+                    {INSPECTION_CATEGORIES.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+
                 <textarea
                   value={pasteText}
                   onChange={e => { setPasteText(e.target.value); setParseResult(null); }}
@@ -496,12 +521,25 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
                 ) : (
                   lists.elements.map(el => (
                     <div key={el.name} style={sectionStyle}>
-                      <button
+                      <div
                         onClick={() => setKbExpanded(p => ({ ...p, [el.name]: !p[el.name] }))}
                         style={{ width: '100%', padding: '0.85rem 1.2rem', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: 'white' }}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
                           <span style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--primary)' }}>{el.name}</span>
+                          {el.category && (
+                            <span style={{
+                              background: 'rgba(255,255,255,0.06)',
+                              color: '#ffcc00',
+                              border: '1px solid rgba(255,200,0,0.3)',
+                              borderRadius: '4px',
+                              padding: '1px 6px',
+                              fontSize: '0.68rem',
+                              fontWeight: 700
+                            }}>
+                              {el.category}
+                            </span>
+                          )}
                           <span style={{ background: 'rgba(0,242,255,0.12)', color: 'var(--primary)', borderRadius: '20px', padding: '1px 8px', fontSize: '0.72rem', fontWeight: 700 }}>
                             {el.anomalies.length} anomalías
                           </span>
@@ -515,7 +553,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
                           </button>
                           {kbExpanded[el.name] ? <ChevronUp size={14} color="var(--text-secondary)" /> : <ChevronDown size={14} color="var(--text-secondary)" />}
                         </div>
-                      </button>
+                      </div>
 
                       {kbExpanded[el.name] && (
                         <div style={{ padding: '0 1rem 1rem' }}>

@@ -8,6 +8,7 @@ export interface AnomalyEntry {
 
 export interface ElementEntry {
   name: string;
+  category?: string;
   anomalies: AnomalyEntry[];
 }
 
@@ -46,6 +47,7 @@ export interface FlightData {
   lineName: string;
   authCode: string;
   observations: string;
+  category?: string;
   deviceName?: string;
   isSynced?: boolean;
 }
@@ -174,3 +176,11 @@ export interface SyncConfig {
   targetServerId?: string; // The scanned UUID of the boss if this is a client
   blockedClients?: string[]; // Array of deviceNames that the server ignores
 }
+
+export const INSPECTION_CATEGORIES = [
+  "Línea de 13.2 kV",
+  "Línea de 33 kV",
+  "Línea de 132 kV",
+  "SET/ETR",
+  "Otros"
+];

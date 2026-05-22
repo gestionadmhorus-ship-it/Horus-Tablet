@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Save, ArrowLeft } from 'lucide-react';
 import type { FlightData, ListsData } from '../types';
+import { INSPECTION_CATEGORIES } from '../types';
 import { generateId } from '../utils/idGenerator';
 import { SearchableSelect } from './SearchableSelect';
 
@@ -22,7 +23,8 @@ const FlightForm: React.FC<FlightFormProps> = ({ onSave, onUpdate, onBack, lists
     pilot: editData?.pilot || '',
     lineName: editData?.lineName || '',
     authCode: editData?.authCode || '',
-    observations: editData?.observations || ''
+    observations: editData?.observations || '',
+    category: editData?.category || 'Otros'
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -126,6 +128,27 @@ const FlightForm: React.FC<FlightFormProps> = ({ onSave, onUpdate, onBack, lists
                 />
               </>
             )}
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: '6px' }}>Categoría de Inspección</label>
+            <select
+              value={formData.category}
+              onChange={e => setFormData({ ...formData, category: e.target.value })}
+              style={{
+                width: '100%',
+                background: 'black',
+                border: '1px solid rgba(0,255,136,0.3)',
+                color: 'white',
+                fontSize: '0.95rem',
+                padding: '12px',
+                borderRadius: '10px'
+              }}
+              required
+            >
+              {INSPECTION_CATEGORIES.map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
           </div>
 
           <div className="grid-cols-2">

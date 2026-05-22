@@ -70,28 +70,28 @@ export function useDatabase() {
   };
 
   // 4. Save/Update/Delete functions
-  const saveShift = (item: ShiftData) => db.shifts.add({ ...item, deviceName: item.deviceName || getDeviceName() });
-  const updateShift = (item: ShiftData) => db.shifts.put({ ...item, deviceName: item.deviceName || getDeviceName() });
+  const saveShift = (item: ShiftData) => db.shifts.add({ ...item, isSynced: false, deviceName: item.deviceName || getDeviceName() });
+  const updateShift = (item: ShiftData) => db.shifts.put({ ...item, isSynced: false, deviceName: item.deviceName || getDeviceName() });
   const deleteShift = (id: string) => db.shifts.delete(id);
 
-  const saveFlight = (item: FlightData) => db.flights.add({ ...item, deviceName: item.deviceName || getDeviceName() });
-  const updateFlight = (item: FlightData) => db.flights.put({ ...item, deviceName: item.deviceName || getDeviceName() });
+  const saveFlight = (item: FlightData) => db.flights.add({ ...item, isSynced: false, deviceName: item.deviceName || getDeviceName() });
+  const updateFlight = (item: FlightData) => db.flights.put({ ...item, isSynced: false, deviceName: item.deviceName || getDeviceName() });
   const deleteFlight = (id: string) => db.flights.delete(id);
 
-  const saveBattery = (item: BatteryData) => db.batteries.add({ ...item, deviceName: item.deviceName || getDeviceName() });
-  const updateBattery = (item: BatteryData) => db.batteries.put({ ...item, deviceName: item.deviceName || getDeviceName() });
+  const saveBattery = (item: BatteryData) => db.batteries.add({ ...item, isSynced: false, deviceName: item.deviceName || getDeviceName() });
+  const updateBattery = (item: BatteryData) => db.batteries.put({ ...item, isSynced: false, deviceName: item.deviceName || getDeviceName() });
   const deleteBattery = (id: string) => db.batteries.delete(id);
 
-  const saveDetection = (item: DetectionData) => db.detections.add({ ...item, deviceName: item.deviceName || getDeviceName() });
-  const updateDetection = (item: DetectionData) => db.detections.put({ ...item, deviceName: item.deviceName || getDeviceName() });
+  const saveDetection = (item: DetectionData) => db.detections.add({ ...item, isSynced: false, deviceName: item.deviceName || getDeviceName() });
+  const updateDetection = (item: DetectionData) => db.detections.put({ ...item, isSynced: false, deviceName: item.deviceName || getDeviceName() });
   const deleteDetection = (id: string) => db.detections.delete(id);
   
-  const saveChecklist = (item: any) => db.vehicleChecklists.add({ ...item, deviceName: item.deviceName || getDeviceName() });
-  const updateChecklist = (item: any) => db.vehicleChecklists.put({ ...item, deviceName: item.deviceName || getDeviceName() });
+  const saveChecklist = (item: any) => db.vehicleChecklists.add({ ...item, isSynced: false, deviceName: item.deviceName || getDeviceName() });
+  const updateChecklist = (item: any) => db.vehicleChecklists.put({ ...item, isSynced: false, deviceName: item.deviceName || getDeviceName() });
   const deleteChecklist = (id: string) => db.vehicleChecklists.delete(id);
 
-  const saveDroneChecklist = (item: DroneChecklistData) => db.droneChecklists.add({ ...item, deviceName: item.deviceName || getDeviceName() });
-  const updateDroneChecklist = (item: DroneChecklistData) => db.droneChecklists.put({ ...item, deviceName: item.deviceName || getDeviceName() });
+  const saveDroneChecklist = (item: DroneChecklistData) => db.droneChecklists.add({ ...item, isSynced: false, deviceName: item.deviceName || getDeviceName() });
+  const updateDroneChecklist = (item: DroneChecklistData) => db.droneChecklists.put({ ...item, isSynced: false, deviceName: item.deviceName || getDeviceName() });
   const deleteDroneChecklist = (id: string) => db.droneChecklists.delete(id);
   
   const updateLists = (newList: ListsData) => db.settings.put({ id: 'current', data: newList });

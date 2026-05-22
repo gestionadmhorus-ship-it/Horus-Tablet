@@ -263,6 +263,7 @@ function App() {
             lists={activeLists}
             activeFlightId={activeFlightId}
             activeFlightName={activeFlightName}
+            activeFlightCategory={activeFlightData?.category}
           />
         );
       case 'checklist':
