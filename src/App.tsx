@@ -320,6 +320,7 @@ function App() {
           <RecordsExplorer 
             data={data} 
             lists={lists}
+            isServer={appRole === 'server'}
             onBack={() => setCurrentPage('dashboard')} 
             onUpdateShift={updateShift}
             onDeleteShift={deleteShift}

@@ -26,6 +26,7 @@ interface RecordsExplorerProps {
   onDeleteChecklist?: (id: string) => void;
   onViewChecklist?: (item: any) => void;
   onSyncReceived?: (incomingData: AppData) => Promise<void>;
+  isServer?: boolean;
 }
 
 type RecordType = 'shifts' | 'flights' | 'batteries' | 'detections' | 'checklists';
@@ -241,8 +242,10 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
   };
 
   const handleDelete = async (id: string) => {
-    const ok = await window.customConfirm('¿Estás seguro de eliminar este registro?');
-    if (!ok) return;
+    const ok1 = await window.customConfirm('¿Estás seguro de eliminar este registro? (Paso 1 de 2)');
+    if (!ok1) return;
+    const ok2 = await window.customConfirm('⚠️ ATENCIÓN: Esta acción es irreversible y borrará los datos permanentemente. ¿Realmente deseas eliminar el registro? (Paso 2 de 2)');
+    if (!ok2) return;
     if (activeTable === 'shifts') props.onDeleteShift(id);
     if (activeTable === 'flights') props.onDeleteFlight(id);
     if (activeTable === 'batteries') props.onDeleteBattery(id);
@@ -464,7 +467,14 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
             <tbody>
               {filteredData.map(item => (
                 <tr key={item.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', transition: 'background 0.2s ease' }}>
-                  <td style={{ padding: '1.2rem', fontSize: '0.95rem', color: 'var(--primary)', fontWeight: 700 }}>{item.timestamp}</td>
+                  <td style={{ padding: '1.2rem', fontSize: '0.95rem', color: 'var(--primary)', fontWeight: 700 }}>
+                    {item.timestamp}
+                    {item.isEdited && (
+                      <span style={{ display: 'block', fontSize: '0.72rem', color: '#ffc107', marginTop: '4px', fontWeight: 600 }}>
+                        ✍️ Editado: {item.editedTimestamp}
+                      </span>
+                    )}
+                  </td>
                   
                   {activeTable === 'shifts' && (
                     <>
@@ -557,13 +567,15 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
                       >
                         <Edit2 size={18} />
                       </button>
-                      <button 
-                        onClick={() => handleDelete(item.id)}
-                        style={{ background: 'rgba(255,0,0,0.1)', border: '1px solid #FF0000', borderRadius: '4px', color: '#FF0000', padding: '10px', cursor: 'pointer' }}
-                        title="Eliminar"
-                      >
-                        <Trash2 size={18} />
-                      </button>
+                      {props.isServer && (
+                        <button 
+                          onClick={() => handleDelete(item.id)}
+                          style={{ background: 'rgba(255,0,0,0.1)', border: '1px solid #FF0000', borderRadius: '4px', color: '#FF0000', padding: '10px', cursor: 'pointer' }}
+                          title="Eliminar"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -629,8 +641,13 @@ const EditModal: React.FC<{
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
           <div>
-            <label>Fecha y Hora</label>
-            <input type="text" value={formData.timestamp} onChange={e => setFormData({ ...formData, timestamp: e.target.value })} />
+            <label>Fecha y Hora de Creación (No editable)</label>
+            <input 
+              type="text" 
+              value={formData.timestamp} 
+              disabled 
+              style={{ opacity: 0.6, cursor: 'not-allowed', background: 'rgba(255,255,255,0.03)', color: '#888' }} 
+            />
           </div>
 
           {type === 'shifts' && (
