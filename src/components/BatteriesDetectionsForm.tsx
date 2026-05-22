@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import type { BatteryData, DetectionData, ListsData } from '../types';
 import { generateId } from '../utils/idGenerator';
+import { SearchableSelect } from './SearchableSelect';
 
 interface BatteriesDetectionsFormProps {
   onSaveBattery: (data: BatteryData) => void;
@@ -28,20 +29,27 @@ const SmartSelect: React.FC<{
   style?: React.CSSProperties;
 }> = ({ label, options, value, onChange, required, emptyMsg, style }) => (
   <div>
-    <label>{label}</label>
     {options.length > 0 ? (
-      <select value={value} onChange={e => onChange(e.target.value)} required={required} style={style}>
-        <option value="">-- Seleccionar --</option>
-        {options.map(o => <option key={o} value={o}>{o}</option>)}
-      </select>
-    ) : (
-      <input
-        type="text"
+      <SearchableSelect
+        label={label}
+        options={options}
         value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder={emptyMsg || 'Configura opciones en ⚙️'}
+        onChange={onChange}
         required={required}
+        placeholder="-- Seleccionar --"
+        style={style}
       />
+    ) : (
+      <>
+        <label>{label}</label>
+        <input
+          type="text"
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder={emptyMsg || 'Configura opciones en ⚙️'}
+          required={required}
+        />
+      </>
     )}
   </div>
 );
@@ -290,36 +298,55 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
 
             {/* ─ Elemento ─ */}
             <div>
-              <label>Elemento</label>
               {elementNames.length > 0 ? (
-                <select value={selectedElement} onChange={e => handleElementChange(e.target.value)} required>
-                  <option value="">-- Seleccionar Elemento --</option>
-                  {elementNames.map(n => <option key={n} value={n}>{n}</option>)}
-                </select>
+                <SearchableSelect
+                  label="Elemento"
+                  options={elementNames}
+                  value={selectedElement}
+                  onChange={handleElementChange}
+                  required
+                  placeholder="-- Seleccionar Elemento --"
+                />
               ) : (
-                <div style={{ background: 'rgba(255,200,0,0.06)', border: '1px solid rgba(255,200,0,0.2)', borderRadius: '12px', padding: '0.85rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Info size={16} color="#ffcc00" />
-                  <span style={{ fontSize: '0.85rem', color: '#ffcc00' }}>
-                    Sin elementos cargados. Ve a <strong>⚙️ → Base de Conocimiento</strong> para importar desde Excel.
-                  </span>
-                </div>
+                <>
+                  <label>Elemento</label>
+                  <div style={{ background: 'rgba(255,200,0,0.06)', border: '1px solid rgba(255,200,0,0.2)', borderRadius: '12px', padding: '0.85rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Info size={16} color="#ffcc00" />
+                    <span style={{ fontSize: '0.85rem', color: '#ffcc00' }}>
+                      Sin elementos cargados. Ve a <strong>⚙️ → Base de Conocimiento</strong> para importar desde Excel.
+                    </span>
+                  </div>
+                </>
               )}
             </div>
 
             {/* ─ Anomalía (filtrada por elemento) ─ */}
             <div>
-              <label>Anomalía / Detección</label>
               {!selectedElement ? (
-                <select disabled style={{ opacity: 0.4, cursor: 'not-allowed' }}>
-                  <option>Selecciona un elemento primero...</option>
-                </select>
+                <>
+                  <label>Anomalía / Detección</label>
+                  <input
+                    type="text"
+                    disabled
+                    value=""
+                    placeholder="Selecciona un elemento primero..."
+                    style={{ opacity: 0.4, cursor: 'not-allowed' }}
+                  />
+                </>
               ) : filteredAnomalies.length > 0 ? (
-                <select value={selectedAnomaly} onChange={e => handleAnomalyChange(e.target.value)} required>
-                  <option value="">-- Seleccionar Anomalía --</option>
-                  {filteredAnomalies.map(n => <option key={n} value={n}>{n}</option>)}
-                </select>
+                <SearchableSelect
+                  label="Anomalía / Detección"
+                  options={filteredAnomalies}
+                  value={selectedAnomaly}
+                  onChange={handleAnomalyChange}
+                  required
+                  placeholder="-- Seleccionar Anomalía --"
+                />
               ) : (
-                <input type="text" value={selectedAnomaly} onChange={e => { setSelectedAnomaly(e.target.value); setRecommendation(''); }} placeholder="No hay anomalías para este elemento" required />
+                <>
+                  <label>Anomalía / Detección</label>
+                  <input type="text" value={selectedAnomaly} onChange={e => { setSelectedAnomaly(e.target.value); setRecommendation(''); }} placeholder="No hay anomalías para este elemento" required />
+                </>
               )}
             </div>
 

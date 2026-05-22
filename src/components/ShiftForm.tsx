@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Save, ArrowLeft } from 'lucide-react';
 import type { ShiftData, ListsData } from '../types';
 import { generateId } from '../utils/idGenerator';
+import { SearchableSelect } from './SearchableSelect';
 
 interface ShiftFormProps {
   onSave: (data: ShiftData) => void;
@@ -15,20 +16,26 @@ const SelectOrEmpty: React.FC<{ label: string; options: string[]; value: string;
   label, options, value, onChange, required
 }) => (
   <div>
-    <label>{label}</label>
     {options.length > 0 ? (
-      <select value={value} onChange={e => onChange(e.target.value)} required={required}>
-        <option value="">-- Seleccionar --</option>
-        {options.map(o => <option key={o} value={o}>{o}</option>)}
-      </select>
-    ) : (
-      <input
-        type="text"
+      <SearchableSelect
+        label={label}
+        options={options}
         value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder={`Sin opciones — agrega en ⚙️`}
+        onChange={onChange}
         required={required}
+        placeholder="-- Seleccionar --"
       />
+    ) : (
+      <>
+        <label>{label}</label>
+        <input
+          type="text"
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder={`Sin opciones — agrega en ⚙️`}
+          required={required}
+        />
+      </>
     )}
   </div>
 );

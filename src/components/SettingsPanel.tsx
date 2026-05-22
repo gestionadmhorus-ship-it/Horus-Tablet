@@ -6,6 +6,7 @@ import {
 import { QRCodeSVG } from 'qrcode.react';
 import { Peer } from 'peerjs';
 import type { ListsData, ElementEntry, AnomalyEntry } from '../types';
+import { HorusSyncManager } from '../utils/legacySync';
 
 interface SettingsPanelProps {
   lists: ListsData;
@@ -13,6 +14,7 @@ interface SettingsPanelProps {
   onClose: () => void;
   deviceName: string;
   onDeviceNameChange: (val: string) => void;
+  onSyncReceived?: (incomingData: any) => Promise<void>;
 }
 
 /* ─── Flat list categories (no elements/anomalies) ─── */
@@ -63,7 +65,7 @@ function parsePaste(text: string): { entry: ElementEntry; warnings: string[] } |
 }
 
 /* ═══════════════ COMPONENT ═══════════════ */
-const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose, deviceName, onDeviceNameChange }) => {
+const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose, deviceName, onDeviceNameChange, onSyncReceived }) => {
 
   /* ─── Flat lists state ─── */
   const [flatInputs, setFlatInputs] = useState<Record<FlatKey, string>>(
@@ -72,6 +74,71 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
   const [flatExpanded, setFlatExpanded] = useState<Record<string, boolean>>(
     Object.fromEntries(flatCategories.map(c => [c.key, false]))
   );
+
+  /* ─── Legacy Sync state ─── */
+  const [legacyActive, setLegacyActive] = useState(false);
+  const [legacyCode, setLegacyCode] = useState('');
+  const [legacyStatus, setLegacyStatus] = useState('');
+  const [legacyIsError, setLegacyIsError] = useState(false);
+  const [legacyIsSuccess, setLegacyIsSuccess] = useState(false);
+
+  // Instanciar HorusSyncManager usando React.useMemo
+  const legacySyncManager = React.useMemo(() => new HorusSyncManager(), []);
+
+  // Asegurar la limpieza al desmontar o cerrar
+  React.useEffect(() => {
+    return () => {
+      legacySyncManager.cleanup();
+    };
+  }, [legacySyncManager]);
+
+  const handleStartLegacy = () => {
+    setLegacyActive(true);
+    setLegacyIsError(false);
+    setLegacyIsSuccess(false);
+    
+    // Generar un código aleatorio de 4 dígitos
+    const generatedCode = Math.floor(1000 + Math.random() * 9000).toString();
+    setLegacyCode(generatedCode);
+
+    const startWithCode = (codeToUse: string) => {
+      setLegacyCode(codeToUse);
+      legacySyncManager.startReceiver(
+        codeToUse,
+        (status, isErr) => {
+          setLegacyStatus(status);
+          if (isErr !== undefined) setLegacyIsError(isErr);
+        },
+        async (payload) => {
+          if (onSyncReceived) {
+            await onSyncReceived(payload);
+            setLegacyIsSuccess(true);
+          } else {
+            setLegacyIsError(true);
+            setLegacyStatus('Sincronización no configurada.');
+          }
+        },
+        () => {
+          // Colisión de ID: reintentar con otro código
+          setTimeout(() => {
+            const newCode = Math.floor(1000 + Math.random() * 9000).toString();
+            startWithCode(newCode);
+          }, 800);
+        }
+      );
+    };
+
+    startWithCode(generatedCode);
+  };
+
+  const handleStopLegacy = () => {
+    legacySyncManager.cleanup();
+    setLegacyActive(false);
+    setLegacyCode('');
+    setLegacyStatus('');
+    setLegacyIsError(false);
+    setLegacyIsSuccess(false);
+  };
 
   /* ─── Knowledge base state ─── */
   const [pasteText, setPasteText] = useState('');
@@ -499,6 +566,100 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
                     </div>
                   </div>
 
+                  {/* Tarjeta de Compatibilidad Legacy */}
+                  <div style={{ 
+                    ...sectionStyle, 
+                    padding: '1.25rem', 
+                    border: '1px dashed rgba(0, 242, 255, 0.4)', 
+                    background: 'rgba(0, 242, 255, 0.02)',
+                    marginTop: '1rem',
+                    marginBottom: '1rem'
+                  }}>
+                    <h3 style={{ color: 'white', marginTop: 0, marginBottom: '0.5rem', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      🔌 Compatibilidad: Tablet Antigua
+                    </h3>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', marginBottom: '1.25rem', lineHeight: '1.4' }}>
+                      Si tienes una tablet con una versión anterior que solicita un código de 4 dígitos para enviar reportes, puedes activar la recepción compatible aquí.
+                    </p>
+
+                    {legacyActive ? (
+                      <div style={{ textAlign: 'center', background: 'rgba(0,0,0,0.5)', padding: '1.25rem', borderRadius: '10px', border: '1px solid #00f2d1' }}>
+                        <p style={{ color: '#AAA', fontSize: '0.8rem', margin: '0 0 0.75rem 0' }}>Ingresa este código en la tablet antigua:</p>
+                        
+                        <div style={{ display: 'flex', justifyContent: 'center', gap: '0.6rem', margin: '1rem 0' }}>
+                          {legacyCode.split('').map((char, idx) => (
+                            <span key={idx} style={{
+                              background: 'rgba(0,242,255,0.08)',
+                              border: '2px solid #00f2d1',
+                              borderRadius: '8px',
+                              width: '50px',
+                              height: '60px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '2.2rem',
+                              fontWeight: 900,
+                              color: '#00f2d1',
+                              textShadow: '0 0 15px rgba(0,242,255,0.5)'
+                            }}>
+                              {char}
+                            </span>
+                          ))}
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', margin: '1rem 0 1.25rem 0' }}>
+                          <span style={{
+                            display: 'inline-block',
+                            width: '10px',
+                            height: '10px',
+                            borderRadius: '50%',
+                            background: legacyIsError ? '#ff1744' : (legacyIsSuccess ? '#00ff88' : '#00f2d1'),
+                            boxShadow: `0 0 12px ${legacyIsError ? '#ff1744' : (legacyIsSuccess ? '#00ff88' : '#00f2d1')}`,
+                            animation: legacyIsSuccess || legacyIsError ? 'none' : 'pulse 1.5s infinite'
+                          }} />
+                          <span style={{ color: '#E0E0E0', fontSize: '0.85rem', fontWeight: 'bold' }}>{legacyStatus}</span>
+                        </div>
+
+                        <button
+                          onClick={handleStopLegacy}
+                          style={{
+                            background: 'rgba(255,68,68,0.1)',
+                            border: '1px solid #ff4444',
+                            color: '#ff4444',
+                            padding: '0.5rem 1rem',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontSize: '0.8rem',
+                            fontWeight: 'bold',
+                            width: '100%',
+                            transition: 'background 0.2s'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,68,68,0.2)'}
+                          onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,68,68,0.1)'}
+                        >
+                          Cancelar Recepción
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={handleStartLegacy}
+                        className="btn-3d"
+                        style={{
+                          width: '100%',
+                          padding: '0.75rem',
+                          fontSize: '0.85rem',
+                          background: 'linear-gradient(135deg, var(--primary), #b89010)',
+                          color: 'black',
+                          fontWeight: 'bold',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.5px'
+                        }}
+                      >
+                        Activar Receptor de 4 Dígitos
+                      </button>
+                    )}
+                  </div>
+
                   <div style={{ ...sectionStyle, padding: '1.25rem' }}>
                     <h3 style={{ color: 'white', marginTop: 0, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <ShieldAlert size={18} color="var(--primary)" /> Exploradores Conocidos
@@ -560,6 +721,11 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
         @keyframes slideInRight {
           from { transform: translateX(100%); opacity: 0; }
           to   { transform: translateX(0);    opacity: 1; }
+        }
+        @keyframes pulse {
+          0% { transform: scale(0.95); opacity: 0.5; box-shadow: 0 0 0 0 rgba(0, 242, 255, 0.4); }
+          70% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 8px rgba(0, 242, 255, 0); }
+          100% { transform: scale(0.95); opacity: 0.5; box-shadow: 0 0 0 0 rgba(0, 242, 255, 0); }
         }
       `}</style>
     </>

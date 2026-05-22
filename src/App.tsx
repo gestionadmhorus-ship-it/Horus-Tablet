@@ -433,6 +433,7 @@ function App() {
           onClose={() => setShowSettings(false)}
           deviceName={deviceName}
           onDeviceNameChange={handleDeviceNameChange}
+          onSyncReceived={syncIncomingData}
         />
       )}
 

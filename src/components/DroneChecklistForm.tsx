@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Check, ShieldAlert, Wifi, Cpu, Play } from 'lucide-react';
 import type { DroneChecklistData, ListsData } from '../types';
+import { SearchableSelect } from './SearchableSelect';
 
 interface DroneChecklistFormProps {
   onSave: (data: DroneChecklistData) => void;
@@ -120,6 +121,71 @@ export const DroneChecklistForm: React.FC<DroneChecklistFormProps> = ({
     onBack();
   };
 
+  const renderCheckItems = (items: { key: keyof typeof checks; label: string }[]) => {
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+        {items.map(item => {
+          const isChecked = checks[item.key];
+          return (
+            <div
+              key={item.key}
+              onClick={() => handleCheckboxChange(item.key)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '1rem',
+                padding: '0.85rem 1rem',
+                background: isChecked ? 'rgba(0, 255, 136, 0.05)' : 'rgba(255, 255, 255, 0.01)',
+                border: `1.5px solid ${isChecked ? 'var(--neon-green)' : 'rgba(255, 255, 255, 0.08)'}`,
+                borderRadius: '10px',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                minHeight: '54px',
+                userSelect: 'none'
+              }}
+              onMouseEnter={(e) => {
+                if (!isChecked) {
+                  e.currentTarget.style.border = '1.5px solid rgba(240, 196, 25, 0.4)';
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isChecked) {
+                  e.currentTarget.style.border = '1.5px solid rgba(255, 255, 255, 0.08)';
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.01)';
+                }
+              }}
+            >
+              <div style={{
+                width: '22px',
+                height: '22px',
+                borderRadius: '50%',
+                border: `2px solid ${isChecked ? 'var(--neon-green)' : 'var(--primary)'}`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: isChecked ? 'var(--neon-green)' : 'transparent',
+                flexShrink: 0,
+                boxShadow: isChecked ? '0 0 8px rgba(0, 255, 138, 0.4)' : 'none',
+                transition: 'all 0.2s ease'
+              }}>
+                {isChecked && <div style={{ width: '8px', height: '8px', background: 'black', borderRadius: '50%' }} />}
+              </div>
+              <span style={{ 
+                fontSize: '0.85rem', 
+                fontWeight: 600, 
+                color: isChecked ? '#fff' : 'var(--text-secondary)',
+                transition: 'color 0.2s ease'
+              }}>
+                {item.label}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
     <div className="container" style={{ maxWidth: '900px', marginTop: '1rem', paddingBottom: '5rem' }}>
       <button onClick={onBack} className="btn-3d" style={{
@@ -152,53 +218,23 @@ export const DroneChecklistForm: React.FC<DroneChecklistFormProps> = ({
 
         {/* Datos Básicos */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
-          <div>
-            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>
-              Piloto a cargo *
-            </label>
-            <select 
-              value={pilot} 
-              onChange={(e) => setPilot(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '0.75rem',
-                borderRadius: '8px',
-                background: 'rgba(0,0,0,0.3)',
-                border: '1px solid rgba(255,255,255,0.1)',
-                color: '#fff',
-                fontWeight: 600
-              }}
-            >
-              <option value="">Seleccionar piloto...</option>
-              {lists.pilots.map(p => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
-          </div>
+          <SearchableSelect
+            label="Piloto a cargo *"
+            options={lists.pilots}
+            value={pilot}
+            onChange={setPilot}
+            placeholder="Seleccionar piloto..."
+            required
+          />
 
-          <div>
-            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>
-              Dron a utilizar *
-            </label>
-            <select
-              value={droneId}
-              onChange={(e) => setDroneId(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '0.75rem',
-                borderRadius: '8px',
-                background: 'rgba(0,0,0,0.3)',
-                border: '1px solid rgba(255,255,255,0.1)',
-                color: '#fff',
-                fontWeight: 600
-              }}
-            >
-              <option value="">Seleccionar dron...</option>
-              {lists.drones.map(d => (
-                <option key={d} value={d}>{d}</option>
-              ))}
-            </select>
-          </div>
+          <SearchableSelect
+            label="Dron a utilizar *"
+            options={lists.drones}
+            value={droneId}
+            onChange={setDroneId}
+            placeholder="Seleccionar dron..."
+            required
+          />
         </div>
 
         {/* Indicador de pasos */}
@@ -248,28 +284,16 @@ export const DroneChecklistForm: React.FC<DroneChecklistFormProps> = ({
               <h4 style={{ color: '#fff', fontSize: '1rem', textTransform: 'uppercase', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <ShieldAlert size={18} style={{ color: 'var(--neon-orange)' }} /> Fase 1: Inspección Física (Dron Apagado)
               </h4>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                {[
-                  { key: 'frameSecured', label: 'Brazos y bastidor asegurados' },
-                  { key: 'landingGearLocked', label: 'Tren de aterrizaje trabado' },
-                  { key: 'propellersIntact', label: 'Hélices sin fisuras ni daños' },
-                  { key: 'motorsFreeSpinning', label: 'Motores giran libremente' },
-                  { key: 'batterySecured', label: 'Batería insertada y trabada' },
-                  { key: 'cameraProtectorRemoved', label: 'Protector de Gimbal retirado' },
-                  { key: 'sdCardInsertedPhysically', label: 'Tarjeta SD colocada físicamente' },
-                  { key: 'areaSecured', label: 'Zona de despegue y seguridad OK' },
-                ].map(item => (
-                  <label key={item.key} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '8px', cursor: 'pointer' }}>
-                    <input 
-                      type="checkbox" 
-                      checked={checks[item.key as keyof typeof checks]} 
-                      onChange={() => handleCheckboxChange(item.key as keyof typeof checks)}
-                      style={{ transform: 'scale(1.2)', cursor: 'pointer' }}
-                    />
-                    <span style={{ fontSize: '0.85rem', fontWeight: 500, color: checks[item.key as keyof typeof checks] ? '#fff' : 'var(--text-secondary)' }}>{item.label}</span>
-                  </label>
-                ))}
-              </div>
+              {renderCheckItems([
+                { key: 'frameSecured', label: 'Brazos y bastidor asegurados' },
+                { key: 'landingGearLocked', label: 'Tren de aterrizaje trabado' },
+                { key: 'propellersIntact', label: 'Hélices sin fisuras ni daños' },
+                { key: 'motorsFreeSpinning', label: 'Motores giran libremente' },
+                { key: 'batterySecured', label: 'Batería insertada y trabada' },
+                { key: 'cameraProtectorRemoved', label: 'Protector de Gimbal retirado' },
+                { key: 'sdCardInsertedPhysically', label: 'Tarjeta SD colocada físicamente' },
+                { key: 'areaSecured', label: 'Zona de despegue y seguridad OK' },
+              ])}
             </div>
           )}
 
@@ -279,25 +303,13 @@ export const DroneChecklistForm: React.FC<DroneChecklistFormProps> = ({
               <h4 style={{ color: '#fff', fontSize: '1rem', textTransform: 'uppercase', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Wifi size={18} style={{ color: 'var(--neon-green)' }} /> Fase 2: Puesta en Marcha y Enlace
               </h4>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                {[
-                  { key: 'rcAntennasDeployed', label: 'Antenas de Control desplegadas' },
-                  { key: 'rcSticksCentered', label: 'Sticks centrados y funcionales' },
-                  { key: 'appStarted', label: 'App de vuelo (DJI Pilot) abierta' },
-                  { key: 'dronePoweredOn', label: 'Dron encendido (Inicio normal)' },
-                  { key: 'rcDroneLinked', label: 'Enlace óptimo establecido en pantalla' },
-                ].map(item => (
-                  <label key={item.key} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '8px', cursor: 'pointer' }}>
-                    <input 
-                      type="checkbox" 
-                      checked={checks[item.key as keyof typeof checks]} 
-                      onChange={() => handleCheckboxChange(item.key as keyof typeof checks)}
-                      style={{ transform: 'scale(1.2)', cursor: 'pointer' }}
-                    />
-                    <span style={{ fontSize: '0.85rem', fontWeight: 500, color: checks[item.key as keyof typeof checks] ? '#fff' : 'var(--text-secondary)' }}>{item.label}</span>
-                  </label>
-                ))}
-              </div>
+              {renderCheckItems([
+                { key: 'rcAntennasDeployed', label: 'Antenas de Control desplegadas' },
+                { key: 'rcSticksCentered', label: 'Sticks centrados y funcionales' },
+                { key: 'appStarted', label: 'App de vuelo (DJI Pilot) abierta' },
+                { key: 'dronePoweredOn', label: 'Dron encendido (Inicio normal)' },
+                { key: 'rcDroneLinked', label: 'Enlace óptimo establecido en pantalla' },
+              ])}
             </div>
           )}
 
@@ -307,26 +319,14 @@ export const DroneChecklistForm: React.FC<DroneChecklistFormProps> = ({
               <h4 style={{ color: '#fff', fontSize: '1rem', textTransform: 'uppercase', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Cpu size={18} style={{ color: 'var(--primary)' }} /> Fase 3: Telemetría y Sistemas (Conectado)
               </h4>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                {[
-                  { key: 'systemBatteriesChecked', label: 'Carga de Baterías Dron y RC OK' },
-                  { key: 'imuCompassCalibrated', label: 'Sensores IMU y Brújula normales' },
-                  { key: 'gpsLockOptimal', label: 'Señal GPS suficiente para Homepoint' },
-                  { key: 'rthParamsConfigured', label: 'Altura RTH de emergencia seteada' },
-                  { key: 'obstacleAvoidanceActive', label: 'Sensor anticolisión activado' },
-                  { key: 'cameraFeedFluid', label: 'Transmisión de Cámara y SD formateada' },
-                ].map(item => (
-                  <label key={item.key} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '8px', cursor: 'pointer' }}>
-                    <input 
-                      type="checkbox" 
-                      checked={checks[item.key as keyof typeof checks]} 
-                      onChange={() => handleCheckboxChange(item.key as keyof typeof checks)}
-                      style={{ transform: 'scale(1.2)', cursor: 'pointer' }}
-                    />
-                    <span style={{ fontSize: '0.85rem', fontWeight: 500, color: checks[item.key as keyof typeof checks] ? '#fff' : 'var(--text-secondary)' }}>{item.label}</span>
-                  </label>
-                ))}
-              </div>
+              {renderCheckItems([
+                { key: 'systemBatteriesChecked', label: 'Carga de Baterías Dron y RC OK' },
+                { key: 'imuCompassCalibrated', label: 'Sensores IMU y Brújula normales' },
+                { key: 'gpsLockOptimal', label: 'Señal GPS suficiente para Homepoint' },
+                { key: 'rthParamsConfigured', label: 'Altura RTH de emergencia seteada' },
+                { key: 'obstacleAvoidanceActive', label: 'Sensor anticolisión activado' },
+                { key: 'cameraFeedFluid', label: 'Transmisión de Cámara y SD formateada' },
+              ])}
             </div>
           )}
 
@@ -336,23 +336,11 @@ export const DroneChecklistForm: React.FC<DroneChecklistFormProps> = ({
               <h4 style={{ color: '#fff', fontSize: '1rem', textTransform: 'uppercase', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Play size={18} style={{ color: 'var(--neon-green)' }} /> Fase 4: Despegue e Hover Test
               </h4>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                {[
-                  { key: 'casesClosedAndStored', label: 'Valijas y herramientas guardadas' },
-                  { key: 'takeoffAreaClear', label: 'Área libre de personas ajenas' },
-                  { key: 'hoverTestPassed', label: 'Prueba de vuelo estable a 2 metros OK' },
-                ].map(item => (
-                  <label key={item.key} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '8px', cursor: 'pointer' }}>
-                    <input 
-                      type="checkbox" 
-                      checked={checks[item.key as keyof typeof checks]} 
-                      onChange={() => handleCheckboxChange(item.key as keyof typeof checks)}
-                      style={{ transform: 'scale(1.2)', cursor: 'pointer' }}
-                    />
-                    <span style={{ fontSize: '0.85rem', fontWeight: 500, color: checks[item.key as keyof typeof checks] ? '#fff' : 'var(--text-secondary)' }}>{item.label}</span>
-                  </label>
-                ))}
-              </div>
+              {renderCheckItems([
+                { key: 'casesClosedAndStored', label: 'Valijas y herramientas guardadas' },
+                { key: 'takeoffAreaClear', label: 'Área libre de personas ajenas' },
+                { key: 'hoverTestPassed', label: 'Prueba de vuelo estable a 2 metros OK' },
+              ])}
             </div>
           )}
         </div>

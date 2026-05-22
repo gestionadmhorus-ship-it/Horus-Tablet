@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Save, ArrowLeft } from 'lucide-react';
 import type { FlightData, ListsData } from '../types';
 import { generateId } from '../utils/idGenerator';
+import { SearchableSelect } from './SearchableSelect';
 
 interface FlightFormProps {
   onSave: (data: FlightData) => void;
@@ -104,24 +105,26 @@ const FlightForm: React.FC<FlightFormProps> = ({ onSave, onUpdate, onBack, lists
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           <div>
-            <label>Piloto</label>
             {lists.pilots.length > 0 ? (
-              <select
+              <SearchableSelect
+                label="Piloto"
+                options={lists.pilots}
                 value={formData.pilot}
-                onChange={e => setFormData({ ...formData, pilot: e.target.value })}
+                onChange={v => setFormData({ ...formData, pilot: v })}
                 required
-              >
-                <option value="">-- Seleccionar Piloto --</option>
-                {lists.pilots.map(p => <option key={p} value={p}>{p}</option>)}
-              </select>
-            ) : (
-              <input
-                type="text"
-                value={formData.pilot}
-                onChange={e => setFormData({ ...formData, pilot: e.target.value })}
-                placeholder="Sin opciones — agrega pilotos en ⚙️"
-                required
+                placeholder="-- Seleccionar Piloto --"
               />
+            ) : (
+              <>
+                <label>Piloto</label>
+                <input
+                  type="text"
+                  value={formData.pilot}
+                  onChange={e => setFormData({ ...formData, pilot: e.target.value })}
+                  placeholder="Sin opciones — agrega pilotos en ⚙️"
+                  required
+                />
+              </>
             )}
           </div>
 

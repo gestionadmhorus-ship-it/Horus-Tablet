@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Save, ArrowLeft, Printer, ShieldCheck } from 'lucide-react';
 import type { VehicleChecklistData, ListsData } from '../types';
 import { generateId } from '../utils/idGenerator';
+import { SearchableSelect } from './SearchableSelect';
 
 interface VehicleChecklistFormProps {
   onSave: (data: VehicleChecklistData) => void;
@@ -282,11 +283,14 @@ const VehicleChecklistForm: React.FC<VehicleChecklistFormProps> = ({ onSave, onU
                 <input type="text" value={isEditMode && editData ? editData.timestamp.split(' ')[0] : currentTime.toLocaleDateString()} disabled style={{ background: 'rgba(0,0,0,0.5)', color: '#888', cursor: 'not-allowed' }} />
               </div>
               <div>
-                <label style={{ color: '#ff6600' }}>Unidad *</label>
-                <select value={formData.vehicleId} onChange={e => setFormData({...formData, vehicleId: e.target.value})} required style={{ borderColor: 'rgba(255,102,0,0.5)' }}>
-                  <option value="">Seleccionar unidad</option>
-                  {lists.vehicles.map(v => <option key={v} value={v}>{v}</option>)}
-                </select>
+                <SearchableSelect
+                  label="Unidad *"
+                  options={lists.vehicles}
+                  value={formData.vehicleId}
+                  onChange={v => setFormData({...formData, vehicleId: v})}
+                  placeholder="Seleccionar unidad"
+                  required
+                />
               </div>
               <div>
                 <label style={{ color: '#ff6600' }}>Kilometraje Actual *</label>
@@ -360,13 +364,14 @@ const VehicleChecklistForm: React.FC<VehicleChecklistFormProps> = ({ onSave, onU
                 <input type="date" value={formData.expirations.insurance} onChange={e => setFormData({...formData, expirations: {...formData.expirations, insurance: e.target.value}})} style={{ borderColor: 'rgba(255,102,0,0.5)' }} />
               </div>
               <div>
-                <label style={{ color: '#ff6600' }}>Realizado por *</label>
-                <select value={formData.driver} onChange={e => setFormData({...formData, driver: e.target.value})} required style={{ borderColor: 'rgba(255,102,0,0.5)' }}>
-                  <option value="">Seleccionar responsable</option>
-                  {/* Using pilots list as generic team list or you can add a dedicated drivers list */}
-                  {lists.pilots.map(d => <option key={d} value={d}>{d}</option>)}
-                  {lists.assistants.map(d => <option key={d} value={d}>{d}</option>)}
-                </select>
+                <SearchableSelect
+                  label="Realizado por *"
+                  options={[...lists.pilots, ...lists.assistants]}
+                  value={formData.driver}
+                  onChange={v => setFormData({...formData, driver: v})}
+                  placeholder="Seleccionar responsable"
+                  required
+                />
               </div>
             </div>
 
