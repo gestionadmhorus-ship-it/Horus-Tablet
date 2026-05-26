@@ -80,11 +80,38 @@ export function useDatabase() {
   };
 
   const updateShift = (item: ShiftData) => db.shifts.put({ ...item, ...getEditMetadata(), isSynced: false, deviceName: item.deviceName || getDeviceName() });
-  const deleteShift = (id: string) => db.shifts.delete(id);
+  const deleteShift = async (id: string) => {
+    await db.transaction('rw', [db.shifts, db.flights, db.batteries, db.detections], async () => {
+      // 1. Find all flights belonging to the shift
+      const flightsToDelete = await db.flights.where('shiftId').equals(id).toArray();
+      const flightIds = flightsToDelete.map(f => f.id);
+
+      if (flightIds.length > 0) {
+        // 2. Delete all batteries for these flights
+        await db.batteries.where('flightId').anyOf(flightIds).delete();
+
+        // 3. Delete all detections for these flights
+        await db.detections.where('flightId').anyOf(flightIds).delete();
+
+        // 4. Delete the flights
+        await db.flights.where('shiftId').equals(id).delete();
+      }
+
+      // 5. Delete the shift itself
+      await db.shifts.delete(id);
+    });
+  };
 
   const saveFlight = (item: FlightData) => db.flights.add({ ...item, isSynced: false, deviceName: item.deviceName || getDeviceName() });
   const updateFlight = (item: FlightData) => db.flights.put({ ...item, ...getEditMetadata(), isSynced: false, deviceName: item.deviceName || getDeviceName() });
-  const deleteFlight = (id: string) => db.flights.delete(id);
+  const deleteFlight = async (id: string) => {
+    await db.transaction('rw', [db.flights, db.batteries, db.detections], async () => {
+      // Delete all batteries and detections associated with this flight
+      await db.batteries.where('flightId').equals(id).delete();
+      await db.detections.where('flightId').equals(id).delete();
+      await db.flights.delete(id);
+    });
+  };
 
   const saveBattery = (item: BatteryData) => db.batteries.add({ ...item, isSynced: false, deviceName: item.deviceName || getDeviceName() });
   const updateBattery = (item: BatteryData) => db.batteries.put({ ...item, ...getEditMetadata(), isSynced: false, deviceName: item.deviceName || getDeviceName() });

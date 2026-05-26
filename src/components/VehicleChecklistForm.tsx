@@ -265,7 +265,7 @@ const VehicleChecklistForm: React.FC<VehicleChecklistFormProps> = ({ onSave, onU
           <p className="print-desc" style={{ color: 'var(--text-secondary)', fontSize: '1rem', marginTop: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
             <ShieldCheck size={18} color="#ff6600" /> gestionadm.horus@gmail.com
           </p>
-          <p style={{ color: 'white', fontSize: '1.1rem', fontWeight: 600, marginTop: '1rem' }}>
+          <p style={{ color: 'var(--text-primary)', fontSize: '1.1rem', fontWeight: 600, marginTop: '1rem' }}>
             {isEditMode ? 'Fecha y hora registrada:' : 'Fecha y hora actual:'} <span style={{ color: '#ff6600', fontWeight: 'bold' }}>{isEditMode && editData ? editData.timestamp : `${currentTime.toLocaleDateString()} ${currentTime.toLocaleTimeString()}`}</span>
           </p>
         </div>
@@ -274,7 +274,7 @@ const VehicleChecklistForm: React.FC<VehicleChecklistFormProps> = ({ onSave, onU
           
           {/* Section 1: General Info */}
           <div className="print-section" style={{ background: 'rgba(255,255,255,0.03)', padding: '2rem', borderRadius: '12px', border: '1px solid rgba(255,102,0,0.2)' }}>
-            <h3 style={{ fontSize: '1.4rem', color: 'white', marginBottom: '0.5rem', fontWeight: 800 }}>Información General de la Unidad</h3>
+            <h3 style={{ fontSize: '1.4rem', color: 'var(--text-primary)', marginBottom: '0.5rem', fontWeight: 800 }}>Información General de la Unidad</h3>
             <p className="print-desc" style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '1.5rem' }}>Completa los datos principales del vehículo y el chequeo.</p>
             
             <div className="grid-cols-2 print-grid-3" style={{ gap: '1.5rem' }}>
@@ -301,7 +301,7 @@ const VehicleChecklistForm: React.FC<VehicleChecklistFormProps> = ({ onSave, onU
 
           {/* Section 2: Verification Items */}
           <div className="print-section" style={{ background: 'rgba(255,255,255,0.03)', padding: '2rem', borderRadius: '12px', border: '1px solid rgba(255,102,0,0.2)' }}>
-            <h3 style={{ fontSize: '1.4rem', color: 'white', marginBottom: '0.5rem', fontWeight: 800 }}>Ítems de Verificación</h3>
+            <h3 style={{ fontSize: '1.4rem', color: 'var(--text-primary)', marginBottom: '0.5rem', fontWeight: 800 }}>Ítems de Verificación</h3>
             <p className="print-desc" style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '2rem' }}>Toca las casillas para confirmar el estado ÓPTIMO de cada ítem.</p>
             
             <div className="grid-cols-2 print-grid-4" style={{ gap: '3rem' }}>
@@ -321,20 +321,20 @@ const VehicleChecklistForm: React.FC<VehicleChecklistFormProps> = ({ onSave, onU
                           style={{
                             display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer',
                             padding: '0.8rem 1rem', borderRadius: '8px',
-                            background: isChecked ? 'rgba(0,255,136,0.1)' : 'rgba(0,0,0,0.3)',
-                            border: `1px solid ${isChecked ? '#00ff88' : 'rgba(255,255,255,0.1)'}`,
+                            background: isChecked ? 'var(--primary-glow)' : 'var(--bg-input)',
+                            border: `1px solid ${isChecked ? 'var(--primary)' : 'var(--border-input)'}`,
                             transition: 'all 0.2s ease'
                           }}
                         >
                           <div style={{
                             width: '24px', height: '24px', borderRadius: '50%',
-                            border: `2px solid ${isChecked ? '#00ff88' : '#ff6600'}`,
+                            border: `2px solid ${isChecked ? 'var(--primary)' : 'var(--text-secondary)'}`,
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            background: isChecked ? '#00ff88' : 'transparent'
+                            background: isChecked ? 'var(--primary)' : 'transparent'
                           }}>
-                            {isChecked && <div style={{ width: '10px', height: '10px', background: 'black', borderRadius: '50%' }} />}
+                            {isChecked && <div style={{ width: '10px', height: '10px', background: 'var(--bg-dark)', borderRadius: '50%' }} />}
                           </div>
-                          <span style={{ color: isChecked ? 'white' : '#CCC', fontWeight: isChecked ? 600 : 400, fontSize: '0.95rem' }}>
+                          <span style={{ color: 'var(--text-primary)', fontWeight: isChecked ? 600 : 400, fontSize: '0.95rem' }}>
                             {item.label}
                           </span>
                         </div>
@@ -348,7 +348,7 @@ const VehicleChecklistForm: React.FC<VehicleChecklistFormProps> = ({ onSave, onU
 
           {/* Section 3: Expirations and Observations */}
           <div className="print-section" style={{ background: 'rgba(255,255,255,0.03)', padding: '2rem', borderRadius: '12px', border: '1px solid rgba(255,102,0,0.2)' }}>
-            <h3 style={{ fontSize: '1.4rem', color: 'white', marginBottom: '1.5rem', fontWeight: 800 }}>Vencimientos y Observaciones</h3>
+            <h3 style={{ fontSize: '1.4rem', color: 'var(--text-primary)', marginBottom: '1.5rem', fontWeight: 800 }}>Vencimientos y Observaciones</h3>
             
             <div className="grid-cols-2 print-grid-4" style={{ gap: '1.5rem', marginBottom: '1.5rem' }}>
               <div>

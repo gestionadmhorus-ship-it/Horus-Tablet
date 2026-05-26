@@ -1,324 +1,380 @@
 import ExcelJS from 'exceljs';
-import type { AppData, DetectionData } from '../types';
+import type { AppData } from '../types';
+
+const parseLocalTimestampToDate = (timestamp: string): Date | null => {
+  if (!timestamp) return null;
+  const parts = timestamp.trim().split(/\s+/);
+  const datePart = parts[0];
+  if (!datePart) return null;
+  const dateParts = datePart.split('/');
+  if (dateParts.length !== 3) return null;
+  
+  const day = parseInt(dateParts[0], 10);
+  const month = parseInt(dateParts[1], 10) - 1; // 0-indexed month
+  const year = parseInt(dateParts[2], 10);
+  
+  const timePart = parts[1] || '00:00:00';
+  const timeParts = timePart.split(':');
+  const hours = parseInt(timeParts[0] || '0', 10);
+  const minutes = parseInt(timeParts[1] || '0', 10);
+  const seconds = parseInt(timeParts[2] || '0', 10);
+  
+  const d = new Date(year, month, day, hours, minutes, seconds);
+  return isNaN(d.getTime()) ? null : d;
+};
+
+const getChronologicalTime = (timestamp: string): number => {
+  const d = parseLocalTimestampToDate(timestamp);
+  return d ? d.getTime() : 0;
+};
+
+const splitTimestamp = (timestamp: string): { date: string; time: string } => {
+  if (!timestamp) return { date: '', time: '' };
+  const parts = timestamp.trim().split(/\s+/);
+  const datePart = parts[0] || '';
+  const timePart = parts[1] || '';
+  return { date: datePart, time: timePart };
+};
+
+const calculateFlightDuration = (startStr: string, endStr: string): number => {
+  if (!startStr || !endStr) return 0;
+  const startDate = parseLocalTimestampToDate(startStr);
+  const endDate = parseLocalTimestampToDate(endStr);
+  if (!startDate || !endDate) return 0;
+  
+  const diffMs = endDate.getTime() - startDate.getTime();
+  if (diffMs <= 0) return 0;
+  
+  return diffMs / (1000 * 60 * 60);
+};
+
+const formatDuration = (hours: number): string => {
+  if (hours <= 0) return '0 hs';
+  const hrs = Math.floor(hours);
+  const mins = Math.round((hours - hrs) * 60);
+  return `${hrs}h ${mins}m (${hours.toFixed(2)} hs)`;
+};
 
 export const exportToExcel = async (
   data: AppData,
   options?: {
-    activeTable?: 'shifts' | 'flights' | 'batteries' | 'detections';
-    filteredData?: any[];
+    dateMode?: 'specific' | 'range';
+    specificDate?: string;
+    startDate?: string;
+    endDate?: string;
   }
 ) => {
   const workbook = new ExcelJS.Workbook();
-  const activeTable = options?.activeTable;
-  const filteredData = options?.filteredData;
+  
+  // 1. Filter and sort shifts (jornadas)
+  let shiftsToExport = [...data.shifts].sort((a, b) => getChronologicalTime(a.timestamp) - getChronologicalTime(b.timestamp));
 
-  // Helper map to find flight lineName by flightId
-  const flightMap = new Map(data.flights.map((f) => [f.id, f.lineName]));
+  if (options?.dateMode) {
+    const { dateMode, specificDate, startDate, endDate } = options;
+    const specDateObj = specificDate ? new Date(specificDate + 'T00:00:00') : null;
+    const start = startDate ? new Date(startDate + 'T00:00:00') : null;
+    const end = endDate ? new Date(endDate + 'T23:59:59') : null;
 
-  // Helper to format/style standard tables (fallback)
-  const addStandardSheet = (sheetName: string, headers: { header: string; key: string; width: number }[], rows: any[]) => {
-    const ws = workbook.addWorksheet(sheetName);
-    ws.columns = headers;
+    shiftsToExport = shiftsToExport.filter(shift => {
+      const shiftDate = parseLocalTimestampToDate(shift.timestamp);
+      if (!shiftDate) return false;
 
-    // Header styling
-    const headerRow = ws.getRow(1);
-    headerRow.eachCell((cell) => {
-      cell.fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FF217346' }, // Excel green
-      };
-      cell.font = { name: 'Segoe UI', bold: true, color: { argb: 'FFFFFFFF' } };
-      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+      if (dateMode === 'specific') {
+        if (!specDateObj) return false;
+        return shiftDate.getFullYear() === specDateObj.getFullYear() &&
+               shiftDate.getMonth() === specDateObj.getMonth() &&
+               shiftDate.getDate() === specDateObj.getDate();
+      } else {
+        if (!start || !end) return false;
+        return shiftDate >= start && shiftDate <= end;
+      }
     });
-    headerRow.height = 24;
+  }
 
-    // Add rows
-    rows.forEach((r) => ws.addRow(r));
-  };
+  // 2. Create sheets
+  const wsKMS = workbook.addWorksheet('Vuelos KMS');
+  const wsHS = workbook.addWorksheet('Vuelos HS');
 
-  // ─── Case 1: Specific Table Export from RecordsExplorer ───
-  if (activeTable) {
-    if (activeTable === 'detections') {
-      const recordsToExport = (filteredData as DetectionData[]) || data.detections;
-      const ws = workbook.addWorksheet('Detecciones');
+  // Columns widths setup
+  wsKMS.columns = [
+    { width: 16 }, // Fecha
+    { width: 14 }, // Hora
+    { width: 24 }, // Elemento
+    { width: 28 }, // Anomalía
+    { width: 35 }, // Recomendación
+    { width: 16 }, // Criticidad
+    { width: 26 }, // Nombre de archivo
+  ];
 
-      ws.columns = [
-        { header: 'Fecha', key: 'fecha', width: 14 },
-        { header: 'Hora', key: 'hora', width: 12 },
-        { header: 'Dispositivo Origen', key: 'dispositivo', width: 20 },
-        { header: 'Nombre de la línea', key: 'linea', width: 25 },
-        { header: 'Elemento', key: 'elemento', width: 25 },
-        { header: 'Anomalía', key: 'anomalia', width: 25 },
-        { header: 'Recomendación asociada', key: 'recomendacion', width: 35 },
-        { header: 'Criticidad', key: 'criticidad', width: 15 },
-        { header: 'Nombre de archivo', key: 'nombre_archivo', width: 20 },
-        { header: 'Observaciones', key: 'observaciones', width: 35 },
-      ];
+  wsHS.columns = [
+    { width: 16 }, // Fecha de inicio
+    { width: 14 }, // Hora de inicio
+    { width: 26 }, // Solicitado por
+    { width: 50 }, // Observaciones de cierre
+  ];
 
-      // Header row style
-      const headerRow = ws.getRow(1);
-      headerRow.eachCell((cell) => {
+  let totalHSDuration = 0;
+
+  // 3. Populate KMS Sheet
+  shiftsToExport.forEach((shift) => {
+    const kmsFlights = data.flights.filter(f => f.shiftId === shift.id && (f.flightType === 'KMS' || !f.flightType))
+                                   .sort((a, b) => getChronologicalTime(a.timestamp) - getChronologicalTime(b.timestamp));
+
+    kmsFlights.forEach((flight) => {
+      // Row 1: Title block
+      const { date: startDay } = splitTimestamp(flight.timestamp);
+      const origenVal = flight.deviceName || shift.deviceName || 'Local';
+      const lineVal = flight.lineName || '';
+
+      const titleRow = wsKMS.addRow([
+        `Fecha: ${startDay}`,
+        '',
+        `Origen: ${origenVal}`,
+        '',
+        `Línea: ${lineVal}`
+      ]);
+      
+      // Styling Title Row
+      titleRow.height = 24;
+      titleRow.eachCell((cell) => {
+        cell.font = { name: 'Segoe UI', bold: true, size: 11, color: { argb: 'FF1B5E20' } };
         cell.fill = {
           type: 'pattern',
           pattern: 'solid',
-          fgColor: { argb: 'FF217346' },
+          fgColor: { argb: 'FFE8F5E9' } // Light green tint
         };
-        cell.font = { name: 'Segoe UI', bold: true, color: { argb: 'FFFFFFFF' } };
-        cell.alignment = { vertical: 'middle', horizontal: 'center' };
-      });
-      headerRow.height = 26;
-
-      recordsToExport.forEach((det) => {
-        let fecha = '';
-        let hora = '';
-        if (det.timestamp) {
-          const parts = det.timestamp.trim().split(/\s+/);
-          fecha = parts[0] || '';
-          hora = parts[1] || '';
-        }
-
-        const linea = flightMap.get(det.flightId || '') || '';
-
-        const row = ws.addRow({
-          fecha,
-          hora,
-          dispositivo: det.deviceName || 'Local',
-          linea,
-          elemento: det.element,
-          anomalia: det.anomaly,
-          recomendacion: det.recommendation,
-          criticidad: det.criticality,
-          nombre_archivo: det.fileName,
-          observaciones: det.observations,
-        });
-
-        // Set alignment for all cells
-        row.eachCell((cell) => {
-          cell.alignment = { vertical: 'middle', horizontal: 'left' };
-        });
-
-        // Style the criticality cell with vibrant solid colors
-        const cellCrit = row.getCell('criticidad');
-        cellCrit.alignment = { vertical: 'middle', horizontal: 'center' };
-        
-        const valor = (det.criticality || '').toLowerCase();
-        let colorHex = '';
-        let fontColor = 'FF000000'; // Default black text
-
-        if (valor === 'muy baja') {
-          colorHex = 'FF00F2D1'; // Turquesa brillante
-        } else if (valor === 'baja') {
-          colorHex = 'FF00E676'; // Verde brillante
-        } else if (valor === 'media') {
-          colorHex = 'FFFFD600'; // Amarillo brillante
-        } else if (valor === 'alta') {
-          colorHex = 'FFFF9100'; // Naranja brillante
-        } else if (valor === 'urgente') {
-          colorHex = 'FFFF1744'; // Rojo brillante
-          fontColor = 'FFFFFFFF'; // White text for readability on red
-        }
-
-        if (colorHex) {
-          cellCrit.fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: colorHex },
-          };
-          cellCrit.font = {
-            name: 'Segoe UI',
-            bold: true,
-            color: { argb: fontColor },
-          };
-        }
-      });
-    } else if (activeTable === 'shifts') {
-      addStandardSheet(
-        'Jornadas',
-        [
-          { header: 'ID', key: 'id', width: 36 },
-          { header: 'Fecha/Hora', key: 'timestamp', width: 22 },
-          { header: 'Dispositivo Origen', key: 'deviceName', width: 20 },
-          { header: 'Coordinador', key: 'coordinator', width: 25 },
-          { header: 'Vehículo', key: 'vehicle', width: 12 },
-          { header: 'Dron', key: 'drone', width: 15 },
-        ],
-        filteredData || data.shifts
-      );
-    } else if (activeTable === 'flights') {
-      addStandardSheet(
-        'Vuelos',
-        [
-          { header: 'ID', key: 'id', width: 36 },
-          { header: 'Fecha/Hora', key: 'timestamp', width: 22 },
-          { header: 'Dispositivo Origen', key: 'deviceName', width: 20 },
-          { header: 'Piloto', key: 'pilot', width: 25 },
-          { header: 'Línea', key: 'lineName', width: 20 },
-          { header: 'Código Auth', key: 'authCode', width: 15 },
-          { header: 'Observaciones', key: 'observations', width: 35 },
-        ],
-        filteredData || data.flights
-      );
-    } else if (activeTable === 'batteries') {
-      addStandardSheet(
-        'Baterías',
-        [
-          { header: 'ID', key: 'id', width: 36 },
-          { header: 'Fecha/Hora', key: 'timestamp', width: 22 },
-          { header: 'Dispositivo Origen', key: 'deviceName', width: 20 },
-          { header: 'Piloto', key: 'pilot', width: 25 },
-          { header: 'Batería Dron %', key: 'droneBattery', width: 18 },
-          { header: 'Batería RC %', key: 'controlBattery', width: 18 },
-        ],
-        filteredData || data.batteries
-      );
-    }
-  } 
-  // ─── Case 2: Full Backup Export (App.tsx) ───
-  else {
-    // 1. Detecciones (Styled Sheet)
-    const wsDetections = workbook.addWorksheet('Detecciones');
-    wsDetections.columns = [
-      { header: 'Fecha', key: 'fecha', width: 14 },
-      { header: 'Hora', key: 'hora', width: 12 },
-      { header: 'Dispositivo Origen', key: 'dispositivo', width: 20 },
-      { header: 'Nombre de la línea', key: 'linea', width: 25 },
-      { header: 'Elemento', key: 'elemento', width: 25 },
-      { header: 'Anomalía', key: 'anomalia', width: 25 },
-      { header: 'Recomendación asociada', key: 'recomendacion', width: 35 },
-      { header: 'Criticidad', key: 'criticidad', width: 15 },
-      { header: 'Nombre de archivo', key: 'nombre_archivo', width: 20 },
-      { header: 'Observaciones', key: 'observations', width: 35 },
-    ];
-
-    const headerRow = wsDetections.getRow(1);
-    headerRow.eachCell((cell) => {
-      cell.fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FF217346' },
-      };
-      cell.font = { name: 'Segoe UI', bold: true, color: { argb: 'FFFFFFFF' } };
-      cell.alignment = { vertical: 'middle', horizontal: 'center' };
-    });
-    headerRow.height = 26;
-
-    data.detections.forEach((det) => {
-      let fecha = '';
-      let hora = '';
-      if (det.timestamp) {
-        const parts = det.timestamp.trim().split(/\s+/);
-        fecha = parts[0] || '';
-        hora = parts[1] || '';
-      }
-
-      const linea = flightMap.get(det.flightId || '') || '';
-
-      const row = wsDetections.addRow({
-        fecha,
-        hora,
-        dispositivo: det.deviceName || 'Local',
-        linea,
-        elemento: det.element,
-        anomalia: det.anomaly,
-        recomendacion: det.recommendation,
-        criticidad: det.criticality,
-        nombre_archivo: det.fileName,
-        observations: det.observations,
-      });
-
-      row.eachCell((cell) => {
         cell.alignment = { vertical: 'middle', horizontal: 'left' };
       });
 
-      const cellCrit = row.getCell('criticidad');
-      cellCrit.alignment = { vertical: 'middle', horizontal: 'center' };
-
-      const valor = (det.criticality || '').toLowerCase();
-      let colorHex = '';
-      let fontColor = 'FF000000';
-
-      if (valor === 'muy baja') {
-        colorHex = 'FF00F2D1';
-      } else if (valor === 'baja') {
-        colorHex = 'FF00E676';
-      } else if (valor === 'media') {
-        colorHex = 'FFFFD600';
-      } else if (valor === 'alta') {
-        colorHex = 'FFFF9100';
-      } else if (valor === 'urgente') {
-        colorHex = 'FFFF1744';
-        fontColor = 'FFFFFFFF';
-      }
-
-      if (colorHex) {
-        cellCrit.fill = {
+      // Row 2: Headers (separated Date and Time)
+      const headerRow = wsKMS.addRow([
+        'Fecha',
+        'Hora',
+        'Elemento',
+        'Anomalía',
+        'Recomendación',
+        'Criticidad',
+        'Nombre de archivo'
+      ]);
+      headerRow.height = 24;
+      headerRow.eachCell((cell) => {
+        cell.font = { name: 'Segoe UI', bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.fill = {
           type: 'pattern',
           pattern: 'solid',
-          fgColor: { argb: colorHex },
+          fgColor: { argb: 'FF217346' } // Classic Excel Green
         };
-        cellCrit.font = {
-          name: 'Segoe UI',
-          bold: true,
-          color: { argb: fontColor },
+        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+      });
+
+      // Row 3+: Detections
+      const detections = data.detections.filter(d => d.flightId === flight.id)
+                                        .sort((a, b) => getChronologicalTime(a.timestamp) - getChronologicalTime(b.timestamp));
+
+      if (detections.length === 0) {
+        const noDataRow = wsKMS.addRow(['Sin detecciones registradas', '', '', '', '', '', '']);
+        noDataRow.eachCell((cell) => {
+          cell.font = { name: 'Segoe UI', italic: true, color: { argb: 'FF757575' } };
+          cell.alignment = { vertical: 'middle', horizontal: 'left' };
+        });
+      } else {
+        detections.forEach((det) => {
+          const { date: detDate, time: detTime } = splitTimestamp(det.timestamp);
+          const row = wsKMS.addRow([
+            detDate,
+            detTime,
+            det.element || '',
+            det.anomaly || '',
+            det.recommendation || '',
+            det.criticality || '',
+            det.fileName || ''
+          ]);
+
+          row.eachCell((cell, colNum) => {
+            cell.font = { name: 'Segoe UI', size: 10 };
+            cell.alignment = { 
+              vertical: 'middle', 
+              horizontal: (colNum === 1 || colNum === 2 || colNum === 6) ? 'center' : 'left' 
+            };
+          });
+
+          // Style Criticality cell (now at column index 6)
+          const cellCrit = row.getCell(6);
+          const valor = (det.criticality || '').toLowerCase();
+          let colorHex = '';
+          let fontColor = 'FF000000';
+
+          if (valor === 'muy baja') {
+            colorHex = 'FF00F2D1';
+          } else if (valor === 'baja') {
+            colorHex = 'FF00E676';
+          } else if (valor === 'media') {
+            colorHex = 'FFFFD600';
+          } else if (valor === 'alta') {
+            colorHex = 'FFFF9100';
+          } else if (valor === 'urgente') {
+            colorHex = 'FFFF1744';
+            fontColor = 'FFFFFFFF';
+          }
+
+          if (colorHex) {
+            cellCrit.fill = {
+              type: 'pattern',
+              pattern: 'solid',
+              fgColor: { argb: colorHex }
+            };
+            cellCrit.font = { name: 'Segoe UI', bold: true, size: 10, color: { argb: fontColor } };
+          }
+        });
+      }
+
+      // Row Final: Closing timestamp (separated Date and Time)
+      const { date: closeDate, time: closeTime } = splitTimestamp(flight.closedTimestamp || '');
+      const closingRow = wsKMS.addRow([
+        'Fecha finalizada:',
+        closeDate || 'No finalizado',
+        'Hora finalizada:',
+        closeTime || 'No finalizado',
+        '', '', ''
+      ]);
+      closingRow.height = 20;
+      closingRow.eachCell((cell) => {
+        cell.font = { name: 'Segoe UI', italic: true, size: 10, color: { argb: 'FF424242' } };
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFF5F5F5' }
+        };
+        cell.alignment = { vertical: 'middle', horizontal: 'left' };
+      });
+
+      // Spacing rows
+      wsKMS.addRow([]);
+      wsKMS.addRow([]);
+    });
+  });
+
+  // 4. Populate HS Sheet
+  shiftsToExport.forEach((shift) => {
+    const hsFlights = data.flights.filter(f => f.shiftId === shift.id && f.flightType === 'HS')
+                                  .sort((a, b) => getChronologicalTime(a.timestamp) - getChronologicalTime(b.timestamp));
+
+    hsFlights.forEach((flight) => {
+      const { date: startDay } = splitTimestamp(flight.timestamp);
+      const detallesVal = `${flight.taskTypeAndLocation || 'Sin nombre'}${flight.details ? ` - ${flight.details}` : ''}`;
+      
+      // Row 1: Title
+      const titleRow = wsHS.addRow([
+        `Fecha: ${startDay}`,
+        '',
+        `Detalles: ${detallesVal}`
+      ]);
+      titleRow.height = 24;
+      titleRow.eachCell((cell) => {
+        cell.font = { name: 'Segoe UI', bold: true, size: 11, color: { argb: 'FF0D47A1' } };
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFE3F2FD' } // Light blue tint
+        };
+        cell.alignment = { vertical: 'middle', horizontal: 'left' };
+      });
+
+      // Row 2: Headers (separated Date and Time)
+      const headerRow = wsHS.addRow([
+        'Fecha de inicio',
+        'Hora de inicio',
+        'Solicitado por',
+        'Observaciones de cierre'
+      ]);
+      headerRow.height = 24;
+      headerRow.eachCell((cell) => {
+        cell.font = { name: 'Segoe UI', bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FF37474F' } // Dark Slate Blue-Gray
+        };
+        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+      });
+
+      // Row 3: Values
+      const { date: startDatePart, time: startTimePart } = splitTimestamp(flight.timestamp);
+      const obsVal = flight.closingObservations || flight.observations || 'Sin observaciones registradas';
+      const valuesRow = wsHS.addRow([
+        startDatePart,
+        startTimePart,
+        flight.requestedBy || '',
+        obsVal
+      ]);
+      valuesRow.height = 22;
+      valuesRow.eachCell((cell, colNum) => {
+        cell.font = { name: 'Segoe UI', size: 10 };
+        cell.alignment = { 
+          vertical: 'middle', 
+          horizontal: (colNum === 1 || colNum === 2) ? 'center' : 'left' 
+        };
+      });
+
+      // Row 4: Finalization & Duration (separated Date and Time)
+      const { date: endDatePart, time: endTimePart } = splitTimestamp(flight.closedTimestamp || '');
+      const durationHours = calculateFlightDuration(flight.timestamp, flight.closedTimestamp || '');
+      totalHSDuration += durationHours;
+      const durationStr = formatDuration(durationHours);
+
+      const finalRow = wsHS.addRow([
+        'Fecha final:',
+        endDatePart || 'No finalizado',
+        'Hora final:',
+        endTimePart || 'No finalizado',
+        `Duración: ${durationStr}`
+      ]);
+      finalRow.height = 22;
+      finalRow.eachCell((cell) => {
+        cell.font = { name: 'Segoe UI', italic: true, size: 10, color: { argb: 'FF3E2723' } };
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFEFEBE9' } // Warm gray-brown tint
+        };
+        cell.alignment = { vertical: 'middle', horizontal: 'left' };
+      });
+
+      // Spacing rows
+      wsHS.addRow([]);
+      wsHS.addRow([]);
+    });
+  });
+
+  // 5. Total Summation at the end of HS Sheet
+  if (totalHSDuration > 0) {
+    const sumRow = wsHS.addRow([
+      'TOTAL HORAS HS REGISTRADAS:',
+      formatDuration(totalHSDuration),
+      '',
+      ''
+    ]);
+    sumRow.height = 26;
+    sumRow.eachCell((cell, colNum) => {
+      cell.font = { name: 'Segoe UI', bold: true, size: 11, color: { argb: 'FF1B5E20' } };
+      cell.alignment = { vertical: 'middle', horizontal: 'left' };
+      if (colNum === 1 || colNum === 2) {
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FF000000' } },
+          bottom: { style: 'double', color: { argb: 'FF000000' } }
         };
       }
     });
-
-    // 2. Fallbacks for other backup tabs
-    if (data.shifts.length > 0) {
-      addStandardSheet(
-        'Jornadas',
-        [
-          { header: 'ID', key: 'id', width: 36 },
-          { header: 'Fecha/Hora', key: 'timestamp', width: 22 },
-          { header: 'Dispositivo Origen', key: 'deviceName', width: 20 },
-          { header: 'Coordinador', key: 'coordinator', width: 25 },
-          { header: 'Vehículo', key: 'vehicle', width: 12 },
-          { header: 'Dron', key: 'drone', width: 15 },
-        ],
-        data.shifts
-      );
-    }
-    if (data.flights.length > 0) {
-      addStandardSheet(
-        'Vuelos',
-        [
-          { header: 'ID', key: 'id', width: 36 },
-          { header: 'Fecha/Hora', key: 'timestamp', width: 22 },
-          { header: 'Dispositivo Origen', key: 'deviceName', width: 20 },
-          { header: 'Piloto', key: 'pilot', width: 25 },
-          { header: 'Línea', key: 'lineName', width: 20 },
-          { header: 'Código Auth', key: 'authCode', width: 15 },
-          { header: 'Observaciones', key: 'observations', width: 35 },
-        ],
-        data.flights
-      );
-    }
-    if (data.batteries.length > 0) {
-      addStandardSheet(
-        'Baterías',
-        [
-          { header: 'ID', key: 'id', width: 36 },
-          { header: 'Fecha/Hora', key: 'timestamp', width: 22 },
-          { header: 'Dispositivo Origen', key: 'deviceName', width: 20 },
-          { header: 'Piloto', key: 'pilot', width: 25 },
-          { header: 'Batería Dron %', key: 'droneBattery', width: 18 },
-          { header: 'Batería RC %', key: 'controlBattery', width: 18 },
-        ],
-        data.batteries
-      );
-    }
   }
 
-  // Trigger write and download
+  // Write and trigger download
   const dateStr = new Date().toISOString().split('T')[0];
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const url = window.URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `Reporte_Campo_${dateStr}.xlsx`;
+  link.download = `Reporte_Jornada_${dateStr}.xlsx`;
   link.click();
   window.URL.revokeObjectURL(url);
 };

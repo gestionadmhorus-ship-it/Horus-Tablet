@@ -19,6 +19,7 @@ declare global {
   interface Window {
     customConfirm: (message: string) => Promise<boolean>;
     customAlert: (message: string) => Promise<void>;
+    customPrompt: (message: string, placeholder?: string) => Promise<string | null>;
   }
 }
 
@@ -42,6 +43,7 @@ function App() {
   const [showExportModal, setShowExportModal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [isNewFlightRequested, setIsNewFlightRequested] = useState<boolean>(false);
+  const [newFlightType, setNewFlightType] = useState<'KMS' | 'HS'>('KMS');
   const [editingChecklist, setEditingChecklist] = useState<any>(undefined);
   const [deviceName, setDeviceName] = useState(() => {
     let name = localStorage.getItem('horus_device_name');
@@ -56,6 +58,22 @@ function App() {
   const [appRole, setAppRole] = useState<AppRole | null>(() => {
     return (localStorage.getItem('horus_sync_role') as AppRole) || null;
   });
+
+  const [themeMode, setThemeMode] = useState<'hud' | 'boost'>(() => {
+    const stored = localStorage.getItem('theme_mode');
+    if (stored === 'boost' || stored === 'hud') {
+      return stored as 'hud' | 'boost';
+    }
+    return 'hud';
+  });
+
+  useEffect(() => {
+    document.body.classList.remove('sunlight-mode', 'boost-mode');
+    if (themeMode === 'boost') {
+      document.body.classList.add('boost-mode');
+    }
+    localStorage.setItem('theme_mode', themeMode);
+  }, [themeMode]);
 
   const { syncStatus } = useAutoSync(
     appRole,
@@ -73,12 +91,16 @@ function App() {
   const [dialog, setDialog] = useState<{
     show: boolean;
     message: string;
-    type: 'alert' | 'confirm';
+    type: 'alert' | 'confirm' | 'prompt';
+    placeholder?: string;
+    inputValue?: string;
     resolve: ((val: any) => void) | null;
   }>({
     show: false,
     message: '',
     type: 'alert',
+    placeholder: '',
+    inputValue: '',
     resolve: null
   });
 
@@ -90,6 +112,8 @@ function App() {
           show: true,
           message,
           type: 'confirm',
+          placeholder: '',
+          inputValue: '',
           resolve
         });
       });
@@ -101,7 +125,22 @@ function App() {
           show: true,
           message,
           type: 'alert',
+          placeholder: '',
+          inputValue: '',
           resolve: () => resolve()
+        });
+      });
+    };
+
+    window.customPrompt = (message: string, placeholder?: string): Promise<string | null> => {
+      return new Promise((resolve) => {
+        setDialog({
+          show: true,
+          message,
+          type: 'prompt',
+          placeholder: placeholder || '',
+          inputValue: '',
+          resolve
         });
       });
     };
@@ -166,23 +205,113 @@ function App() {
   let activeFlightId: string | undefined;
   let activeFlightName: string | undefined;
   let activeFlightData: import('./types').FlightData | undefined;
+  let activeFlightType: 'KMS' | 'HS' | undefined;
 
   if (data.flights.length > 0) {
     // Sort flights chronologically before finding the latest
     const sortedFlights = [...data.flights].sort((a, b) => getChronologicalTime(a.timestamp) - getChronologicalTime(b.timestamp));
     const latestFlight = sortedFlights[sortedFlights.length - 1];
-    if (activeShiftId && latestFlight && latestFlight.shiftId === activeShiftId) {
+    if (activeShiftId && latestFlight && latestFlight.shiftId === activeShiftId && latestFlight.status !== 'closed') {
       activeFlightId = latestFlight.id;
-      activeFlightName = latestFlight.lineName;
+      activeFlightType = latestFlight.flightType || 'KMS';
+      activeFlightName = activeFlightType === 'HS' ? latestFlight.taskTypeAndLocation : latestFlight.lineName;
       activeFlightData = latestFlight;
     }
   }
+
+  const closeFlightWithPrompt = async (flight: import('./types').FlightData): Promise<boolean> => {
+    let obs = '';
+    const now = new Date();
+    const closedTime = `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
+    
+    if (flight.flightType === 'HS') {
+      const result = await window.customPrompt(
+        `Cerrar Vuelo HS (${flight.taskTypeAndLocation || 'Sin nombre'})\n¿Deseas registrar alguna observación al finalizar el vuelo? (opcional):`,
+        'Escriba observaciones de cierre aquí...'
+      );
+      if (result === null) {
+        // User clicked cancel, abort closing
+        return false;
+      }
+      obs = result;
+    } else {
+      // KMS flight
+      const confirm = await window.customConfirm(`¿Deseas cerrar el vuelo KMS activo (${flight.lineName})?`);
+      if (!confirm) return false;
+    }
+    
+    await updateFlight({
+      ...flight,
+      status: 'closed',
+      closedTimestamp: closedTime,
+      closingObservations: obs
+    });
+    return true;
+  };
+
+  const handleCloseFlight = async (id: string) => {
+    const flight = data.flights.find(f => f.id === id);
+    if (flight) {
+      await closeFlightWithPrompt(flight);
+    }
+  };
+
+  const handleSaveFlight = async (flightData: import('./types').FlightData) => {
+    if (activeShiftId) {
+      // Close any active flights in the current shift
+      const activeFlights = data.flights.filter(f => f.shiftId === activeShiftId && f.status !== 'closed');
+      for (const f of activeFlights) {
+        let obs = '';
+        const now = new Date();
+        const closedTime = `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
+        if (f.flightType === 'HS') {
+          const result = await window.customPrompt(
+            `Se cerrará el vuelo HS anterior (${f.taskTypeAndLocation || 'Sin nombre'}) para iniciar este nuevo vuelo.\nIngrese observaciones finales (opcional):`,
+            'Observaciones de cierre automático...'
+          );
+          obs = result !== null ? result : '';
+        }
+        await updateFlight({ 
+          ...f, 
+          status: 'closed',
+          closedTimestamp: closedTime,
+          closingObservations: obs
+        });
+      }
+    }
+    await saveFlight({ ...flightData, status: 'active' });
+  };
+
+  const handleNewFlight = (type: 'KMS' | 'HS') => {
+    setNewFlightType(type);
+    setIsNewFlightRequested(true);
+    setCurrentPage('flight');
+  };
 
   // ─── Handlers ───
   const handleCloseShift = async () => {
     if (activeShiftId && latestShift) {
       const ok = await window.customConfirm('¿Estás seguro de cerrar la jornada actual?');
       if (ok) {
+        const activeFlights = data.flights.filter(f => f.shiftId === activeShiftId && f.status !== 'closed');
+        for (const f of activeFlights) {
+          let obs = '';
+          const now = new Date();
+          const closedTime = `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
+          if (f.flightType === 'HS') {
+            const result = await window.customPrompt(
+              `Se cerrará el vuelo HS activo (${f.taskTypeAndLocation || 'Sin nombre'}) por cierre de jornada.\nIngrese observaciones finales (opcional):`,
+              'Cierre por fin de jornada'
+            );
+            obs = result !== null ? result : '';
+          }
+          await updateFlight({
+            ...f,
+            status: 'closed',
+            closedTimestamp: closedTime,
+            closingObservations: obs
+          });
+        }
         updateShift({ ...latestShift, status: 'closed' });
       }
     }
@@ -214,20 +343,22 @@ function App() {
             onSettings={() => setShowSettings(true)}
             hasActiveShift={!!activeShiftId}
             hasActiveFlight={!!activeFlightId}
+            activeFlightType={activeFlightType}
             onCloseShift={handleCloseShift}
             onReopenShift={handleReopenShift}
             hasTodayClosedShift={hasTodayClosedShift}
             activeShiftId={activeShiftId}
+            activeFlightId={activeFlightId}
             activeFlightName={activeFlightName}
             onEditShift={handleEditShift}
             onEditFlight={handleEditFlight}
-            onNewFlight={() => {
-              setIsNewFlightRequested(true);
-              setCurrentPage('flight');
-            }}
+            onNewFlight={handleNewFlight}
+            onCloseFlight={handleCloseFlight}
             deviceName={deviceName}
             syncStatus={syncStatus}
             appRole={appRole}
+            currentTheme={themeMode}
+            onChangeTheme={setThemeMode}
           />
         );
       case 'shift':
@@ -244,13 +375,14 @@ function App() {
         return (
           <FlightForm 
             key={isNewFlightRequested ? 'new-flight' : (activeFlightId || 'create-flight')}
-            onSave={(data) => { saveFlight(data); setIsNewFlightRequested(false); }}
+            onSave={(data) => { handleSaveFlight(data); setIsNewFlightRequested(false); }}
             onUpdate={updateFlight}
             onBack={() => { setIsNewFlightRequested(false); setCurrentPage('dashboard'); }} 
             lists={activeLists} 
             activeShiftId={activeShiftId}
             editData={activeFlightId && activeFlightData && !isNewFlightRequested ? activeFlightData : undefined}
-            onRegisterNew={() => setIsNewFlightRequested(true)}
+            defaultFlightType={newFlightType}
+            onRegisterNew={() => { setNewFlightType(activeFlightData?.flightType || 'KMS'); setIsNewFlightRequested(true); }}
             onChangeShift={() => setCurrentPage('shift')}
           />
         );
@@ -356,6 +488,7 @@ function App() {
       default:
         return (
           <Dashboard
+            data={data}
             onNavigate={(page) => {
               setIsNewFlightRequested(false);
               setCurrentPage(page);
@@ -363,20 +496,22 @@ function App() {
             onSettings={() => setShowSettings(true)}
             hasActiveShift={!!activeShiftId}
             hasActiveFlight={!!activeFlightId}
+            activeFlightType={activeFlightType}
             onCloseShift={handleCloseShift}
             onReopenShift={handleReopenShift}
             hasTodayClosedShift={hasTodayClosedShift}
             activeShiftId={activeShiftId}
+            activeFlightId={activeFlightId}
             activeFlightName={activeFlightName}
             onEditShift={handleEditShift}
             onEditFlight={handleEditFlight}
-            onNewFlight={() => {
-              setIsNewFlightRequested(true);
-              setCurrentPage('flight');
-            }}
+            onNewFlight={handleNewFlight}
+            onCloseFlight={handleCloseFlight}
             deviceName={deviceName}
             syncStatus={syncStatus}
             appRole={appRole}
+            currentTheme={themeMode}
+            onChangeTheme={setThemeMode}
           />
         );
     }
@@ -412,17 +547,46 @@ function App() {
       {/* Global Logo + App Name - Only shown on inner pages (forms, records, etc)
            Hidden on Dashboard which has its own full banner with logo */}
       {currentPage !== 'dashboard' && (
-        <div className="no-print" style={{ position: 'absolute', top: '1.5rem', left: '2rem', zIndex: 1000, pointerEvents: 'none', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <img src="/logo_horus_nuevo.png" alt="Horus Dron" style={{ height: '40px', filter: 'drop-shadow(0px 0px 10px rgba(0,0,0,0.8))' }} />
-          <div style={{ lineHeight: 1.1 }}>
-            <div style={{ fontSize: '1.1rem', fontWeight: 900, letterSpacing: '2px', color: 'var(--primary)', textTransform: 'uppercase' }}>
-              Hermes <em style={{ fontStyle: 'italic' }}>II</em>
-            </div>
-            <div style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.4)', letterSpacing: '1px', textTransform: 'uppercase' }}>
-              Horus Dron
+        <>
+          <div className="no-print" style={{ position: 'absolute', top: '1.5rem', left: '2rem', zIndex: 1000, pointerEvents: 'none', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <img src="/logo_horus_nuevo.png" alt="Horus Dron" style={{ height: '40px', filter: 'drop-shadow(0px 0px 10px rgba(0,0,0,0.8))' }} />
+            <div style={{ lineHeight: 1.1 }}>
+              <div style={{ fontSize: '1.1rem', fontWeight: 900, letterSpacing: '2px', color: 'var(--primary)', textTransform: 'uppercase' }}>
+                Hermes <em style={{ fontStyle: 'italic' }}>II</em>
+              </div>
+              <div style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.4)', letterSpacing: '1px', textTransform: 'uppercase' }}>
+                Horus Dron
+              </div>
             </div>
           </div>
-        </div>
+          <div className="no-print" style={{ position: 'fixed', top: '1.5rem', right: '2rem', zIndex: 1000, display: 'flex', gap: '0.4rem', alignItems: 'center', background: 'var(--card-bg)', border: '1px solid var(--glass-border)', borderRadius: '10px', padding: '4px', boxShadow: 'var(--shadow-glow)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}>
+            {[
+              { id: 'hud', label: '🌙 HUD', title: 'Modo Táctico' },
+              { id: 'boost', label: '⚡ BOOST', title: 'HUD Alto Brillo' }
+            ].map(t => (
+              <button
+                key={t.id}
+                onClick={() => setThemeMode(t.id as any)}
+                style={{
+                  background: themeMode === t.id ? 'var(--primary)' : 'transparent',
+                  border: 'none',
+                  borderRadius: '6px',
+                  color: themeMode === t.id ? '#FFFFFF' : 'var(--text-primary)',
+                  padding: '0.5rem 0.8rem',
+                  cursor: 'pointer',
+                  fontWeight: 800,
+                  fontSize: '0.75rem',
+                  transition: 'all 0.2s ease',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px'
+                }}
+                title={t.title}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </>
       )}
 
       {renderPage()}
@@ -510,8 +674,8 @@ function App() {
             padding: '2.5rem', 
             width: '90%', 
             maxWidth: '450px', 
-            border: `2px solid ${dialog.type === 'confirm' ? 'var(--primary)' : '#00ff88'}`,
-            boxShadow: `0 0 40px ${dialog.type === 'confirm' ? 'rgba(240,196,25,0.25)' : 'rgba(0,255,136,0.25)'}`,
+            border: `2px solid ${dialog.type === 'confirm' || dialog.type === 'prompt' ? 'var(--primary)' : '#00ff88'}`,
+            boxShadow: `0 0 40px ${dialog.type === 'confirm' || dialog.type === 'prompt' ? 'rgba(240,196,25,0.25)' : 'rgba(0,255,136,0.25)'}`,
             borderRadius: '12px',
             textAlign: 'center',
             background: 'rgba(5,5,5,0.95)'
@@ -519,16 +683,16 @@ function App() {
             {/* Title / Icon based on type */}
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
               <div style={{
-                background: dialog.type === 'confirm' ? 'rgba(240,196,25,0.1)' : 'rgba(0,255,136,0.1)',
-                color: dialog.type === 'confirm' ? 'var(--primary)' : '#00ff88',
+                background: dialog.type === 'confirm' || dialog.type === 'prompt' ? 'rgba(240,196,25,0.1)' : 'rgba(0,255,136,0.1)',
+                color: dialog.type === 'confirm' || dialog.type === 'prompt' ? 'var(--primary)' : '#00ff88',
                 borderRadius: '50%',
                 padding: '1rem',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                boxShadow: `inset 0 0 10px ${dialog.type === 'confirm' ? 'rgba(240,196,25,0.2)' : 'rgba(0,255,136,0.2)'}`
+                boxShadow: `inset 0 0 10px ${dialog.type === 'confirm' || dialog.type === 'prompt' ? 'rgba(240,196,25,0.2)' : 'rgba(0,255,136,0.2)'}`
               }}>
-                {dialog.type === 'confirm' ? (
+                {dialog.type === 'confirm' || dialog.type === 'prompt' ? (
                   <Power size={32} />
                 ) : (
                   <CheckCircle size={32} />
@@ -537,20 +701,42 @@ function App() {
             </div>
 
             <h3 style={{ color: 'white', fontSize: '1.4rem', fontWeight: 900, marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
-              {dialog.type === 'confirm' ? 'Confirmación Requerida' : 'Notificación'}
+              {dialog.type === 'confirm' ? 'Confirmación Requerida' : dialog.type === 'prompt' ? 'Registro de Observación' : 'Notificación'}
             </h3>
             
-            <p style={{ color: '#E0E0E0', fontSize: '1.05rem', lineHeight: '1.6', marginBottom: '2rem', whiteSpace: 'pre-line', fontWeight: 500 }}>
+            <p style={{ color: '#E0E0E0', fontSize: '1.05rem', lineHeight: '1.6', marginBottom: '1.5rem', whiteSpace: 'pre-line', fontWeight: 500 }}>
               {dialog.message}
             </p>
 
+            {dialog.type === 'prompt' && (
+              <textarea
+                value={dialog.inputValue || ''}
+                onChange={(e) => setDialog(d => ({ ...d, inputValue: e.target.value }))}
+                placeholder={dialog.placeholder || 'Escriba aquí (opcional)...'}
+                rows={3}
+                style={{
+                  width: '100%',
+                  background: 'rgba(0,0,0,0.5)',
+                  border: '1px solid var(--primary)',
+                  borderRadius: '8px',
+                  color: 'white',
+                  padding: '0.75rem',
+                  fontSize: '1rem',
+                  marginBottom: '1.5rem',
+                  outline: 'none',
+                  resize: 'none',
+                  boxSizing: 'border-box'
+                }}
+              />
+            )}
+
             <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
-              {dialog.type === 'confirm' ? (
+              {dialog.type === 'confirm' || dialog.type === 'prompt' ? (
                 <>
                   <button
                     onClick={() => {
-                      dialog.resolve?.(true);
-                      setDialog({ show: false, message: '', type: 'alert', resolve: null });
+                      dialog.resolve?.(dialog.type === 'prompt' ? (dialog.inputValue || '') : true);
+                      setDialog({ show: false, message: '', type: 'alert', placeholder: '', inputValue: '', resolve: null });
                     }}
                     className="btn-3d"
                     style={{
@@ -568,8 +754,8 @@ function App() {
                   </button>
                   <button
                     onClick={() => {
-                      dialog.resolve?.(false);
-                      setDialog({ show: false, message: '', type: 'alert', resolve: null });
+                      dialog.resolve?.(dialog.type === 'prompt' ? null : false);
+                      setDialog({ show: false, message: '', type: 'alert', placeholder: '', inputValue: '', resolve: null });
                     }}
                     style={{
                       flex: 1,
@@ -599,7 +785,7 @@ function App() {
                 <button
                   onClick={() => {
                     dialog.resolve?.(true);
-                    setDialog({ show: false, message: '', type: 'alert', resolve: null });
+                    setDialog({ show: false, message: '', type: 'alert', placeholder: '', inputValue: '', resolve: null });
                   }}
                   className="btn-3d"
                   style={{

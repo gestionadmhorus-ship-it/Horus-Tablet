@@ -54,6 +54,13 @@ export interface FlightData {
   isSynced?: boolean;
   isEdited?: boolean;
   editedTimestamp?: string;
+  flightType?: 'KMS' | 'HS';
+  taskTypeAndLocation?: string;
+  details?: string;
+  requestedBy?: string;
+  status?: 'active' | 'closed';
+  closedTimestamp?: string;
+  closingObservations?: string;
 }
 
 export interface BatteryData {

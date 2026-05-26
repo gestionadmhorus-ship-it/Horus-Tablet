@@ -118,11 +118,11 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
           style={{
             width: '100%',
             padding: '16px 45px 16px 16px',
-            background: 'rgba(0, 0, 0, 0.8)',
-            border: isOpen ? '1.5px solid var(--primary)' : '1.5px solid rgba(255, 255, 255, 0.15)',
-            boxShadow: isOpen ? '0 0 15px rgba(240, 196, 25, 0.3)' : 'none',
+            background: 'var(--bg-input)',
+            border: isOpen ? '1.5px solid var(--primary)' : '1px solid var(--border-input)',
+            boxShadow: isOpen ? '0 0 15px var(--primary-glow)' : 'none',
             borderRadius: '8px',
-            color: '#FFFFFF',
+            color: 'var(--text-primary)',
             fontSize: 'max(16px, 1.05rem)',
             fontWeight: 700,
             outline: 'none',
@@ -176,9 +176,9 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
             maxHeight: '220px',
             overflowY: 'auto',
             zIndex: 1000,
-            border: '1px solid rgba(255,255,255,0.12)',
+            border: '1px solid var(--glass-border)',
             borderRadius: '8px',
-            boxShadow: '0 10px 25px rgba(0, 0, 0, 0.8)',
+            boxShadow: 'var(--shadow-glow)',
             padding: '4px'
           }}
         >
@@ -196,11 +196,11 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
                     borderRadius: '6px',
                     cursor: 'pointer',
                     background: isSelected
-                      ? 'rgba(240, 196, 25, 0.25)'
+                      ? 'var(--primary-glow)'
                       : isHighlighted
-                      ? 'rgba(255, 255, 255, 0.06)'
+                      ? 'rgba(128, 128, 128, 0.15)'
                       : 'transparent',
-                    color: isSelected ? 'var(--primary)' : '#FFF',
+                    color: isSelected ? 'var(--primary)' : 'var(--text-primary)',
                     fontWeight: isSelected ? 800 : 600,
                     fontSize: '0.95rem',
                     transition: 'all 0.15s ease',

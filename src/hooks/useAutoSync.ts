@@ -49,7 +49,7 @@ export function useAutoSync(
         peerRef.current = peer;
 
         peer.on('open', () => {
-          if (isActive) setSyncStatus('📡 Servidor: En línea y escuchando.');
+          if (isActive) setSyncStatus('📡 Control: En línea y escuchando.');
         });
 
         peer.on('connection', (conn) => {
@@ -66,7 +66,7 @@ export function useAutoSync(
                 localStorage.setItem('horus_known_clients', JSON.stringify(updated));
                 window.dispatchEvent(new Event('horus_known_clients_updated'));
                 setSyncStatus(`🔌 "${name}" se ha desvinculado.`);
-                setTimeout(() => { if (isActive) setSyncStatus('📡 Servidor: En línea y escuchando.'); }, 3000);
+                setTimeout(() => { if (isActive) setSyncStatus('📡 Control: En línea y escuchando.'); }, 3000);
               }
               conn.close();
               return;
@@ -85,7 +85,7 @@ export function useAutoSync(
 
               if (blockedClients.includes(senderDeviceName)) {
                 // Notify client it was removed; auto-unblock so re-pairing is possible
-                conn.send({ type: 'SYNC_ERROR', code: 'REMOVED_BY_SERVER', message: 'Fuiste eliminado de la red por el Jefe.' });
+                conn.send({ type: 'SYNC_ERROR', code: 'REMOVED_BY_SERVER', message: 'Fuiste eliminado de la red por Control.' });
                 conn.close();
                 const updatedBlocked = blockedClients.filter(c => c !== senderDeviceName);
                 localStorage.setItem('horus_blocked_clients', JSON.stringify(updatedBlocked));
@@ -103,13 +103,13 @@ export function useAutoSync(
               }
 
               setIsSyncing(true);
-              setSyncStatus('🤝 Recibiendo datos de un explorador...');
+              setSyncStatus('🤝 Recibiendo datos de una Unidad...');
               try {
                 await onDataReceivedRef.current(data.payload);
                 conn.send({ type: 'SYNC_ACK' });
                 setSyncStatus('✅ Datos recibidos y guardados con éxito.');
                 setTimeout(() => {
-                  if (isActive) setSyncStatus('📡 Servidor: En línea y escuchando.');
+                  if (isActive) setSyncStatus('📡 Control: En línea y escuchando.');
                 }, 3000);
               } catch (err: any) {
                 conn.send({ type: 'SYNC_ERROR', message: err.message });
@@ -125,7 +125,7 @@ export function useAutoSync(
           if (!isActive) return;
           console.error('PeerJS Server Error:', err);
           if (err.type === 'unavailable-id') {
-             setSyncStatus('⚠️ Ya hay un servidor activo en esta red.');
+             setSyncStatus('⚠️ Ya hay una instancia de Control activa en esta red.');
           } else {
              setSyncStatus('🔌 Error de red. Reconectando en breve...');
              reconnectTimer = setTimeout(connectPeer, RECONNECT_INTERVAL);
@@ -142,7 +142,7 @@ export function useAutoSync(
 
           const targetServerId = localStorage.getItem('horus_target_server_id');
           if (!targetServerId) {
-             setSyncStatus('⚠️ No hay Jefe vinculado. Escanea un QR en Configuración.');
+             setSyncStatus('⚠️ No hay Control vinculado. Escanea un QR en Configuración.');
              setIsSyncing(false);
              return; // Stop reconnect loop if no target is set
           }
@@ -182,7 +182,7 @@ export function useAutoSync(
               conn.close();
             } else if (data.type === 'SYNC_ERROR' && data.code === 'REMOVED_BY_SERVER') {
               // Jefe eliminated this device — reset config and go back to RoleSetup
-              setSyncStatus('⚠️ El Jefe te ha eliminado de la red. Vuelve a escanear el QR.');
+              setSyncStatus('⚠️ Control te ha eliminado de la red. Vuelve a escanear el QR.');
               setIsSyncing(false);
               conn.close();
               isActive = false;
@@ -196,7 +196,7 @@ export function useAutoSync(
 
           conn.on('error', () => {
             // Server not found or connection dropped
-            setSyncStatus('🔍 Servidor no encontrado. Reintentando luego...');
+            setSyncStatus('🔍 Control no encontrado. Reintentando luego...');
             setIsSyncing(false);
             conn.close();
           });
@@ -217,7 +217,7 @@ export function useAutoSync(
           if (!isActive) return;
           console.error('PeerJS Client Error:', err);
           if (err.type === 'peer-unavailable') {
-            setSyncStatus('🔍 Servidor apagado o fuera de alcance.');
+            setSyncStatus('🔍 Central apagada o fuera de alcance.');
             syncAttemptTimer = setTimeout(attemptSync, RECONNECT_INTERVAL);
           } else {
             setSyncStatus('🔍 Sin red. Esperando conexión...');

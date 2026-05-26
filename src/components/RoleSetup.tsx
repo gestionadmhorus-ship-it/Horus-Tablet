@@ -82,7 +82,7 @@ export function RoleSetup({ onComplete }: RoleSetupProps) {
 
   const handleCompleteServer = () => {
     const myId = generateUUID();
-    onComplete('server', 'Servidor-Alfa', undefined, myId);
+    onComplete('server', 'Control-Central', undefined, myId);
   };
 
   return (
@@ -137,7 +137,7 @@ export function RoleSetup({ onComplete }: RoleSetupProps) {
             }}
           >
             <Server size={32} color={role === 'server' ? 'var(--primary)' : '#888'} />
-            <span style={{ fontWeight: 'bold' }}>Jefe (Servidor)</span>
+            <span style={{ fontWeight: 'bold' }}>CONTROL (Central)</span>
             <span style={{ fontSize: '0.75rem', color: '#888' }}>Recibe y consolida datos</span>
           </button>
 
@@ -158,8 +158,8 @@ export function RoleSetup({ onComplete }: RoleSetupProps) {
             }}
           >
             <User size={32} color={role === 'client' ? '#00ff88' : '#888'} />
-            <span style={{ fontWeight: 'bold' }}>Explorador (Cliente)</span>
-            <span style={{ fontSize: '0.75rem', color: '#888' }}>Envía datos al Jefe</span>
+            <span style={{ fontWeight: 'bold' }}>UNIDAD (Campo)</span>
+            <span style={{ fontSize: '0.75rem', color: '#888' }}>Envía datos a Control</span>
           </button>
         </div>
 
@@ -184,7 +184,7 @@ export function RoleSetup({ onComplete }: RoleSetupProps) {
 
         {role === 'server' && (
           <div style={{ marginBottom: '2rem', padding: '1rem', background: 'rgba(240,196,25,0.1)', borderRadius: '8px', color: 'var(--primary)', fontSize: '0.9rem' }}>
-            Esta tablet se convertirá en el concentrador de datos. Asegúrate de que sea la única configurada como Servidor.
+            Este equipo operará como la Central de datos. Asegúrate de que sea el único configurado como Control.
           </div>
         )}
 
@@ -196,7 +196,7 @@ export function RoleSetup({ onComplete }: RoleSetupProps) {
 
         {scanning && (
           <div style={{ marginTop: '2rem', padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '12px' }}>
-            <h3 style={{ color: 'white', marginBottom: '1rem' }}>Escanea el código del Jefe</h3>
+            <h3 style={{ color: 'white', marginBottom: '1rem' }}>Escanea el código QR de Control</h3>
             <div id="reader" style={{ width: '100%', maxWidth: '400px', margin: '0 auto' }}></div>
             <button
               onClick={() => setScanning(false)}

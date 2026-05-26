@@ -32,10 +32,20 @@ interface RecordsExplorerProps {
 type RecordType = 'shifts' | 'flights' | 'batteries' | 'detections' | 'checklists';
 
 const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
+  const getTodayDateString = () => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const [activeTable, setActiveTable] = useState<RecordType>('flights');
   const [checklistSubtype, setChecklistSubtype] = useState<'vehicle' | 'drone'>('vehicle');
   const [searchTerm, setSearchTerm] = useState('');
   const [searchField, setSearchField] = useState('all');
+  const [dateMode, setDateMode] = useState<'specific' | 'range'>('specific');
+  const [specificDate, setSpecificDate] = useState(getTodayDateString());
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [editingRecord, setEditingRecord] = useState<{ type: RecordType, data: any } | null>(null);
@@ -71,6 +81,8 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
     setActiveTable(tabId);
     setSearchField('all');
     setSearchTerm('');
+    setDateMode('specific');
+    setSpecificDate(getTodayDateString());
     setStartDate('');
     setEndDate('');
   };
@@ -148,6 +160,9 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
 
   // Filter Logic
   const filteredData = useMemo(() => {
+    const isFilterActive = dateMode === 'specific' ? !!specificDate : (!!startDate && !!endDate);
+    if (!isFilterActive) return [];
+
     let list: any[] = [];
     if (activeTable === 'checklists') {
       list = checklistSubtype === 'drone' 
@@ -157,20 +172,24 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
       list = props.data[activeTable] as any[];
     }
     
-    // Convert boundary date strings ("YYYY-MM-DD") to Date objects
+    const specDateObj = specificDate ? new Date(specificDate + 'T00:00:00') : null;
     const start = startDate ? new Date(startDate + 'T00:00:00') : null;
     const end = endDate ? new Date(endDate + 'T23:59:59') : null;
 
     return list.filter(item => {
-      // 1. Date Range Filter
-      if (start || end) {
-        const itemDate = parseLocalTimestampToDate(item.timestamp);
-        if (itemDate) {
-          if (start && itemDate < start) return false;
-          if (end && itemDate > end) return false;
-        } else {
-          return false;
-        }
+      // 1. Date Filter
+      const itemDate = parseLocalTimestampToDate(item.timestamp);
+      if (!itemDate) return false;
+
+      if (dateMode === 'specific') {
+        if (!specDateObj) return false;
+        const sameYear = itemDate.getFullYear() === specDateObj.getFullYear();
+        const sameMonth = itemDate.getMonth() === specDateObj.getMonth();
+        const sameDay = itemDate.getDate() === specDateObj.getDate();
+        if (!sameYear || !sameMonth || !sameDay) return false;
+      } else {
+        if (!start || !end) return false;
+        if (itemDate < start || itemDate > end) return false;
       }
 
       // 2. Search Term Filter
@@ -231,13 +250,14 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
 
       return false;
     }).sort((a, b) => b.timestamp.localeCompare(a.timestamp));
-  }, [props.data, activeTable, checklistSubtype, searchTerm, searchField, startDate, endDate, flightMap, shiftMap]);
+  }, [props.data, activeTable, checklistSubtype, searchTerm, searchField, dateMode, specificDate, startDate, endDate, flightMap, shiftMap]);
 
   const handleExportFiltered = () => {
-    if (activeTable === 'checklists') return;
     exportToExcel(props.data, {
-      activeTable: activeTable as any,
-      filteredData
+      dateMode,
+      specificDate,
+      startDate,
+      endDate
     });
   };
 
@@ -262,6 +282,8 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
     setEditingRecord(null);
   };
 
+  const isFilterActive = dateMode === 'specific' ? !!specificDate : (!!startDate && !!endDate);
+
   return (
     <div className="container" style={{ maxWidth: '1300px', paddingBottom: '5rem' }}>
       {/* Hide UI when printing bulk checklists */}
@@ -274,7 +296,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
           </button>
         </div>
         <div style={{ textAlign: 'right' }}>
-          <h2 style={{ fontSize: '2.5rem', fontWeight: 900, margin: 0, color: 'white', textTransform: 'uppercase' }}>Historial Técnico</h2>
+          <h2 style={{ fontSize: '2.5rem', fontWeight: 900, margin: 0, color: 'var(--text-primary)', textTransform: 'uppercase' }}>Historial Técnico</h2>
           <p style={{ color: 'var(--primary)', fontWeight: 900, margin: 0, letterSpacing: '4px', background: '#000', display: 'inline-block', padding: '2px 10px', fontSize: '0.8rem', border: '1px solid var(--primary)' }}>HORUS DRON</p>
         </div>
       </div>
@@ -292,13 +314,13 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
             key={tab.id}
             onClick={() => handleTableChange(tab.id as RecordType)}
             style={{
-              flex: 1, minWidth: '180px', padding: '1.2rem', borderRadius: '4px', border: '2px solid',
-              borderColor: activeTable === tab.id ? 'var(--primary)' : 'rgba(255,255,255,0.1)',
-              background: activeTable === tab.id ? 'var(--primary)' : 'rgba(0,0,0,0.5)',
-              color: activeTable === tab.id ? 'black' : '#AAA',
-              cursor: 'pointer', transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', fontWeight: 900,
+              flex: 1, minWidth: '180px', padding: '1.2rem', borderRadius: '8px', border: '2px solid',
+              borderColor: activeTable === tab.id ? 'var(--primary)' : 'var(--border-input)',
+              background: activeTable === tab.id ? 'var(--primary)' : 'var(--bg-input)',
+              color: activeTable === tab.id ? 'var(--bg-dark)' : 'var(--text-secondary)',
+              cursor: 'pointer', transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', fontWeight: 900,
               textTransform: 'uppercase', letterSpacing: '1px',
-              boxShadow: activeTable === tab.id ? '0 0 20px rgba(240,196,25,0.2)' : 'none'
+              boxShadow: activeTable === tab.id ? 'var(--shadow-glow)' : 'none'
             }}
           >
             <tab.icon size={20} />
@@ -317,13 +339,13 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
               padding: '0.8rem 1.5rem',
               borderRadius: '8px',
               border: '1px solid',
-              borderColor: checklistSubtype === 'vehicle' ? 'var(--neon-orange)' : 'rgba(255,255,255,0.1)',
-              background: checklistSubtype === 'vehicle' ? 'rgba(255, 102, 0, 0.1)' : 'rgba(0,0,0,0.3)',
-              color: checklistSubtype === 'vehicle' ? 'var(--neon-orange)' : '#FFF',
+              borderColor: checklistSubtype === 'vehicle' ? 'var(--neon-orange)' : 'var(--border-input)',
+              background: checklistSubtype === 'vehicle' ? 'rgba(251, 146, 60, 0.08)' : 'var(--bg-input)',
+              color: checklistSubtype === 'vehicle' ? 'var(--neon-orange)' : 'var(--text-secondary)',
               fontWeight: 800,
               fontSize: '0.82rem',
               cursor: 'pointer',
-              boxShadow: checklistSubtype === 'vehicle' ? '0 0 15px rgba(255, 102, 0, 0.15)' : 'none'
+              boxShadow: checklistSubtype === 'vehicle' ? '0 0 15px rgba(251, 146, 60, 0.15)' : 'none'
             }}
           >
             🚜 CHECKLIST VEHICULAR
@@ -335,13 +357,13 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
               padding: '0.8rem 1.5rem',
               borderRadius: '8px',
               border: '1px solid',
-              borderColor: checklistSubtype === 'drone' ? 'var(--neon-green)' : 'rgba(255,255,255,0.1)',
-              background: checklistSubtype === 'drone' ? 'rgba(0, 255, 136, 0.1)' : 'rgba(0,0,0,0.3)',
-              color: checklistSubtype === 'drone' ? 'var(--neon-green)' : '#FFF',
+              borderColor: checklistSubtype === 'drone' ? 'var(--neon-green)' : 'var(--border-input)',
+              background: checklistSubtype === 'drone' ? 'rgba(52, 211, 153, 0.08)' : 'var(--bg-input)',
+              color: checklistSubtype === 'drone' ? 'var(--neon-green)' : 'var(--text-secondary)',
               fontWeight: 800,
               fontSize: '0.82rem',
               cursor: 'pointer',
-              boxShadow: checklistSubtype === 'drone' ? '0 0 15px rgba(0, 255, 136, 0.15)' : 'none'
+              boxShadow: checklistSubtype === 'drone' ? '0 0 15px rgba(52, 211, 153, 0.15)' : 'none'
             }}
           >
             🚁 CHECKLIST DE DRON
@@ -350,8 +372,19 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
       )}
 
       {/* Filters Bar */}
-      <div className="glass" style={{ padding: '2rem', marginBottom: '2.5rem', display: 'grid', gridTemplateColumns: '1.8fr 1fr 1fr 160px', gap: '1.5rem', alignItems: 'end', background: 'rgba(0,0,0,0.4)', border: '1px solid var(--glass-border)' }}>
-        <div>
+      <div className="glass" style={{ 
+        padding: '2rem', 
+        marginBottom: '2.5rem', 
+        display: 'flex', 
+        flexWrap: 'wrap', 
+        gap: '1.5rem', 
+        alignItems: 'end', 
+        background: 'var(--card-bg)', 
+        border: '1px solid var(--glass-border)',
+        borderRadius: '16px',
+        boxShadow: 'var(--shadow-glow)'
+      }}>
+        <div style={{ flex: '2 1 300px' }}>
           <label>Buscador Específico</label>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <select
@@ -359,11 +392,11 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
               onChange={e => setSearchField(e.target.value)}
               style={{
                 width: '170px',
-                background: 'rgba(0,0,0,0.8)',
-                border: '1px solid rgba(255,255,255,0.15)',
-                color: 'white',
+                background: 'var(--bg-input)',
+                border: '1px solid var(--border-input)',
+                color: 'var(--text-primary)',
                 padding: '0.8rem',
-                borderRadius: '4px',
+                borderRadius: '8px',
                 cursor: 'pointer',
                 fontWeight: 'bold'
               }}
@@ -384,50 +417,138 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
             </div>
           </div>
         </div>
-        <div>
-          <label>Fecha Desde</label>
-          <div style={{ position: 'relative' }}>
-            <Calendar size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary)', pointerEvents: 'none' }} />
-            <input 
-              type="date" 
-              value={startDate}
-              onChange={e => setStartDate(e.target.value)}
-              style={{ 
-                paddingLeft: '45px',
-                color: 'white',
-                background: 'rgba(0,0,0,0.6)',
-                border: '1px solid rgba(255,255,255,0.15)',
-                cursor: 'pointer'
+
+        {/* Date Mode Toggle */}
+        <div style={{ flex: '1 1 200px', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          <label>Filtro de Fecha</label>
+          <div style={{ display: 'flex', background: 'var(--bg-input)', padding: '4px', borderRadius: '8px', border: '1px solid var(--border-input)' }}>
+            <button
+              onClick={() => setDateMode('specific')}
+              style={{
+                flex: 1,
+                padding: '0.8rem',
+                borderRadius: '6px',
+                border: 'none',
+                background: dateMode === 'specific' ? 'var(--primary)' : 'transparent',
+                color: dateMode === 'specific' ? 'var(--bg-dark)' : 'var(--text-secondary)',
+                fontWeight: 900,
+                fontSize: '0.78rem',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                textTransform: 'uppercase'
               }}
-            />
+            >
+              Día Específico
+            </button>
+            <button
+              onClick={() => setDateMode('range')}
+              style={{
+                flex: 1,
+                padding: '0.8rem',
+                borderRadius: '6px',
+                border: 'none',
+                background: dateMode === 'range' ? 'var(--primary)' : 'transparent',
+                color: dateMode === 'range' ? 'var(--bg-dark)' : 'var(--text-secondary)',
+                fontWeight: 900,
+                fontSize: '0.78rem',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                textTransform: 'uppercase'
+              }}
+            >
+              Rango
+            </button>
           </div>
         </div>
-        <div>
-          <label>Fecha Hasta</label>
-          <div style={{ position: 'relative' }}>
-            <Calendar size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary)', pointerEvents: 'none' }} />
-            <input 
-              type="date" 
-              value={endDate}
-              onChange={e => setEndDate(e.target.value)}
-              style={{ 
-                paddingLeft: '45px',
-                color: 'white',
-                background: 'rgba(0,0,0,0.6)',
-                border: '1px solid rgba(255,255,255,0.15)',
-                cursor: 'pointer'
-              }}
-            />
+
+        {/* Specific Date Input */}
+        {dateMode === 'specific' && (
+          <div style={{ flex: '1 1 200px' }}>
+            <label>Fecha Seleccionada</label>
+            <div style={{ position: 'relative' }}>
+              <Calendar size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary)', pointerEvents: 'none' }} />
+              <input 
+                type="date" 
+                value={specificDate}
+                onChange={e => setSpecificDate(e.target.value)}
+                style={{ 
+                  paddingLeft: '45px',
+                  color: 'var(--text-primary)',
+                  background: 'var(--bg-input)',
+                  border: '1px solid var(--border-input)',
+                  cursor: 'pointer'
+                }}
+              />
+            </div>
           </div>
-        </div>
-        <div style={{ display: 'flex', gap: '0.5rem', flexDirection: 'column', height: '100%', justifyContent: 'flex-end' }}>
+        )}
+
+        {/* Range Date Inputs */}
+        {dateMode === 'range' && (
+          <>
+            <div style={{ flex: '1 1 180px' }}>
+              <label>Fecha Desde</label>
+              <div style={{ position: 'relative' }}>
+                <Calendar size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary)', pointerEvents: 'none' }} />
+                <input 
+                  type="date" 
+                  value={startDate}
+                  onChange={e => setStartDate(e.target.value)}
+                  style={{ 
+                    paddingLeft: '45px',
+                    color: 'var(--text-primary)',
+                    background: 'var(--bg-input)',
+                    border: '1px solid var(--border-input)',
+                    cursor: 'pointer'
+                  }}
+                />
+              </div>
+            </div>
+            <div style={{ flex: '1 1 180px' }}>
+              <label>Fecha Hasta</label>
+              <div style={{ position: 'relative' }}>
+                <Calendar size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary)', pointerEvents: 'none' }} />
+                <input 
+                  type="date" 
+                  value={endDate}
+                  onChange={e => setEndDate(e.target.value)}
+                  style={{ 
+                    paddingLeft: '45px',
+                    color: 'var(--text-primary)',
+                    background: 'var(--bg-input)',
+                    border: '1px solid var(--border-input)',
+                    cursor: 'pointer'
+                  }}
+                />
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Action Button */}
+        <div style={{ flex: '0 0 160px', display: 'flex', gap: '0.5rem', flexDirection: 'column', justifyContent: 'flex-end' }}>
           {activeTable === 'checklists' && (
             <button onClick={() => window.print()} className="btn-3d" style={{ width: '100%', height: '58px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', background: '#ff6600', color: 'black', border: '1px solid #ff6600' }}>
               <Printer size={18} /> IMPRIMIR LOTES
             </button>
           )}
           {activeTable !== 'checklists' && (
-            <button onClick={handleExportFiltered} className="btn-3d" style={{ width: '100%', height: '58px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem' }}>
+            <button 
+              onClick={handleExportFiltered} 
+              disabled={filteredData.length === 0}
+              className="btn-3d" 
+              style={{ 
+                width: '100%', 
+                height: '58px', 
+                padding: 0, 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                gap: '0.75rem',
+                opacity: filteredData.length === 0 ? 0.5 : 1,
+                cursor: filteredData.length === 0 ? 'not-allowed' : 'pointer'
+              }}
+            >
               <Download size={20} /> EXPORTAR
             </button>
           )}
@@ -435,42 +556,50 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
       </div>
 
       {/* Records Table */}
-      <div className="glass" style={{ overflow: 'hidden', background: '#000', border: '1px solid var(--glass-border)' }}>
+      <div className="glass" style={{ overflow: 'hidden', background: 'var(--card-bg)', border: '1px solid var(--glass-border)' }}>
         <div className="table-responsive-wrapper">
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead>
-              <tr style={{ background: 'rgba(240,196,25,0.1)', borderBottom: '2px solid var(--primary)' }}>
+              <tr style={{ background: 'var(--primary-glow)', borderBottom: '2px solid var(--primary)' }}>
                 <th style={{ padding: '1.5rem 1.2rem', color: 'var(--primary)', fontSize: '0.9rem', textTransform: 'uppercase', fontWeight: 900, letterSpacing: '1px' }}>Fecha/Hora</th>
-                {activeTable === 'shifts' && <><th style={{ padding: '1.2rem', color: 'white' }}>Coordinador</th><th style={{ padding: '1.2rem', color: 'white' }}>Asistentes</th><th style={{ padding: '1.2rem', color: 'white' }}>Vehículo</th></>}
-                {activeTable === 'flights' && <><th style={{ padding: '1.2rem', color: 'white' }}>Piloto</th><th style={{ padding: '1.2rem', color: 'white' }}>Línea</th><th style={{ padding: '1.2rem', color: 'white' }}>Obs.</th></>}
-                {activeTable === 'batteries' && <><th style={{ padding: '1.2rem', color: 'white' }}>Piloto</th><th style={{ padding: '1.2rem', color: 'white' }}>ID Dron</th><th style={{ padding: '1.2rem', color: 'white' }}>Bat. Dron</th><th style={{ padding: '1.2rem', color: 'white' }}>ID RC</th><th style={{ padding: '1.2rem', color: 'white' }}>Bat. RC</th></>}
-                {activeTable === 'detections' && <><th style={{ padding: '1.2rem', color: 'white' }}>Elemento</th><th style={{ padding: '1.2rem', color: 'white' }}>Anomalía</th><th style={{ padding: '1.2rem', color: 'white' }}>Criticidad</th></>}
+                {activeTable === 'shifts' && <><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Coordinador</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Asistentes</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Vehículo</th></>}
+                {activeTable === 'flights' && <><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Piloto</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Línea</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Obs.</th></>}
+                {activeTable === 'batteries' && <><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Piloto</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>ID Dron</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Bat. Dron</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>ID RC</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Bat. RC</th></>}
+                {activeTable === 'detections' && <><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Elemento</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Anomalía</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Criticidad</th></>}
                 {activeTable === 'checklists' && (
                   checklistSubtype === 'drone' ? (
                     <>
-                      <th style={{ padding: '1.2rem', color: 'white' }}>Dron</th>
-                      <th style={{ padding: '1.2rem', color: 'white' }}>Piloto</th>
-                      <th style={{ padding: '1.2rem', color: 'white' }}>Estado General</th>
+                      <th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Dron</th>
+                      <th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Piloto</th>
+                      <th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Estado General</th>
                     </>
                   ) : (
                     <>
-                      <th style={{ padding: '1.2rem', color: 'white' }}>Unidad</th>
-                      <th style={{ padding: '1.2rem', color: 'white' }}>Responsable</th>
-                      <th style={{ padding: '1.2rem', color: 'white' }}>Kilometraje</th>
+                      <th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Unidad</th>
+                      <th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Responsable</th>
+                      <th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Kilometraje</th>
                     </>
                   )
                 )}
-                <th style={{ padding: '1.2rem', color: 'white' }}>Origen</th>
-                <th style={{ padding: '1.2rem', textAlign: 'right', color: 'white' }}>Acciones</th>
+                <th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Origen</th>
+                <th style={{ padding: '1.2rem', textAlign: 'right', color: 'var(--text-primary)' }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {filteredData.map(item => (
-                <tr key={item.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', transition: 'background 0.2s ease' }}>
+              {!isFilterActive ? (
+                <tr>
+                  <td colSpan={10} style={{ padding: '5rem 2rem', textAlign: 'center', color: 'var(--primary)', fontWeight: 'bold', background: 'transparent' }}>
+                    🔍 Seleccione una fecha o rango de fechas para visualizar los registros.
+                  </td>
+                </tr>
+              ) : (
+                <>
+                  {filteredData.map(item => (
+                    <tr key={item.id} style={{ borderBottom: '1px solid var(--border-input)', transition: 'background 0.2s ease' }}>
                   <td style={{ padding: '1.2rem', fontSize: '0.95rem', color: 'var(--primary)', fontWeight: 700 }}>
                     {item.timestamp}
                     {item.isEdited && (
-                      <span style={{ display: 'block', fontSize: '0.72rem', color: '#ffc107', marginTop: '4px', fontWeight: 600 }}>
+                      <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--primary)', marginTop: '4px', fontWeight: 600 }}>
                         ✍️ Editado: {item.editedTimestamp}
                       </span>
                     )}
@@ -478,36 +607,36 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
                   
                   {activeTable === 'shifts' && (
                     <>
-                      <td style={{ padding: '1.2rem', color: 'white' }}>{item.coordinator}</td>
-                      <td style={{ padding: '1.2rem', color: 'white', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <td style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>{item.coordinator}</td>
+                      <td style={{ padding: '1.2rem', color: 'var(--text-primary)', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {item.assistants ? item.assistants.join(', ') : item.assistant}
                       </td>
-                      <td style={{ padding: '1.2rem', color: 'white' }}>{item.vehicle}</td>
+                      <td style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>{item.vehicle}</td>
                     </>
                   )}
                   {activeTable === 'flights' && (
                     <>
-                      <td style={{ padding: '1.2rem', color: 'white' }}>{item.pilot}</td>
-                      <td style={{ padding: '1.2rem', color: 'white' }}>{item.lineName}</td>
-                      <td style={{ padding: '1.2rem', maxWidth: '250px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#888', fontSize: '0.9rem' }}>{item.observations}</td>
+                      <td style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>{item.pilot}</td>
+                      <td style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>{item.lineName}</td>
+                      <td style={{ padding: '1.2rem', maxWidth: '250px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{item.observations}</td>
                     </>
                   )}
                   {activeTable === 'batteries' && (
                     <>
-                      <td style={{ padding: '1.2rem', color: 'white' }}>{item.pilot}</td>
-                      <td style={{ padding: '1.2rem', color: '#00c2ff', fontWeight: 800 }}>{item.droneBatteryName || '—'}</td>
-                      <td style={{ padding: '1.2rem', color: 'white', fontWeight: 800 }}>{item.droneBattery}%</td>
-                      <td style={{ padding: '1.2rem', color: '#00c2ff', fontWeight: 800 }}>{item.controlBatteryName || '—'}</td>
-                      <td style={{ padding: '1.2rem', color: 'white', fontWeight: 800 }}>{item.controlBattery}%</td>
+                      <td style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>{item.pilot}</td>
+                      <td style={{ padding: '1.2rem', color: 'var(--neon-cyan)', fontWeight: 800 }}>{item.droneBatteryName || '—'}</td>
+                      <td style={{ padding: '1.2rem', color: 'var(--text-primary)', fontWeight: 800 }}>{item.droneBattery}%</td>
+                      <td style={{ padding: '1.2rem', color: 'var(--neon-cyan)', fontWeight: 800 }}>{item.controlBatteryName || '—'}</td>
+                      <td style={{ padding: '1.2rem', color: 'var(--text-primary)', fontWeight: 800 }}>{item.controlBattery}%</td>
                     </>
                   )}
                   {activeTable === 'detections' && (
                     <>
-                      <td style={{ padding: '1.2rem', fontWeight: 800, color: 'white' }}>{item.element}</td>
-                      <td style={{ padding: '1.2rem', color: 'white' }}>{item.anomaly}</td>
+                      <td style={{ padding: '1.2rem', fontWeight: 800, color: 'var(--text-primary)' }}>{item.element}</td>
+                      <td style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>{item.anomaly}</td>
                       <td style={{ padding: '1.2rem' }}>
                         {(() => {
-                          const cc: Record<string, string> = { 'Muy Baja': '#00F2D1', Baja: '#00E676', Media: '#FFD600', Alta: '#FF9100', Urgente: '#FF1744' };
+                          const cc: Record<string, string> = { 'Muy Baja': 'var(--neon-cyan)', Baja: 'var(--neon-green)', Media: 'var(--primary)', Alta: 'var(--neon-orange)', Urgente: 'var(--neon-red)' };
                           const bg = cc[item.criticality] || 'rgba(255,255,255,0.1)';
                           const fc = item.criticality === 'Urgente' ? 'white' : 'black';
                           return (
@@ -522,15 +651,15 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
                   {activeTable === 'checklists' && (
                     checklistSubtype === 'drone' ? (
                       <>
-                        <td style={{ padding: '1.2rem', color: 'white', fontWeight: 800 }}>{item.droneId}</td>
-                        <td style={{ padding: '1.2rem', color: 'white' }}>{item.pilot}</td>
+                        <td style={{ padding: '1.2rem', color: 'var(--text-primary)', fontWeight: 800 }}>{item.droneId}</td>
+                        <td style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>{item.pilot}</td>
                         <td style={{ padding: '1.2rem', color: 'var(--neon-green)', fontWeight: 800 }}>✓ COMPLETO</td>
                       </>
                     ) : (
                       <>
-                        <td style={{ padding: '1.2rem', color: 'white', fontWeight: 800 }}>{item.vehicleId}</td>
-                        <td style={{ padding: '1.2rem', color: 'white' }}>{item.driver}</td>
-                        <td style={{ padding: '1.2rem', color: '#ff6600', fontWeight: 800 }}>{item.mileage} km</td>
+                        <td style={{ padding: '1.2rem', color: 'var(--text-primary)', fontWeight: 800 }}>{item.vehicleId}</td>
+                        <td style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>{item.driver}</td>
+                        <td style={{ padding: '1.2rem', color: 'var(--neon-orange)', fontWeight: 800 }}>{item.mileage} km</td>
                       </>
                     )
                   )}
@@ -579,13 +708,15 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
                     </div>
                   </td>
                 </tr>
-              ))}
-              {filteredData.length === 0 && (
-                <tr>
-                  <td colSpan={7} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                    No se encontraron registros con los filtros aplicados.
-                  </td>
-                </tr>
+                  ))}
+                  {filteredData.length === 0 && (
+                    <tr>
+                      <td colSpan={10} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                        No se encontraron registros con los filtros aplicados.
+                      </td>
+                    </tr>
+                  )}
+                </>
               )}
             </tbody>
           </table>
@@ -623,15 +754,15 @@ const EditModal: React.FC<{
   const [formData, setFormData] = useState({ ...data });
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(8px)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
       <motion.div 
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.9, y: 20 }}
         className="glass" 
-        style={{ width: '100%', maxWidth: '600px', padding: '2rem', position: 'relative', border: '1px solid rgba(0,242,255,0.3)' }}
+        style={{ width: '100%', maxWidth: '600px', padding: '2rem', position: 'relative', border: '1px solid var(--glass-border)' }}
       >
-        <button onClick={onClose} style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}>
+        <button onClick={onClose} style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer' }}>
           <X size={24} />
         </button>
 
@@ -777,7 +908,7 @@ const EditModal: React.FC<{
           )}
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1rem' }}>
-            <button onClick={onClose} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '12px', color: 'white', padding: '0.8rem 1.5rem', cursor: 'pointer' }}>
+            <button onClick={onClose} style={{ background: 'transparent', border: '1px solid var(--border-input)', borderRadius: '12px', color: 'var(--text-primary)', padding: '0.8rem 1.5rem', cursor: 'pointer' }}>
               Cancelar
             </button>
             <button onClick={() => onSave(formData)} className="btn-3d" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

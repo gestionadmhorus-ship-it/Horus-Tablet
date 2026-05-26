@@ -164,7 +164,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
   }, []);
 
   const removeKnownClient = async (client: string) => {
-    const ok = await window.customConfirm(`¿Eliminar al explorador "${client}" de la red?\nNo podrá sincronizar hasta que sea retirado del bloqueo.`);
+    const ok = await window.customConfirm(`¿Eliminar a la unidad "${client}" de la red?\nNo podrá sincronizar hasta que sea retirada del bloqueo.`);
     if (!ok) return;
     // 1. Remove from known list (UI)
     const updatedKnown = knownClients.filter(c => c !== client);
@@ -179,7 +179,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
   };
 
   const handleUnbindClient = async () => {
-    const ok = await window.customConfirm('¿Estás seguro de desvincularte del Jefe actual? Deberás escanear un nuevo QR para volver a sincronizar.');
+    const ok = await window.customConfirm('¿Estás seguro de desvincularte de Control? Deberás escanear un nuevo QR para volver a sincronizar.');
     if (!ok) return;
 
     const doUnbind = () => {
@@ -591,9 +591,9 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
               {appRole === 'server' ? (
                 <>
                   <div style={{ ...sectionStyle, padding: '1.5rem', textAlign: 'center', border: '1px solid var(--primary)', background: 'rgba(240,196,25,0.05)' }}>
-                    <h3 style={{ color: 'white', marginTop: 0, marginBottom: '0.5rem' }}>Tu Código QR de Jefe</h3>
+                    <h3 style={{ color: 'white', marginTop: 0, marginBottom: '0.5rem' }}>Tu Código QR de Control</h3>
                     <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
-                      Muestra este código a los exploradores para que se vinculen a tu red.
+                      Muestra este código a las Unidades de Campo para que se vinculen a tu red.
                     </p>
                     <div style={{ background: 'white', padding: '1rem', display: 'inline-block', borderRadius: '12px' }}>
                       {myServerId ? (
@@ -700,10 +700,10 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
 
                   <div style={{ ...sectionStyle, padding: '1.25rem' }}>
                     <h3 style={{ color: 'white', marginTop: 0, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <ShieldAlert size={18} color="var(--primary)" /> Exploradores Conocidos
+                      <ShieldAlert size={18} color="var(--primary)" /> Unidades Conocidas
                     </h3>
                     {knownClients.length === 0 ? (
-                      <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textAlign: 'center' }}>Aún no se ha conectado ningún explorador.</p>
+                      <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textAlign: 'center' }}>Aún no se ha conectado ninguna Unidad.</p>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                         {knownClients.map(client => (
@@ -734,14 +734,14 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
                 <div style={{ ...sectionStyle, padding: '1.5rem', textAlign: 'center', border: '1px solid #ff4444', background: 'rgba(255,68,68,0.05)' }}>
                   <h3 style={{ color: '#ff4444', marginTop: 0, marginBottom: '0.5rem' }}>Zona de Peligro</h3>
                   <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '2rem' }}>
-                    Si cambiaste de escuadrón, puedes desvincularte del Jefe actual. Deberás escanear el QR del nuevo Jefe para volver a operar.
+                    Si cambiaste de operación, puedes desvincularte de la Central actual. Deberás escanear el QR de la nueva Central para volver a operar.
                   </p>
                   <button
                     onClick={handleUnbindClient}
                     className="btn-3d"
                     style={{ width: '100%', padding: '1rem', background: '#ff4444', color: 'black', fontWeight: 'bold' }}
                   >
-                    Desvincular Jefe Actual
+                    Desvincular de Control
                   </button>
                 </div>
               )}

@@ -1,19 +1,42 @@
 :root {
-  --primary: #F0C419;      /* Horus Yellow - High Visibility */
-  --secondary: #000000;    /* Deep Black */
-  --accent: #FFD700;       
-  --bg-dark: #050811;      /* Deep Modern Ink Blue-Black for OLED/Outdoor Contrast */
-  --card-bg: rgba(13, 20, 38, 0.6);
-  --glass-border: rgba(240, 196, 25, 0.18);
-  --text-primary: #FFFFFF;
-  --text-secondary: #94A3B8;
-  --shadow-glow: 0 0 25px rgba(240, 196, 25, 0.12);
+  --primary: #10B981;       /* Premium Tech Emerald Green */
+  --primary-glow: rgba(16, 185, 129, 0.1);
+  --secondary: #0B0F19;     /* Deep Slate Base */
+  --bg-dark: #070A13;       /* Rich Tech Navy-Slate */
+  --card-bg: rgba(18, 27, 45, 0.7); /* Frosted Slate-Blue Card */
+  --glass-border: rgba(255, 255, 255, 0.08); /* Fine line separation */
+  --text-primary: #F1F5F9;  /* Off-white */
+  --text-secondary: #94A3B8; /* Muted Slate */
+  --shadow-glow: 0 15px 35px rgba(0, 0, 0, 0.35); /* Soft depth shadow */
+  --bg-input: rgba(10, 15, 30, 0.6);
+  --border-input: rgba(255, 255, 255, 0.06);
   
-  /* Electric neon palettes for modern high-contrast design */
-  --neon-cyan: #00f2ff;
-  --neon-green: #00ff88;
-  --neon-orange: #ff6600;
-  --neon-red: #ff1744;
+  /* Tactical system colors */
+  --neon-cyan: #0EA5E9;     /* Operations Blue */
+  --neon-green: #10B981;    /* System Ok Green */
+  --neon-orange: #F97316;   /* Warning Orange */
+  --neon-red: #EF4444;      /* Danger/Urgent Red */
+  --radius: 18px;
+}
+
+
+/* Boost mode: high-brightness tactical dark mode to prevent reflection under bright sunlight */
+.boost-mode {
+  --primary: #00FF88;       /* Ultra-bright Neon Mint Green */
+  --primary-glow: rgba(0, 255, 136, 0.25);
+  --secondary: #1E293B;     /* Slate Background for higher emission brightness */
+  --bg-dark: #1A2333;       /* Brighter slate-blue background to combat glare */
+  --card-bg: rgba(30, 41, 59, 0.95); /* Solid slate-blue cards to block reflections */
+  --glass-border: rgba(0, 255, 136, 0.4);  /* Highly visible neon border lines */
+  --text-primary: #FFFFFF;  /* Crisp absolute white */
+  --text-secondary: #CBD5E1; /* High brightness slate secondary */
+  --shadow-glow: 0 0 20px rgba(0, 255, 136, 0.2), 0 10px 25px rgba(0, 0, 0, 0.5);
+  --bg-input: #0F172A;
+  --border-input: rgba(0, 255, 136, 0.3);
+  --neon-cyan: #38BDF8;
+  --neon-green: #00FF88;
+  --neon-orange: #FB923C;
+  --neon-red: #F87171;
 }
 
 * {
@@ -29,15 +52,33 @@ body {
   color: var(--text-primary);
   min-height: 100vh;
   overflow-x: hidden;
-  color-scheme: dark; /* Forces browser UI (dropdowns) to dark mode */
+  color-scheme: dark;
+  
+  /* Ultra-Premium Glass Backglows & Tech Grid */
   background-image: 
-    radial-gradient(circle at 50% 10%, rgba(240, 196, 25, 0.04) 0%, transparent 50%),
-    radial-gradient(circle at 0% 100%, rgba(0, 242, 255, 0.02) 0%, transparent 40%),
-    url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h20v20H0V0zm20 20h20v20H20V20z' fill='%23ffffff' fill-opacity='0.015' fill-rule='evenodd'/%3E%3C/svg%3E");
+    radial-gradient(circle at 10% 20%, rgba(16, 185, 129, 0.04) 0%, transparent 40%),
+    radial-gradient(circle at 90% 80%, rgba(2, 132, 199, 0.04) 0%, transparent 40%),
+    linear-gradient(rgba(255, 255, 255, 0.005) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.005) 1px, transparent 1px),
+    radial-gradient(circle at 50% 25%, #080f1e 0%, #03060c 100%);
+  background-size: 36px 36px, 36px 36px, 36px 36px, 36px 36px, 100% 100%;
   background-attachment: fixed;
+  transition: background 0.3s ease, color 0.3s ease;
 }
 
-/* Tactical Top Glow Line */
+
+body.boost-mode {
+  color-scheme: dark;
+  background-image: 
+    radial-gradient(circle at 10% 20%, rgba(0, 255, 136, 0.06) 0%, transparent 40%),
+    radial-gradient(circle at 90% 80%, rgba(56, 189, 248, 0.06) 0%, transparent 40%),
+    linear-gradient(rgba(255, 255, 255, 0.01) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.01) 1px, transparent 1px),
+    radial-gradient(circle at 50% 25%, #202d44 0%, #111a2e 100%);
+  background-size: 36px 36px, 36px 36px, 36px 36px, 36px 36px, 100% 100%;
+}
+
+/* Tactical Top Line */
 body::before {
   content: '';
   position: fixed;
@@ -45,9 +86,9 @@ body::before {
   left: 0;
   right: 0;
   height: 3px;
-  background: linear-gradient(90deg, transparent, var(--primary), transparent);
+  background: linear-gradient(90deg, var(--neon-cyan), var(--primary), var(--neon-cyan));
   z-index: 2000;
-  box-shadow: 0 0 20px var(--primary);
+  transition: background 0.3s ease;
 }
 
 #root {
@@ -55,104 +96,156 @@ body::before {
   z-index: 2;
 }
 
-/* Modern Tactical Card - Glassmorphism with Neon Accents */
+/* Modern Tactical Card - Frosted Tech Glass */
 .glass {
-  background: rgba(8, 12, 28, 0.92);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1.5px solid rgba(240, 196, 25, 0.2);
-  border-radius: 16px;
+  background: var(--card-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
   box-shadow: 
-    0 20px 40px rgba(0, 0, 0, 0.75),
-    0 0 30px rgba(240, 196, 25, 0.03),
-    inset 0 1px 2px rgba(255, 255, 255, 0.05);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    var(--shadow-glow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.02);
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .glass:hover {
-  border-color: rgba(240, 196, 25, 0.45);
+  border-color: rgba(16, 185, 129, 0.2);
   box-shadow: 
-    0 25px 50px rgba(0, 0, 0, 0.85),
-    0 0 35px rgba(240, 196, 25, 0.08),
-    inset 0 1px 2px rgba(255, 255, 255, 0.08);
+    0 30px 60px -15px rgba(0, 0, 0, 0.5),
+    0 0 30px rgba(16, 185, 129, 0.05);
 }
 
-/* High Contrast Button with Realistic 3D Tactical Bevel */
+.sunlight-mode .glass:hover {
+  border-color: rgba(5, 150, 105, 0.25);
+  box-shadow: 
+    0 20px 40px -10px rgba(15, 23, 42, 0.06),
+    0 0 25px rgba(5, 150, 105, 0.03);
+}
+
+/* Futuristic Bezel Button with Reflection Sheen */
 .btn-3d {
   position: relative;
-  padding: 1.1rem 2.2rem;
-  border: 1.5px solid var(--primary);
-  background: linear-gradient(180deg, var(--primary) 0%, #d4a70f 100%);
-  color: #000;
-  font-weight: 900;
+  padding: 1rem 2rem;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: linear-gradient(135deg, var(--primary) 0%, #059669 100%);
+  color: #FFFFFF;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 1.8px;
-  border-radius: 8px;
+  letter-spacing: 1.5px;
+  border-radius: 10px;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
   box-shadow: 
-    0 4px 0px #9e7b0a, /* Bottom 3D bevel */
-    0 8px 20px rgba(240, 196, 25, 0.15);
-  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.15);
+    0 6px 18px rgba(16, 185, 129, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  overflow: hidden;
+}
+
+.btn-3d::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -50%;
+  width: 200%;
+  height: 100%;
+  background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transform: skewX(-25deg);
+  transition: 0.75s;
+  opacity: 0;
+}
+
+.btn-3d:hover::after {
+  left: 125%;
+  opacity: 1;
 }
 
 .btn-3d:hover {
-  background: #000;
-  color: var(--primary) !important;
-  box-shadow: 
-    0 4px 0px var(--primary),
-    0 0 30px rgba(240, 196, 25, 0.45);
   transform: translateY(-2px);
+  box-shadow: 
+    0 10px 24px rgba(16, 185, 129, 0.25),
+    0 0 20px var(--primary-glow);
 }
 
 .btn-3d:active {
-  transform: translateY(2px);
-  box-shadow: 
-    0 2px 0px #9e7b0a,
-    0 4px 10px rgba(240, 196, 25, 0.1);
+  transform: translateY(1px);
+  box-shadow: 0 4px 10px rgba(16, 185, 129, 0.1);
 }
 
-/* Form Styles - Optimized for Outdoor High Contrast & Pure Dark OLED Black */
+/* Form Styles - Aero-Cockpit style with active left indicator accents */
 input:not([type="checkbox"]):not([type="radio"]), select, textarea {
   width: 100%;
-  padding: 16px;
-  background: rgba(0, 0, 0, 0.95); /* Deeper black for extreme solar readability */
-  border: 1.5px solid rgba(255, 255, 255, 0.18);
-  border-radius: 8px;
-  color: #FFFFFF;
+  padding: 14px 16px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-input);
+  border-left: 3px solid var(--primary);
+  border-radius: 10px;
+  color: var(--text-primary);
   font-family: inherit;
-  
-  /* CRITICAL iOS SAFEGUARD: font-size must be at least 16px to prevent automatic zooming on iPads/iPhones */
-  font-size: max(16px, 1.05rem);
-  font-weight: 700;
-  transition: all 0.25s ease;
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.8);
-  
-  /* CRITICAL iOS SAFEGUARD: Completely override native Apple WebKit styles */
+  font-size: max(16px, 1rem);
+  font-weight: 600;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
   -webkit-appearance: none;
   appearance: none;
 }
 
-/* High visibility for focused fields */
+/* High visibility for focused fields with color-shifting accent line */
 input:not([type="checkbox"]):not([type="radio"]):focus, select:focus, textarea:focus {
   outline: none;
   border-color: var(--primary);
+  border-left-color: var(--neon-green);
+  background: rgba(12, 18, 32, 0.8);
   box-shadow: 
-    inset 0 2px 4px rgba(0,0,0,0.8),
-    0 0 20px rgba(240, 196, 25, 0.35);
-  color: var(--primary);
+    0 0 15px rgba(16, 185, 129, 0.12),
+    inset 0 2px 4px rgba(0, 0, 0, 0.15);
+  color: var(--text-primary);
 }
+
+.sunlight-mode input:not([type="checkbox"]):not([type="radio"]):focus, 
+.sunlight-mode select:focus, 
+.sunlight-mode textarea:focus {
+  background: #FFFFFF;
+  border-color: var(--primary);
+  border-left-color: var(--neon-green);
+  box-shadow: 
+    0 0 10px rgba(5, 150, 105, 0.18),
+    inset 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.boost-mode input:not([type="checkbox"]):not([type="radio"]):focus, 
+.boost-mode select:focus, 
+.boost-mode textarea:focus {
+  background: #111a2e;
+  border-color: var(--primary);
+  border-left-color: var(--neon-green);
+  box-shadow: 
+    0 0 15px rgba(0, 255, 136, 0.35),
+    inset 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* Neon text shadows to boost legibility in Boost mode */
+.boost-mode h1, .boost-mode h2, .boost-mode h3, .boost-mode h4, .boost-mode .dashboard-banner-title {
+  text-shadow: 0 0 10px rgba(0, 255, 136, 0.4), 0 0 20px rgba(0, 255, 136, 0.1);
+}
+
+/* Accent icons shadow boost */
+.boost-mode .card-icon-wrapper {
+  filter: drop-shadow(0 0 8px rgba(0, 255, 136, 0.25));
+}
+
+
 
 /* HUD Active Pulse Glow Animation */
 @keyframes pulse-glow {
   0% {
-    box-shadow: 0 0 0 0 rgba(0, 255, 136, 0.4);
+    border-color: rgba(16, 185, 129, 0.3);
   }
-  70% {
-    box-shadow: 0 0 0 10px rgba(0, 255, 136, 0);
+  50% {
+    border-color: rgba(16, 185, 129, 0.8);
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(0, 255, 136, 0);
+    border-color: rgba(16, 185, 129, 0.3);
   }
 }
 
@@ -161,19 +254,21 @@ div[style*="background: rgba(0,255,136,0.1)"],
 div[style*="background:rgba(0,255,136,0.1)"],
 div[style*="background: rgba(0, 255, 136, 0.1)"] {
   border: 1.5px solid var(--neon-green) !important;
-  box-shadow: 
-    0 0 20px rgba(0, 255, 136, 0.25),
-    inset 0 0 10px rgba(0, 255, 136, 0.15) !important;
-  background: rgba(0, 255, 136, 0.08) !important;
+  box-shadow: none !important;
+  background: rgba(16, 185, 129, 0.05) !important;
   animation: pulse-glow 2.5s infinite;
 }
 
 /* Dropdown arrow for custom select */
 select {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23F0C419' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2310B981' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 15px center;
   padding-right: 50px;
+}
+
+.sunlight-mode select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23059669' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
 }
 
 label {
