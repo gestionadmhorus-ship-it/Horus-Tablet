@@ -35,6 +35,19 @@ const FlightForm: React.FC<FlightFormProps> = ({
     requestedBy: editData?.requestedBy || ''
   });
 
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    sec1: true,
+    sec2: true,
+    sec3: true
+  });
+
+  const toggleSection = (section: string) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const now = new Date();
@@ -81,7 +94,7 @@ const FlightForm: React.FC<FlightFormProps> = ({
       {activeShiftId && (
         <div style={{ 
           background: 'rgba(0,255,136,0.1)', 
-          border: '1px solid #00ff88', 
+          border: '1.5px solid var(--neon-green)', 
           color: '#00ff88', 
           padding: '0.8rem 1.5rem', 
           borderRadius: '8px', 
@@ -90,7 +103,7 @@ const FlightForm: React.FC<FlightFormProps> = ({
           alignItems: 'center', 
           justifyContent: 'space-between', 
           fontWeight: 'bold', 
-          boxShadow: '0 0 10px rgba(0,255,136,0.2)' 
+          boxShadow: 'none' 
         }}>
           <span>📍 JORNADA ACTIVA: {activeShiftId}</span>
           {onChangeShift && (
@@ -117,132 +130,206 @@ const FlightForm: React.FC<FlightFormProps> = ({
         </div>
       )}
 
-      <div className="glass" style={{ padding: '3rem', borderTop: '4px solid #00ff88', boxShadow: '0 -5px 20px rgba(0,255,136,0.1)' }}>
-        <h2 style={{ fontSize: '2.5rem', fontWeight: 900, marginBottom: '2.5rem', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '2px' }}>
+      <div className="glass" style={{ padding: '2rem', borderTop: '4px solid #00ff88', boxShadow: '0 -5px 20px rgba(0,255,136,0.1)' }}>
+        <h2 style={{ fontSize: '2rem', fontWeight: 900, marginBottom: '2rem', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '2px' }}>
           {isEditMode ? `Editar Registro ${flightType}` : flightType === 'KMS' ? 'Registro Vuelos KMS' : 'Registro de Vuelos HS.'}
         </h2>
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           {flightType === 'KMS' ? (
             <>
-              <div>
-                {lists.pilots.length > 0 ? (
-                  <SearchableSelect
-                    label="Piloto"
-                    options={lists.pilots}
-                    value={formData.pilot}
-                    onChange={v => setFormData({ ...formData, pilot: v })}
-                    required
-                    placeholder="-- Seleccionar Piloto --"
-                  />
-                ) : (
-                  <>
-                    <label>Piloto</label>
-                    <input
-                      type="text"
-                      value={formData.pilot}
-                      onChange={e => setFormData({ ...formData, pilot: e.target.value })}
-                      placeholder="Sin opciones — agrega pilotos en ⚙️"
-                      required
-                    />
-                  </>
+              {/* Section 1: Pilot & Category */}
+              <div className={`form-accordion-section ${expandedSections.sec1 ? 'active' : ''}`}>
+                <button type="button" onClick={() => toggleSection('sec1')} className="form-accordion-header">
+                  <span>👤 Personal y Categoría</span>
+                  <span>{expandedSections.sec1 ? '▲' : '▼'}</span>
+                </button>
+                {expandedSections.sec1 && (
+                  <div className="form-accordion-content">
+                    <div>
+                      {lists.pilots.length > 0 ? (
+                        <SearchableSelect
+                          label="Piloto"
+                          options={lists.pilots}
+                          value={formData.pilot}
+                          onChange={v => setFormData({ ...formData, pilot: v })}
+                          required
+                          placeholder="-- Seleccionar Piloto --"
+                        />
+                      ) : (
+                        <>
+                          <label>Piloto</label>
+                          <input
+                            type="text"
+                            value={formData.pilot}
+                            onChange={e => setFormData({ ...formData, pilot: e.target.value })}
+                            placeholder="Sin opciones — agrega pilotos en ⚙️"
+                            required
+                          />
+                        </>
+                      )}
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '6px' }}>Categoría de Inspección</label>
+                      <select
+                        value={formData.category}
+                        onChange={e => setFormData({ ...formData, category: e.target.value })}
+                        style={{
+                          width: '100%',
+                          background: 'var(--bg-input)',
+                          border: '1px solid var(--border-input)',
+                          color: 'var(--text-primary)',
+                          fontSize: '0.95rem',
+                          padding: '12px',
+                          borderRadius: '10px'
+                        }}
+                        required
+                      >
+                        {INSPECTION_CATEGORIES.map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
                 )}
               </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '6px' }}>Categoría de Inspección</label>
-                <select
-                  value={formData.category}
-                  onChange={e => setFormData({ ...formData, category: e.target.value })}
-                  style={{
-                    width: '100%',
-                    background: 'var(--bg-input)',
-                    border: '1px solid var(--border-input)',
-                    color: 'var(--text-primary)',
-                    fontSize: '0.95rem',
-                    padding: '12px',
-                    borderRadius: '10px'
-                  }}
-                  required
-                >
-                  {INSPECTION_CATEGORIES.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
+
+              {/* Section 2: Line & Auth Code */}
+              <div className={`form-accordion-section ${expandedSections.sec2 ? 'active' : ''}`}>
+                <button type="button" onClick={() => toggleSection('sec2')} className="form-accordion-header">
+                  <span>⚡ Línea y Habilitación</span>
+                  <span>{expandedSections.sec2 ? '▲' : '▼'}</span>
+                </button>
+                {expandedSections.sec2 && (
+                  <div className="form-accordion-content">
+                    <div className="grid-cols-2">
+                      <div>
+                        <label>Nombre de Línea</label>
+                        <input
+                          type="text"
+                          required
+                          maxLength={12}
+                          placeholder="Ej: Línea 132kV"
+                          value={formData.lineName}
+                          onChange={e => setFormData({ ...formData, lineName: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <label>Código de Habilitación / Otros</label>
+                        <input
+                          type="text"
+                          required
+                          maxLength={12}
+                          placeholder="Código auth"
+                          value={formData.authCode}
+                          onChange={e => setFormData({ ...formData, authCode: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <div className="grid-cols-2">
-                <div>
-                  <label>Nombre de Línea</label>
-                  <input
-                    type="text"
-                    required
-                    maxLength={12}
-                    placeholder="Ej: Línea 132kV"
-                    value={formData.lineName}
-                    onChange={e => setFormData({ ...formData, lineName: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label>Código de Habilitación / Otros</label>
-                  <input
-                    type="text"
-                    required
-                    maxLength={12}
-                    placeholder="Código auth"
-                    value={formData.authCode}
-                    onChange={e => setFormData({ ...formData, authCode: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label>Observaciones</label>
-                <textarea
-                  rows={4}
-                  placeholder="Notas adicionales sobre el vuelo..."
-                  value={formData.observations}
-                  onChange={e => setFormData({ ...formData, observations: e.target.value })}
-                />
+              {/* Section 3: Observations */}
+              <div className={`form-accordion-section ${expandedSections.sec3 ? 'active' : ''}`}>
+                <button type="button" onClick={() => toggleSection('sec3')} className="form-accordion-header">
+                  <span>📝 Observaciones</span>
+                  <span>{expandedSections.sec3 ? '▲' : '▼'}</span>
+                </button>
+                {expandedSections.sec3 && (
+                  <div className="form-accordion-content">
+                    <div>
+                      <textarea
+                        rows={4}
+                        placeholder="Notas adicionales sobre el vuelo..."
+                        value={formData.observations}
+                        onChange={e => setFormData({ ...formData, observations: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </>
           ) : (
             <>
-              <div>
-                <label>Tipo de tarea y Locación</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ej: Mantenimiento Preventivo - Celda A"
-                  value={formData.taskTypeAndLocation}
-                  onChange={e => setFormData({ ...formData, taskTypeAndLocation: e.target.value })}
-                />
+              {/* Section 1: Solicitor */}
+              <div className={`form-accordion-section ${expandedSections.sec1 ? 'active' : ''}`}>
+                <button type="button" onClick={() => toggleSection('sec1')} className="form-accordion-header">
+                  <span>👤 Solicitante</span>
+                  <span>{expandedSections.sec1 ? '▲' : '▼'}</span>
+                </button>
+                {expandedSections.sec1 && (
+                  <div className="form-accordion-content">
+                    <div>
+                      <label>Solicitado por</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Ej: Juan Pérez"
+                        value={formData.requestedBy}
+                        onChange={e => setFormData({ ...formData, requestedBy: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <div>
-                <label>Detalles</label>
-                <textarea
-                  rows={4}
-                  required
-                  placeholder="Detalles sobre las tareas realizadas..."
-                  value={formData.details}
-                  onChange={e => setFormData({ ...formData, details: e.target.value })}
-                />
+              {/* Section 2: Task Type & Location */}
+              <div className={`form-accordion-section ${expandedSections.sec2 ? 'active' : ''}`}>
+                <button type="button" onClick={() => toggleSection('sec2')} className="form-accordion-header">
+                  <span>📍 Tarea y Ubicación</span>
+                  <span>{expandedSections.sec2 ? '▲' : '▼'}</span>
+                </button>
+                {expandedSections.sec2 && (
+                  <div className="form-accordion-content">
+                    <div>
+                      <label>Tipo de tarea y Locación</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Ej: Mantenimiento Preventivo - Celda A"
+                        value={formData.taskTypeAndLocation}
+                        onChange={e => setFormData({ ...formData, taskTypeAndLocation: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <div>
-                <label>Solicitado por</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ej: Juan Pérez"
-                  value={formData.requestedBy}
-                  onChange={e => setFormData({ ...formData, requestedBy: e.target.value })}
-                />
+              {/* Section 3: Details */}
+              <div className={`form-accordion-section ${expandedSections.sec3 ? 'active' : ''}`}>
+                <button type="button" onClick={() => toggleSection('sec3')} className="form-accordion-header">
+                  <span>📋 Detalles y Notas</span>
+                  <span>{expandedSections.sec3 ? '▲' : '▼'}</span>
+                </button>
+                {expandedSections.sec3 && (
+                  <div className="form-accordion-content">
+                    <div>
+                      <label>Detalles</label>
+                      <textarea
+                        rows={4}
+                        required
+                        placeholder="Detalles sobre las tareas realizadas..."
+                        value={formData.details}
+                        onChange={e => setFormData({ ...formData, details: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <label>Observaciones de Cierre (Opcional)</label>
+                      <textarea
+                        rows={3}
+                        placeholder="Notas de cierre adicionales..."
+                        value={formData.observations}
+                        onChange={e => setFormData({ ...formData, observations: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </>
           )}
 
-          <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'flex-end' }}>
+          <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end' }} className="form-actions-container">
             <button type="submit" className="btn-3d" style={{ width: '100%', maxWidth: '350px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', padding: '1.2rem' }}>
               <Save size={24} /> <span>{isEditMode ? 'ACTUALIZAR REGISTRO' : 'GUARDAR REGISTRO'}</span>
             </button>
@@ -254,3 +341,4 @@ const FlightForm: React.FC<FlightFormProps> = ({
 };
 
 export default FlightForm;
+

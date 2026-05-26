@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { 
   ArrowLeft, Search, Calendar, Edit2, Trash2, 
-  Download, LayoutDashboard, Plane, Cpu, AlertTriangle, Save, X, ShieldCheck, Printer
+  Download, LayoutDashboard, Plane, Cpu, AlertTriangle, Save, X, ShieldCheck, Printer, Filter
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import PrintableChecklistBatch from './PrintableChecklistBatch';
@@ -49,6 +49,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [editingRecord, setEditingRecord] = useState<{ type: RecordType, data: any } | null>(null);
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   // Converts "19/5/2026 11:21:04" to Date object for robust comparisons
   const parseLocalTimestampToDate = (timestamp: string): Date | null => {
@@ -371,8 +372,20 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
         </div>
       )}
 
+      {/* Mobile Filters Toggle Button */}
+      <div className="mobile-only-filters-btn" style={{ marginBottom: '1rem', display: 'none' }}>
+        <button 
+          type="button" 
+          onClick={() => setShowMobileFilters(!showMobileFilters)} 
+          className="btn-3d" 
+          style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', background: 'var(--bg-input)', border: '1px solid var(--primary)', color: 'var(--primary)', padding: '1rem' }}
+        >
+          <Filter size={18} /> {showMobileFilters ? 'OCULTAR FILTROS Y BÚSQUEDA' : 'MOSTRAR FILTROS Y BÚSQUEDA'}
+        </button>
+      </div>
+
       {/* Filters Bar */}
-      <div className="glass" style={{ 
+      <div className={`glass filters-bar-desktop ${showMobileFilters ? 'show-mobile' : ''}`} style={{ 
         padding: '2rem', 
         marginBottom: '2.5rem', 
         display: 'flex', 
@@ -720,6 +733,260 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile Cards View */}
+        <div className="history-cards-container" style={{ padding: '1rem' }}>
+          {!isFilterActive ? (
+            <div style={{ padding: '3rem 1rem', textAlign: 'center', color: 'var(--primary)', fontWeight: 'bold' }}>
+              🔍 Seleccione una fecha o rango de fechas para visualizar los registros.
+            </div>
+          ) : filteredData.length === 0 ? (
+            <div style={{ padding: '3rem 1rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+              No se encontraron registros con los filtros aplicados.
+            </div>
+          ) : (
+            filteredData.map(item => (
+              <div key={item.id} className="history-card" style={{ borderLeft: `4px solid ${
+                activeTable === 'detections'
+                  ? (() => {
+                      const cc: Record<string, string> = { 'Muy Baja': 'var(--neon-cyan)', Baja: 'var(--neon-green)', Media: 'var(--primary)', Alta: 'var(--neon-orange)', Urgente: 'var(--neon-red)' };
+                      return cc[item.criticality] || 'var(--primary)';
+                    })()
+                  : 'var(--primary)'
+              }` }}>
+                <div className="history-card-header">
+                  <div>
+                    <div className="history-card-title">
+                      {activeTable === 'shifts' && `Jornada: ${item.id.slice(-8)}`}
+                      {activeTable === 'flights' && `Vuelo: ${item.flightType || 'KMS'} (${item.lineName || item.taskTypeAndLocation || 'HS'})`}
+                      {activeTable === 'batteries' && `Registro Batería`}
+                      {activeTable === 'detections' && `Detección: ${item.element}`}
+                      {activeTable === 'checklists' && `Checklist ${checklistSubtype === 'drone' ? 'Dron' : 'Vehicular'}`}
+                    </div>
+                    <div className="history-card-subtitle">
+                      {item.timestamp}
+                      {item.isEdited && <span style={{ display: 'block', color: 'var(--primary)', fontSize: '0.7rem' }}>✍️ Editado: {item.editedTimestamp}</span>}
+                    </div>
+                  </div>
+                  {item.deviceName && (
+                    <span className="history-card-badge" style={{ color: '#00f2ff', border: '1px solid rgba(0,242,255,0.2)', background: 'rgba(0,242,255,0.05)', display: 'inline-block' }}>
+                      {item.deviceName}
+                    </span>
+                  )}
+                </div>
+
+                <div className="history-card-body">
+                  {activeTable === 'shifts' && (
+                    <>
+                      <div className="history-card-item">
+                        <span className="history-card-label">Coordinador:</span>
+                        <span className="history-card-value">{item.coordinator}</span>
+                      </div>
+                      <div className="history-card-item">
+                        <span className="history-card-label">Asistentes:</span>
+                        <span className="history-card-value">{item.assistants ? item.assistants.join(', ') : item.assistant}</span>
+                      </div>
+                      <div className="history-card-item">
+                        <span className="history-card-label">Vehículo:</span>
+                        <span className="history-card-value">{item.vehicle}</span>
+                      </div>
+                      <div className="history-card-item">
+                        <span className="history-card-label">Dron:</span>
+                        <span className="history-card-value">{item.drone}</span>
+                      </div>
+                    </>
+                  )}
+
+                  {activeTable === 'flights' && (
+                    <>
+                      <div className="history-card-item">
+                        <span className="history-card-label">Piloto:</span>
+                        <span className="history-card-value">{item.pilot}</span>
+                      </div>
+                      {item.flightType === 'KMS' ? (
+                        <>
+                          <div className="history-card-item">
+                            <span className="history-card-label">Línea:</span>
+                            <span className="history-card-value">{item.lineName}</span>
+                          </div>
+                          <div className="history-card-item">
+                            <span className="history-card-label">Código Habilitación:</span>
+                            <span className="history-card-value">{item.authCode}</span>
+                          </div>
+                          <div className="history-card-item">
+                            <span className="history-card-label">Categoría:</span>
+                            <span className="history-card-value">{item.category || 'Otros'}</span>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="history-card-item">
+                            <span className="history-card-label">Locación/Tarea:</span>
+                            <span className="history-card-value">{item.taskTypeAndLocation}</span>
+                          </div>
+                          <div className="history-card-item">
+                            <span className="history-card-label">Solicitado por:</span>
+                            <span className="history-card-value">{item.requestedBy}</span>
+                          </div>
+                          <div className="history-card-item">
+                            <span className="history-card-label">Detalles:</span>
+                            <span className="history-card-value">{item.details}</span>
+                          </div>
+                        </>
+                      )}
+                      <div className="history-card-item">
+                        <span className="history-card-label">Observaciones:</span>
+                        <span className="history-card-value">{item.observations || 'Sin observaciones'}</span>
+                      </div>
+                      {item.closedTimestamp && (
+                        <div className="history-card-item" style={{ background: 'rgba(255,255,255,0.03)', padding: '6px', borderRadius: '4px', marginTop: '4px' }}>
+                          <span className="history-card-label">Cerrado:</span>
+                          <span className="history-card-value" style={{ color: 'var(--neon-green)', fontWeight: 'bold' }}>{item.closedTimestamp}</span>
+                        </div>
+                      )}
+                      {item.closingObservations && (
+                        <div className="history-card-item">
+                          <span className="history-card-label">Obs. Cierre:</span>
+                          <span className="history-card-value">{item.closingObservations}</span>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {activeTable === 'batteries' && (
+                    <>
+                      <div className="history-card-item">
+                        <span className="history-card-label">Piloto:</span>
+                        <span className="history-card-value">{item.pilot}</span>
+                      </div>
+                      <div className="history-card-item">
+                        <span className="history-card-label">Batería Dron:</span>
+                        <span className="history-card-value" style={{ color: 'var(--neon-cyan)', fontWeight: 'bold' }}>
+                          {item.droneBatteryName || 'Dron'}: {item.droneBattery}%
+                        </span>
+                      </div>
+                      <div className="history-card-item">
+                        <span className="history-card-label">Batería RC:</span>
+                        <span className="history-card-value" style={{ color: 'var(--neon-cyan)', fontWeight: 'bold' }}>
+                          {item.controlBatteryName || 'RC'}: {item.controlBattery}%
+                        </span>
+                      </div>
+                    </>
+                  )}
+
+                  {activeTable === 'detections' && (
+                    <>
+                      <div className="history-card-item">
+                        <span className="history-card-label">Anomalía:</span>
+                        <span className="history-card-value">{item.anomaly}</span>
+                      </div>
+                      <div className="history-card-item">
+                        <span className="history-card-label">Criticidad:</span>
+                        <span className="history-card-value" style={{ fontWeight: 'bold' }}>
+                          {item.criticality}
+                        </span>
+                      </div>
+                      <div className="history-card-item">
+                        <span className="history-card-label">Recomendación:</span>
+                        <span className="history-card-value">{item.recommendation}</span>
+                      </div>
+                      <div className="history-card-item">
+                        <span className="history-card-label">Archivo:</span>
+                        <span className="history-card-value" style={{ fontSize: '0.8rem', wordBreak: 'break-all' }}>{item.fileName}</span>
+                      </div>
+                    </>
+                  )}
+
+                  {activeTable === 'checklists' && (
+                    <>
+                      {checklistSubtype === 'drone' ? (
+                        <>
+                          <div className="history-card-item">
+                            <span className="history-card-label">Identificador Dron:</span>
+                            <span className="history-card-value">{item.droneId}</span>
+                          </div>
+                          <div className="history-card-item">
+                            <span className="history-card-label">Piloto:</span>
+                            <span className="history-card-value">{item.pilot}</span>
+                          </div>
+                          <div className="history-card-item">
+                            <span className="history-card-label">Estado:</span>
+                            <span className="history-card-value" style={{ color: 'var(--neon-green)', fontWeight: 'bold' }}>✓ COMPLETO</span>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="history-card-item">
+                            <span className="history-card-label">Identificador Vehículo:</span>
+                            <span className="history-card-value">{item.vehicleId}</span>
+                          </div>
+                          <div className="history-card-item">
+                            <span className="history-card-label">Responsable:</span>
+                            <span className="history-card-value">{item.driver}</span>
+                          </div>
+                          <div className="history-card-item">
+                            <span className="history-card-label">Kilometraje:</span>
+                            <span className="history-card-value" style={{ color: 'var(--neon-orange)', fontWeight: 'bold' }}>{item.mileage} km</span>
+                          </div>
+                        </>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                <div className="history-card-footer">
+                  <button 
+                    onClick={() => {
+                      if (activeTable === 'checklists' && props.onViewChecklist) {
+                        props.onViewChecklist(item);
+                      } else {
+                        setEditingRecord({ type: activeTable, data: item });
+                      }
+                    }}
+                    style={{ 
+                      flex: 1,
+                      background: activeTable === 'checklists' ? 'rgba(255,102,0,0.1)' : 'rgba(240,196,25,0.1)', 
+                      border: activeTable === 'checklists' ? '1px solid #ff6600' : '1px solid var(--primary)', 
+                      borderRadius: '8px', 
+                      color: activeTable === 'checklists' ? '#ff6600' : 'var(--primary)', 
+                      padding: '12px', 
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.5rem',
+                      fontWeight: 'bold',
+                      fontSize: '0.85rem'
+                    }}
+                  >
+                    <Edit2 size={16} /> <span>{activeTable === 'checklists' ? "Ver Planilla" : "Editar"}</span>
+                  </button>
+                  {props.isServer && (
+                    <button 
+                      onClick={() => handleDelete(item.id)}
+                      style={{ 
+                        background: 'rgba(255,0,0,0.1)', 
+                        border: '1px solid #FF0000', 
+                        borderRadius: '8px', 
+                        color: '#FF0000', 
+                        padding: '12px', 
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.5rem',
+                        fontWeight: 'bold',
+                        fontSize: '0.85rem'
+                      }}
+                    >
+                      <Trash2 size={16} /> <span>Eliminar</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
 

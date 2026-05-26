@@ -50,6 +50,19 @@ const ShiftForm: React.FC<ShiftFormProps> = ({ onSave, onUpdate, onBack, lists, 
     drone: editData?.drone || ''
   });
 
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    coordinator: true,
+    assistants: true,
+    logistics: true
+  });
+
+  const toggleSection = (section: string) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const now = new Date();
@@ -119,75 +132,102 @@ const ShiftForm: React.FC<ShiftFormProps> = ({ onSave, onUpdate, onBack, lists, 
         <ArrowLeft size={20} /> VOLVER AL MENÚ
       </button>
 
-      <div className="glass" style={{ padding: '3rem', borderTop: '4px solid var(--primary)' }}>
-        <h2 style={{ fontSize: '2.5rem', fontWeight: 900, marginBottom: '2.5rem', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '2px' }}>{isEditMode ? 'Editar Jornada' : 'Inicio de Jornada'}</h2>
+      <div className="glass" style={{ padding: '2rem', borderTop: '4px solid var(--primary)' }}>
+        <h2 style={{ fontSize: '2rem', fontWeight: 900, marginBottom: '2rem', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '2px' }}>{isEditMode ? 'Editar Jornada' : 'Inicio de Jornada'}</h2>
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           
-          <div>
-            <SelectOrEmpty
-              label="Coordinador de Cuadrillas"
-              options={getAvailableCoordinators()}
-              value={formData.coordinator}
-              onChange={v => setFormData({ ...formData, coordinator: v })}
-              required
-            />
-          </div>
-
-          <div style={{ background: 'rgba(255,255,255,0.02)', padding: '1.5rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
-            <label style={{ display: 'block', marginBottom: '1rem', color: 'var(--primary)', fontWeight: 'bold' }}>Asistentes</label>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {formData.assistants.map((assistant, index) => (
-                <div key={index} style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end' }}>
-                  <div style={{ flex: 1 }}>
-                    <SelectOrEmpty
-                      label={`Asistente ${index + 1}`}
-                      options={getAvailableAssistants(index)}
-                      value={assistant}
-                      onChange={v => handleAssistantChange(index, v)}
-                      required={index === 0} // Only first assistant is strictly required, rest are optional but can be removed
-                    />
-                  </div>
-                  <button 
-                    type="button" 
-                    onClick={() => removeAssistant(index)}
-                    style={{ background: 'rgba(255,0,0,0.1)', border: '1px solid #ff4444', color: '#ff4444', padding: '13px', borderRadius: '4px', cursor: 'pointer', height: '48px' }}
-                    title="Remover asistente"
-                  >
-                    X
-                  </button>
-                </div>
-              ))}
-            </div>
-
-            <button 
-              type="button" 
-              onClick={addAssistant}
-              style={{ marginTop: '1rem', background: 'transparent', border: '1px dashed var(--primary)', color: 'var(--primary)', padding: '0.75rem 1.5rem', borderRadius: '4px', cursor: 'pointer', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
-            >
-              + Agregar otro asistente
+          {/* Section 1: Coordinator */}
+          <div className={`form-accordion-section ${expandedSections.coordinator ? 'active' : ''}`}>
+            <button type="button" onClick={() => toggleSection('coordinator')} className="form-accordion-header">
+              <span>👤 Coordinador</span>
+              <span>{expandedSections.coordinator ? '▲' : '▼'}</span>
             </button>
+            {expandedSections.coordinator && (
+              <div className="form-accordion-content">
+                <SelectOrEmpty
+                  label="Coordinador de Cuadrillas"
+                  options={getAvailableCoordinators()}
+                  value={formData.coordinator}
+                  onChange={v => setFormData({ ...formData, coordinator: v })}
+                  required
+                />
+              </div>
+            )}
           </div>
 
-          <div className="grid-cols-2">
-            <SelectOrEmpty
-              label="Vehículo"
-              options={lists.vehicles}
-              value={formData.vehicle}
-              onChange={v => setFormData({ ...formData, vehicle: v })}
-              required
-            />
-            <SelectOrEmpty
-              label="Dron"
-              options={lists.drones}
-              value={formData.drone}
-              onChange={v => setFormData({ ...formData, drone: v })}
-              required
-            />
+          {/* Section 2: Crew / Assistants */}
+          <div className={`form-accordion-section ${expandedSections.assistants ? 'active' : ''}`}>
+            <button type="button" onClick={() => toggleSection('assistants')} className="form-accordion-header">
+              <span>👥 Asistentes / Personal</span>
+              <span>{expandedSections.assistants ? '▲' : '▼'}</span>
+            </button>
+            {expandedSections.assistants && (
+              <div className="form-accordion-content">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  {formData.assistants.map((assistant, index) => (
+                    <div key={index} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'nowrap' }}>
+                      <div style={{ flex: 1 }}>
+                        <SelectOrEmpty
+                          label={`Asistente ${index + 1}`}
+                          options={getAvailableAssistants(index)}
+                          value={assistant}
+                          onChange={v => handleAssistantChange(index, v)}
+                          required={index === 0}
+                        />
+                      </div>
+                      <button 
+                        type="button" 
+                        onClick={() => removeAssistant(index)}
+                        style={{ background: 'rgba(255,0,0,0.1)', border: '1px solid #ff4444', color: '#ff4444', padding: '13px', borderRadius: '4px', cursor: 'pointer', height: '48px', flexShrink: 0 }}
+                        title="Remover asistente"
+                      >
+                        X
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <button 
+                  type="button" 
+                  onClick={addAssistant}
+                  style={{ marginTop: '0.5rem', background: 'transparent', border: '1px dashed var(--primary)', color: 'var(--primary)', padding: '0.75rem 1.5rem', borderRadius: '4px', cursor: 'pointer', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.5rem', width: 'fit-content' }}
+                >
+                  + Agregar otro asistente
+                </button>
+              </div>
+            )}
           </div>
 
-          <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'flex-end' }}>
+          {/* Section 3: Vehicles / Logistics */}
+          <div className={`form-accordion-section ${expandedSections.logistics ? 'active' : ''}`}>
+            <button type="button" onClick={() => toggleSection('logistics')} className="form-accordion-header">
+              <span>🚜 Logística (Vehículo y Dron)</span>
+              <span>{expandedSections.logistics ? '▲' : '▼'}</span>
+            </button>
+            {expandedSections.logistics && (
+              <div className="form-accordion-content">
+                <div className="grid-cols-2">
+                  <SelectOrEmpty
+                    label="Vehículo"
+                    options={lists.vehicles}
+                    value={formData.vehicle}
+                    onChange={v => setFormData({ ...formData, vehicle: v })}
+                    required
+                  />
+                  <SelectOrEmpty
+                    label="Dron"
+                    options={lists.drones}
+                    value={formData.drone}
+                    onChange={v => setFormData({ ...formData, drone: v })}
+                    required
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end' }} className="form-actions-container">
             <button type="submit" className="btn-3d" style={{ width: '100%', maxWidth: '350px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', padding: '1.2rem' }}>
               <Save size={24} /> <span>{isEditMode ? 'ACTUALIZAR JORNADA' : 'GUARDAR JORNADA'}</span>
             </button>
