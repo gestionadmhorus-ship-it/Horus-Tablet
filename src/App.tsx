@@ -14,6 +14,8 @@ import { useDatabase } from './hooks/useDatabase';
 import { useAutoSync } from './hooks/useAutoSync';
 import { exportToExcel, exportToJSON } from './utils/exportUtils';
 import { FileJson, Table, X, CheckCircle, Power } from 'lucide-react';
+import { CapacitorUpdater } from '@capgo/capacitor-updater';
+import { Capacitor } from '@capacitor/core';
 
 declare global {
   interface Window {
@@ -79,6 +81,13 @@ function App() {
     }
     localStorage.setItem('theme_mode', themeMode);
   }, [themeMode]);
+
+  // Notifica al actualizador OTA que la app no crasheó
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      CapacitorUpdater.notifyAppReady();
+    }
+  }, []);
 
   const { syncStatus } = useAutoSync(
     appRole,
