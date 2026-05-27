@@ -528,22 +528,24 @@ const Dashboard: React.FC<DashboardProps> = ({
         <button
           onClick={onSettings}
           style={{
-            background: 'var(--card-bg)',
-            border: '1px solid #ff8800',
-            borderRadius: '6px',
+            background: 'linear-gradient(135deg, rgba(0, 150, 255, 0.15), rgba(255, 136, 0, 0.15))',
+            border: '1px solid rgba(0, 150, 255, 0.5)',
+            borderRight: '2px solid #ff8800',
+            borderBottom: '2px solid #ff8800',
+            borderRadius: '8px',
             color: '#ff8800',
             cursor: 'pointer',
-            padding: '0.6rem',
+            padding: '0.7rem',
             display: 'flex',
             alignItems: 'center',
             transition: 'all 0.2s ease',
-            boxShadow: '0 0 12px rgba(255, 136, 0, 0.6), inset 0 0 8px rgba(255, 136, 0, 0.2)',
+            boxShadow: '0 4px 15px rgba(255, 136, 0, 0.4), inset 0 0 10px rgba(0, 150, 255, 0.3)',
             backdropFilter: 'blur(10px)',
             WebkitBackdropFilter: 'blur(10px)'
           }}
           title="Configuración"
         >
-          <Settings size={20} />
+          <Settings size={22} />
         </button>
       </div>
 
