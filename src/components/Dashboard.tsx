@@ -412,12 +412,13 @@ const Dashboard: React.FC<DashboardProps> = ({
             font-size: 0.65rem;
           }
           .dashboard-grid {
-            grid-template-columns: repeat(2, 1fr) !important;
+            grid-template-columns: 1fr !important;
             gap: 1rem;
+            padding-bottom: 5rem; /* Espacio extra para que no se corten las tarjetas del final */
           }
           .col-span-2 { grid-column: span 1 !important; }
           .col-span-3 { grid-column: span 1 !important; }
-          .mobile-full-width { grid-column: span 2 !important; }
+          .mobile-full-width { grid-column: span 1 !important; }
 
           .dashboard-card {
             padding: 1rem;
