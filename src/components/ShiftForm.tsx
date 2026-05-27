@@ -50,22 +50,20 @@ const ShiftForm: React.FC<ShiftFormProps> = ({ onSave, onUpdate, onBack, lists, 
     drone: editData?.drone || ''
   });
 
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
-    coordinator: true,
-    assistants: true,
-    logistics: true
-  });
+  const [expandedSection, setExpandedSection] = useState<string | null>('coordinator');
+  const [isSaving, setIsSaving] = useState(false);
 
   const toggleSection = (section: string) => {
-    setExpandedSections(prev => ({
-      ...prev,
-      [section]: !prev[section]
-    }));
+    setExpandedSection(prev => prev === section ? null : section);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const now = new Date();
+    if (isSaving) return;
+    setIsSaving(true);
+    
+    try {
+      const now = new Date();
     
     // Filter out any empty assistants
     const finalAssistants = formData.assistants.filter(a => a.trim() !== '');
@@ -93,7 +91,10 @@ const ShiftForm: React.FC<ShiftFormProps> = ({ onSave, onUpdate, onBack, lists, 
       onSave(newData);
       await window.customAlert('✅ Datos de Jornada guardados con éxito');
     }
-    onBack();
+      onBack();
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleAssistantChange = (index: number, value: string) => {
@@ -136,14 +137,13 @@ const ShiftForm: React.FC<ShiftFormProps> = ({ onSave, onUpdate, onBack, lists, 
         <h2 style={{ fontSize: '2rem', fontWeight: 900, marginBottom: '2rem', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '2px' }}>{isEditMode ? 'Editar Jornada' : 'Inicio de Jornada'}</h2>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          
-          {/* Section 1: Coordinator */}
-          <div className={`form-accordion-section ${expandedSections.coordinator ? 'active' : ''}`}>
-            <button type="button" onClick={() => toggleSection('coordinator')} className="form-accordion-header">
-              <span>👤 Coordinador</span>
-              <span>{expandedSections.coordinator ? '▲' : '▼'}</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+          <div className={`form-accordion-section ${expandedSection === 'coordinator' ? 'active' : ''}`}>
+            <button type="button" className="form-accordion-header" onClick={() => toggleSection('coordinator')}>
+              <span>👤 Coordinador a Cargo</span>
+              <span>{expandedSection === 'coordinator' ? '▲' : '▼'}</span>
             </button>
-            {expandedSections.coordinator && (
+            {expandedSection === 'coordinator' && (
               <div className="form-accordion-content">
                 <SelectOrEmpty
                   label="Coordinador de Cuadrillas"
@@ -157,12 +157,12 @@ const ShiftForm: React.FC<ShiftFormProps> = ({ onSave, onUpdate, onBack, lists, 
           </div>
 
           {/* Section 2: Crew / Assistants */}
-          <div className={`form-accordion-section ${expandedSections.assistants ? 'active' : ''}`}>
-            <button type="button" onClick={() => toggleSection('assistants')} className="form-accordion-header">
-              <span>👥 Asistentes / Personal</span>
-              <span>{expandedSections.assistants ? '▲' : '▼'}</span>
+          <div className={`form-accordion-section ${expandedSection === 'assistants' ? 'active' : ''}`}>
+            <button type="button" className="form-accordion-header" onClick={() => toggleSection('assistants')}>
+              <span>👥 Asistentes de Vuelo</span>
+              <span>{expandedSection === 'assistants' ? '▲' : '▼'}</span>
             </button>
-            {expandedSections.assistants && (
+            {expandedSection === 'assistants' && (
               <div className="form-accordion-content">
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                   {formData.assistants.map((assistant, index) => (
@@ -200,12 +200,12 @@ const ShiftForm: React.FC<ShiftFormProps> = ({ onSave, onUpdate, onBack, lists, 
           </div>
 
           {/* Section 3: Vehicles / Logistics */}
-          <div className={`form-accordion-section ${expandedSections.logistics ? 'active' : ''}`}>
-            <button type="button" onClick={() => toggleSection('logistics')} className="form-accordion-header">
-              <span>🚜 Logística (Vehículo y Dron)</span>
-              <span>{expandedSections.logistics ? '▲' : '▼'}</span>
+          <div className={`form-accordion-section ${expandedSection === 'logistics' ? 'active' : ''}`}>
+            <button type="button" className="form-accordion-header" onClick={() => toggleSection('logistics')}>
+              <span>🚙 Logística y Movilidad</span>
+              <span>{expandedSection === 'logistics' ? '▲' : '▼'}</span>
             </button>
-            {expandedSections.logistics && (
+            {expandedSection === 'logistics' && (
               <div className="form-accordion-content">
                 <div className="grid-cols-2">
                   <SelectOrEmpty
@@ -226,10 +226,26 @@ const ShiftForm: React.FC<ShiftFormProps> = ({ onSave, onUpdate, onBack, lists, 
               </div>
             )}
           </div>
+          </div>
 
           <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end' }} className="form-actions-container">
-            <button type="submit" className="btn-3d" style={{ width: '100%', maxWidth: '350px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', padding: '1.2rem' }}>
-              <Save size={24} /> <span>{isEditMode ? 'ACTUALIZAR JORNADA' : 'GUARDAR JORNADA'}</span>
+            <button 
+              type="submit" 
+              disabled={isSaving}
+              className="btn-3d" 
+              style={{ 
+                width: '100%', 
+                maxWidth: '350px', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                gap: '0.75rem', 
+                padding: '1.2rem',
+                opacity: isSaving ? 0.6 : 1,
+                cursor: isSaving ? 'not-allowed' : 'pointer'
+              }}
+            >
+              <Save size={24} /> <span>{isSaving ? 'GUARDANDO...' : (isEditMode ? 'ACTUALIZAR JORNADA' : 'GUARDAR JORNADA')}</span>
             </button>
           </div>
         </form>

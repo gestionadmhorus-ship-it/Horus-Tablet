@@ -35,22 +35,20 @@ const FlightForm: React.FC<FlightFormProps> = ({
     requestedBy: editData?.requestedBy || ''
   });
 
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
-    sec1: true,
-    sec2: true,
-    sec3: true
-  });
+  const [expandedSection, setExpandedSection] = useState<string | null>('sec1');
+  const [isSaving, setIsSaving] = useState(false);
 
   const toggleSection = (section: string) => {
-    setExpandedSections(prev => ({
-      ...prev,
-      [section]: !prev[section]
-    }));
+    setExpandedSection(prev => prev === section ? null : section);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const now = new Date();
+    if (isSaving) return;
+    setIsSaving(true);
+    
+    try {
+      const now = new Date();
     
     if (isEditMode && editData && onUpdate) {
       onUpdate({
@@ -75,7 +73,10 @@ const FlightForm: React.FC<FlightFormProps> = ({
       onSave(newData);
       await window.customAlert('✅ Registro de Vuelo guardado con éxito');
     }
-    onBack();
+      onBack();
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -139,12 +140,12 @@ const FlightForm: React.FC<FlightFormProps> = ({
           {flightType === 'KMS' ? (
             <>
               {/* Section 1: Pilot & Category */}
-              <div className={`form-accordion-section ${expandedSections.sec1 ? 'active' : ''}`}>
+              <div className={`form-accordion-section ${expandedSection === 'sec1' ? 'active' : ''}`}>
                 <button type="button" onClick={() => toggleSection('sec1')} className="form-accordion-header">
                   <span>👤 Personal y Categoría</span>
-                  <span>{expandedSections.sec1 ? '▲' : '▼'}</span>
+                  <span>{expandedSection === 'sec1' ? '▲' : '▼'}</span>
                 </button>
-                {expandedSections.sec1 && (
+                {expandedSection === 'sec1' && (
                   <div className="form-accordion-content">
                     <div>
                       {lists.pilots.length > 0 ? (
@@ -195,12 +196,12 @@ const FlightForm: React.FC<FlightFormProps> = ({
               </div>
 
               {/* Section 2: Line & Auth Code */}
-              <div className={`form-accordion-section ${expandedSections.sec2 ? 'active' : ''}`}>
+              <div className={`form-accordion-section ${expandedSection === 'sec2' ? 'active' : ''}`}>
                 <button type="button" onClick={() => toggleSection('sec2')} className="form-accordion-header">
                   <span>⚡ Línea y Habilitación</span>
-                  <span>{expandedSections.sec2 ? '▲' : '▼'}</span>
+                  <span>{expandedSection === 'sec2' ? '▲' : '▼'}</span>
                 </button>
-                {expandedSections.sec2 && (
+                {expandedSection === 'sec2' && (
                   <div className="form-accordion-content">
                     <div className="grid-cols-2">
                       <div>
@@ -231,12 +232,12 @@ const FlightForm: React.FC<FlightFormProps> = ({
               </div>
 
               {/* Section 3: Observations */}
-              <div className={`form-accordion-section ${expandedSections.sec3 ? 'active' : ''}`}>
+              <div className={`form-accordion-section ${expandedSection === 'sec3' ? 'active' : ''}`}>
                 <button type="button" onClick={() => toggleSection('sec3')} className="form-accordion-header">
                   <span>📝 Observaciones</span>
-                  <span>{expandedSections.sec3 ? '▲' : '▼'}</span>
+                  <span>{expandedSection === 'sec3' ? '▲' : '▼'}</span>
                 </button>
-                {expandedSections.sec3 && (
+                {expandedSection === 'sec3' && (
                   <div className="form-accordion-content">
                     <div>
                       <textarea
@@ -253,12 +254,12 @@ const FlightForm: React.FC<FlightFormProps> = ({
           ) : (
             <>
               {/* Section 1: Solicitor */}
-              <div className={`form-accordion-section ${expandedSections.sec1 ? 'active' : ''}`}>
+              <div className={`form-accordion-section ${expandedSection === 'sec1' ? 'active' : ''}`}>
                 <button type="button" onClick={() => toggleSection('sec1')} className="form-accordion-header">
                   <span>👤 Solicitante</span>
-                  <span>{expandedSections.sec1 ? '▲' : '▼'}</span>
+                  <span>{expandedSection === 'sec1' ? '▲' : '▼'}</span>
                 </button>
-                {expandedSections.sec1 && (
+                {expandedSection === 'sec1' && (
                   <div className="form-accordion-content">
                     <div>
                       <label>Solicitado por</label>
@@ -275,12 +276,12 @@ const FlightForm: React.FC<FlightFormProps> = ({
               </div>
 
               {/* Section 2: Task Type & Location */}
-              <div className={`form-accordion-section ${expandedSections.sec2 ? 'active' : ''}`}>
+              <div className={`form-accordion-section ${expandedSection === 'sec2' ? 'active' : ''}`}>
                 <button type="button" onClick={() => toggleSection('sec2')} className="form-accordion-header">
                   <span>📍 Tarea y Ubicación</span>
-                  <span>{expandedSections.sec2 ? '▲' : '▼'}</span>
+                  <span>{expandedSection === 'sec2' ? '▲' : '▼'}</span>
                 </button>
-                {expandedSections.sec2 && (
+                {expandedSection === 'sec2' && (
                   <div className="form-accordion-content">
                     <div>
                       <label>Tipo de tarea y Locación</label>
@@ -297,12 +298,12 @@ const FlightForm: React.FC<FlightFormProps> = ({
               </div>
 
               {/* Section 3: Details */}
-              <div className={`form-accordion-section ${expandedSections.sec3 ? 'active' : ''}`}>
+              <div className={`form-accordion-section ${expandedSection === 'sec3' ? 'active' : ''}`}>
                 <button type="button" onClick={() => toggleSection('sec3')} className="form-accordion-header">
                   <span>📋 Detalles y Notas</span>
-                  <span>{expandedSections.sec3 ? '▲' : '▼'}</span>
+                  <span>{expandedSection === 'sec3' ? '▲' : '▼'}</span>
                 </button>
-                {expandedSections.sec3 && (
+                {expandedSection === 'sec3' && (
                   <div className="form-accordion-content">
                     <div>
                       <label>Detalles</label>
@@ -330,8 +331,23 @@ const FlightForm: React.FC<FlightFormProps> = ({
           )}
 
           <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end' }} className="form-actions-container">
-            <button type="submit" className="btn-3d" style={{ width: '100%', maxWidth: '350px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', padding: '1.2rem' }}>
-              <Save size={24} /> <span>{isEditMode ? 'ACTUALIZAR REGISTRO' : 'GUARDAR REGISTRO'}</span>
+            <button 
+              type="submit" 
+              disabled={isSaving}
+              className="btn-3d" 
+              style={{ 
+                width: '100%', 
+                maxWidth: '350px', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                gap: '0.75rem', 
+                padding: '1.2rem',
+                opacity: isSaving ? 0.6 : 1,
+                cursor: isSaving ? 'not-allowed' : 'pointer'
+              }}
+            >
+              <Save size={24} /> <span>{isSaving ? 'GUARDANDO...' : (isEditMode ? 'ACTUALIZAR REGISTRO' : 'GUARDAR REGISTRO')}</span>
             </button>
           </div>
         </form>

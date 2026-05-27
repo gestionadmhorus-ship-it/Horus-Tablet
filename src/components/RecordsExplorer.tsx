@@ -27,6 +27,8 @@ interface RecordsExplorerProps {
   onViewChecklist?: (item: any) => void;
   onSyncReceived?: (incomingData: AppData) => Promise<void>;
   isServer?: boolean;
+  onAddNew?: (action: string) => void;
+  onAddChildRecord?: (table: string, parentData: any) => void;
 }
 
 type RecordType = 'shifts' | 'flights' | 'batteries' | 'detections' | 'checklists';
@@ -102,6 +104,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
       case 'flights':
         return [
           { value: 'all', label: 'Todos los campos' },
+          { value: 'flightType', label: 'Tipo (KMS/HS)' },
           { value: 'pilot', label: 'Piloto' },
           { value: 'lineName', label: 'Línea' },
           { value: 'authCode', label: 'Código Auth' },
@@ -233,6 +236,10 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
       if (searchField === 'assistants') {
         const assistList = shift?.assistants || (shift?.assistant ? [shift.assistant] : []);
         return assistList.join(' ').toLowerCase().includes(term);
+      }
+      if (searchField === 'flightType') {
+        const type = activeTable === 'flights' ? (item.flightType || 'KMS') : '';
+        return type.toLowerCase().includes(term);
       }
       if (searchField === 'pilot') return (flight?.pilot || item.pilot || '').toLowerCase().includes(term);
       if (searchField === 'lineName') return (flight?.lineName || item.lineName || '').toLowerCase().includes(term);
@@ -552,7 +559,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
               className="btn-3d" 
               style={{ 
                 width: '100%', 
-                height: '58px', 
+                height: '40px', 
                 padding: 0, 
                 display: 'flex', 
                 alignItems: 'center', 
@@ -562,9 +569,45 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
                 cursor: filteredData.length === 0 ? 'not-allowed' : 'pointer'
               }}
             >
-              <Download size={20} /> EXPORTAR
+              <Download size={16} /> EXPORTAR
             </button>
           )}
+          
+          <button 
+            onClick={async () => {
+              if (!props.onAddNew) return;
+              if (activeTable === 'shifts') {
+                props.onAddNew('shifts');
+              } else if (activeTable === 'flights') {
+                const rawType = await window.customPrompt('Escribe "KMS" o "HS" para el tipo de vuelo', 'KMS');
+                if (rawType === null) return; // cancelled
+                const type = rawType.trim() || 'KMS';
+                if (type.toUpperCase() === 'KMS' || type.toUpperCase() === 'HS') {
+                  props.onAddNew(`flights_${type.toUpperCase()}`);
+                } else {
+                  await window.customAlert('Tipo de vuelo inválido. Debe ser KMS o HS.');
+                }
+              } else if (activeTable === 'batteries' || activeTable === 'detections') {
+                props.onAddNew('batteries_detections');
+              } else if (activeTable === 'checklists') {
+                props.onAddNew('checklists');
+              }
+            }}
+            className="btn-3d" 
+            style={{ 
+              width: '100%', 
+              height: '40px', 
+              padding: 0, 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              gap: '0.5rem',
+              background: 'linear-gradient(135deg, #0ea5e9, #0284c7)',
+              border: '1px solid #0ea5e9'
+            }}
+          >
+            <span style={{ fontSize: '1.2rem', fontWeight: 900 }}>+</span> AGREGAR
+          </button>
         </div>
       </div>
 
@@ -962,6 +1005,53 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
                   >
                     <Edit2 size={16} /> <span>{activeTable === 'checklists' ? "Ver Planilla" : "Editar"}</span>
                   </button>
+
+                  {/* Botones de Agregar Registros Hijos para histórico */}
+                  {activeTable === 'shifts' && props.onAddChildRecord && (
+                    <button 
+                      onClick={() => props.onAddChildRecord?.('shifts', item)}
+                      style={{ 
+                        flex: 1,
+                        background: 'rgba(0,255,136,0.1)', 
+                        border: '1px solid var(--neon-green)', 
+                        borderRadius: '8px', 
+                        color: 'var(--neon-green)', 
+                        padding: '12px', 
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.5rem',
+                        fontWeight: 'bold',
+                        fontSize: '0.85rem'
+                      }}
+                    >
+                      <span style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>+</span> <span>Vuelo</span>
+                    </button>
+                  )}
+
+                  {activeTable === 'flights' && props.onAddChildRecord && (
+                    <button 
+                      onClick={() => props.onAddChildRecord?.('flights', item)}
+                      style={{ 
+                        flex: 1,
+                        background: 'rgba(0,255,136,0.1)', 
+                        border: '1px solid var(--neon-green)', 
+                        borderRadius: '8px', 
+                        color: 'var(--neon-green)', 
+                        padding: '12px', 
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.5rem',
+                        fontWeight: 'bold',
+                        fontSize: '0.85rem'
+                      }}
+                    >
+                      <span style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>+</span> <span>Datos</span>
+                    </button>
+                  )}
                   {props.isServer && (
                     <button 
                       onClick={() => handleDelete(item.id)}

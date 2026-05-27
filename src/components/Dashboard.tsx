@@ -434,7 +434,7 @@ const Dashboard: React.FC<DashboardProps> = ({
           <div className="dashboard-banner-subtitle">
             Sistema de Control Operativo {deviceName ? `| Terminal: ${deviceName}` : ''}
           </div>
-          <h1 className="dashboard-banner-title">Hermes II Tactical</h1>
+          <h1 className="dashboard-banner-title">Hermes II</h1>
         </div>
 
         {/* Brand identity area */}
@@ -482,7 +482,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         )}
         <div style={{ display: 'flex', gap: '0.3rem', background: 'var(--card-bg)', border: '1px solid var(--border-input)', borderRadius: '8px', padding: '3px', boxShadow: 'var(--shadow-glow)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}>
           {[
-            { id: 'hud', label: '🌙 HUD', title: 'Modo Táctico' },
+            { id: 'hud', label: '🌙 HUD', title: 'Modo Oscuro' },
             { id: 'boost', label: '⚡ BOOST', title: 'HUD Alto Brillo' }
           ].map(t => (
             <button
@@ -838,7 +838,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       </div>
  
       <footer className="dashboard-footer">
-        <p style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '1px', margin: 0 }}>HORUS DRON | TACTICAL INTERFACE</p>
+        <p style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '1px', margin: 0 }}>HORUS DRON | INTERFACE</p>
       </footer>
     </div>
   );

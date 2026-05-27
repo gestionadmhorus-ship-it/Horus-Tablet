@@ -39,6 +39,8 @@ export interface ShiftData {
   isSynced?: boolean;
   isEdited?: boolean;
   editedTimestamp?: string;
+  lastModified?: number;
+  isDeleted?: boolean;
 }
 
 export interface FlightData {
@@ -61,6 +63,8 @@ export interface FlightData {
   status?: 'active' | 'closed';
   closedTimestamp?: string;
   closingObservations?: string;
+  lastModified?: number;
+  isDeleted?: boolean;
 }
 
 export interface BatteryData {
@@ -76,6 +80,8 @@ export interface BatteryData {
   isSynced?: boolean;
   isEdited?: boolean;
   editedTimestamp?: string;
+  lastModified?: number;
+  isDeleted?: boolean;
 }
 
 export interface DetectionData {
@@ -92,6 +98,8 @@ export interface DetectionData {
   isSynced?: boolean;
   isEdited?: boolean;
   editedTimestamp?: string;
+  lastModified?: number;
+  isDeleted?: boolean;
 }
 
 export interface VehicleChecklistData {
@@ -130,6 +138,8 @@ export interface VehicleChecklistData {
   isSynced?: boolean;
   isEdited?: boolean;
   editedTimestamp?: string;
+  lastModified?: number;
+  isDeleted?: boolean;
 }
 
 export interface DroneChecklistData {

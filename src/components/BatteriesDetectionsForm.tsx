@@ -69,6 +69,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
   onSaveBattery, onSaveDetection, onBack, lists, activeFlightId, activeFlightName, activeFlightCategory
 }) => {
   const [activePanel, setActivePanel] = useState<ActivePanel>('batteries');
+  const [isSaving, setIsSaving] = useState(false);
 
   /* ─── Battery state ─── */
   const [batteryData, setBatteryData] = useState({ pilot: '', droneBatteryName: '', droneBattery: '', controlBatteryName: '', controlBattery: '' });
@@ -118,33 +119,48 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
   /* ─── Save handlers ─── */
   const handleSaveBattery = async (e: React.FormEvent) => {
     e.preventDefault();
-    const now = new Date();
-    onSaveBattery({ id: generateId('BAT'), flightId: activeFlightId, timestamp: `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`, ...batteryData });
-    await window.customAlert('✅ Baterías guardadas con éxito');
-    setBatteryData({ pilot: '', droneBatteryName: '', droneBattery: '', controlBatteryName: '', controlBattery: '' });
+    if (isSaving) return;
+    setIsSaving(true);
+    
+    try {
+      const now = new Date();
+      onSaveBattery({ id: generateId('BAT'), flightId: activeFlightId, timestamp: `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`, ...batteryData });
+      await window.customAlert('✅ Baterías guardadas con éxito');
+      setBatteryData({ pilot: '', droneBatteryName: '', droneBattery: '', controlBatteryName: '', controlBattery: '' });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleSaveDetection = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSaving) return;
+    
     if (!criticality) {
       await window.customAlert('⚠️ Por favor selecciona un nivel de criticidad antes de guardar.');
       return;
     }
-    const now = new Date();
-    onSaveDetection({
-      id: generateId('DET'),
-      flightId: activeFlightId,
-      timestamp: `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`,
-      element: selectedElement,
-      anomaly: selectedAnomaly,
-      recommendation,
-      criticality,
-      fileName,
-      observations
-    });
-    await window.customAlert('✅ Detección guardada con éxito');
-    setSelectedElement(''); setSelectedAnomaly(''); setRecommendation('');
-    setCriticality(''); setFileName(''); setObservations('');
+    
+    setIsSaving(true);
+    try {
+      const now = new Date();
+      onSaveDetection({
+        id: generateId('DET'),
+        flightId: activeFlightId,
+        timestamp: `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`,
+        element: selectedElement,
+        anomaly: selectedAnomaly,
+        recommendation,
+        criticality,
+        fileName,
+        observations
+      });
+      await window.customAlert('✅ Detección guardada con éxito');
+      setSelectedElement(''); setSelectedAnomaly(''); setRecommendation('');
+      setCriticality(''); setFileName(''); setObservations('');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
 
@@ -162,7 +178,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
         </div>
       )}
 
-      <div className="glass" style={{ borderTop: '4px solid #00ff88', padding: '0', overflow: 'hidden', boxShadow: '0 -5px 20px rgba(0,255,136,0.1)' }}>
+      <div className="glass" style={{ borderTop: '4px solid #00ff88', padding: '0', overflow: 'visible', boxShadow: '0 -5px 20px rgba(0,255,136,0.1)' }}>
         {/* Tab Bar */}
         <div style={{ display: 'flex', borderBottom: '2px solid #333', background: '#000' }}>
           <button 
@@ -270,8 +286,23 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
                 style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}>
                 Ir a Detecciones <ChevronRight size={16} />
               </button>
-              <button type="submit" className="btn-3d" style={{ width: '100%', maxWidth: '350px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', padding: '1.2rem' }}>
-                <Save size={24} /> <span>GUARDAR BATERÍAS</span>
+              <button 
+                type="submit" 
+                disabled={isSaving}
+                className="btn-3d" 
+                style={{ 
+                  width: '100%', 
+                  maxWidth: '350px', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  gap: '0.75rem', 
+                  padding: '1.2rem',
+                  opacity: isSaving ? 0.6 : 1,
+                  cursor: isSaving ? 'not-allowed' : 'pointer'
+                }}
+              >
+                <Save size={24} /> <span>{isSaving ? 'GUARDANDO...' : 'GUARDAR BATERÍAS'}</span>
               </button>
             </div>
           </form>
@@ -454,8 +485,23 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
                 style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}>
                 <ChevronLeft size={16} /> Ir a Baterías
               </button>
-              <button type="submit" className="btn-3d" style={{ width: '100%', maxWidth: '350px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', padding: '1.2rem' }}>
-                <Save size={24} /> <span>GUARDAR DETECCIÓN</span>
+              <button 
+                type="submit" 
+                disabled={isSaving}
+                className="btn-3d" 
+                style={{ 
+                  width: '100%', 
+                  maxWidth: '350px', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  gap: '0.75rem', 
+                  padding: '1.2rem',
+                  opacity: isSaving ? 0.6 : 1,
+                  cursor: isSaving ? 'not-allowed' : 'pointer'
+                }}
+              >
+                <Save size={24} /> <span>{isSaving ? 'GUARDANDO...' : 'GUARDAR DETECCIÓN'}</span>
               </button>
             </div>
           </form>

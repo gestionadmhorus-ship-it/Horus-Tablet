@@ -6,38 +6,51 @@ import { persistToDisk, loadFromDisk } from '../services/NativeStorage';
 
 export function useDatabase() {
   // 1. Live Queries for real-time UI updates
-  const shifts = useLiveQuery(() => db.shifts.toArray()) || [];
-  const flights = useLiveQuery(() => db.flights.toArray()) || [];
-  const batteries = useLiveQuery(() => db.batteries.toArray()) || [];
-  const detections = useLiveQuery(() => db.detections.toArray()) || [];
-  const checklists = useLiveQuery(() => db.vehicleChecklists.toArray()) || [];
-  const droneChecklists = useLiveQuery(() => db.droneChecklists.toArray()) || [];
+  const shifts = useLiveQuery(() => db.shifts.filter(i => !i.isDeleted).toArray()) || [];
+  const flights = useLiveQuery(() => db.flights.filter(i => !i.isDeleted).toArray()) || [];
+  const batteries = useLiveQuery(() => db.batteries.filter(i => !i.isDeleted).toArray()) || [];
+  const detections = useLiveQuery(() => db.detections.filter(i => !i.isDeleted).toArray()) || [];
+  const checklists = useLiveQuery(() => db.vehicleChecklists.filter(i => !i.isDeleted).toArray()) || [];
+  const droneChecklists = useLiveQuery(() => db.droneChecklists.filter(i => !i.isDeleted).toArray()) || [];
   
   // 2. Settings management (ListsData)
   const settingsRow = useLiveQuery(() => db.settings.get('current'));
   const lists = settingsRow?.data || DEFAULT_LISTS;
 
-  // 3. Migration logic: From localStorage to Dexie (runs once)
+  // 3. Migration & Seeding logic (runs exactly ONCE per app lifecycle)
+  //    Uses a ref guard to prevent the race condition where useLiveQuery
+  //    returns undefined while Dexie is still loading (indistinguishable
+  //    from "row does not exist"), which would overwrite user-customized
+  //    settings with DEFAULT_LISTS on every reload.
+  const hasSeeded = useRef(false);
   useEffect(() => {
+    if (hasSeeded.current) return;
+    hasSeeded.current = true;
+
     const migrate = async () => {
       const localDataStr = localStorage.getItem('field_ops_data_v2');
       const localListsStr = localStorage.getItem('field_ops_lists_v3');
 
-      if (!settingsRow && !localListsStr) {
-        // Seed with DEFAULT_LISTS if it's a fresh install
-        try {
-          await db.settings.put({ id: 'current', data: DEFAULT_LISTS });
-          console.log('✅ Database seeded with default technical data');
-        } catch (e) { console.error('Seeding error:', e); }
-      }
+      // Explicit DB query to confirm whether settings truly exist
+      // (avoids relying on the reactive settingsRow which may be undefined while loading)
+      const existingSettings = await db.settings.get('current');
 
-      if (localListsStr && !settingsRow) {
+      if (localListsStr && !existingSettings) {
+        // Priority: migrate from legacy localStorage if available
         try {
           const localLists = JSON.parse(localListsStr);
           await db.settings.put({ id: 'current', data: localLists });
           localStorage.removeItem('field_ops_lists_v3');
           console.log('✅ Lists migrated from Legacy Storage');
         } catch (e) { console.error('Migration error (lists):', e); }
+      } else if (!existingSettings) {
+        // Fresh install: seed with DEFAULT_LISTS
+        try {
+          await db.settings.put({ id: 'current', data: DEFAULT_LISTS });
+          console.log('✅ Database seeded with default technical data');
+        } catch (e) { console.error('Seeding error:', e); }
+      } else {
+        console.log('✅ Settings already exist in DB, skipping seeding');
       }
 
       if (localDataStr) {
@@ -57,7 +70,7 @@ export function useDatabase() {
       }
     };
     migrate();
-  }, [settingsRow]);
+  }, []); // Empty deps: run exactly once on mount
 
   const getDeviceName = () => {
     let name = localStorage.getItem('horus_device_name');
@@ -70,11 +83,12 @@ export function useDatabase() {
   };
 
   // 4. Save/Update/Delete functions
-  const saveShift = (item: ShiftData) => db.shifts.add({ ...item, isSynced: false, deviceName: item.deviceName || getDeviceName() });
+  const saveShift = (item: ShiftData) => db.shifts.add({ ...item, isSynced: false, lastModified: Date.now(), deviceName: item.deviceName || getDeviceName() });
   const getEditMetadata = () => {
     const now = new Date();
     return {
       isEdited: true,
+      lastModified: Date.now(),
       editedTimestamp: `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`
     };
   };
@@ -88,83 +102,70 @@ export function useDatabase() {
 
       if (flightIds.length > 0) {
         // 2. Delete all batteries for these flights
-        await db.batteries.where('flightId').anyOf(flightIds).delete();
+        await db.batteries.where('flightId').anyOf(flightIds).modify({ isDeleted: true, isSynced: false, lastModified: Date.now() });
 
         // 3. Delete all detections for these flights
-        await db.detections.where('flightId').anyOf(flightIds).delete();
+        await db.detections.where('flightId').anyOf(flightIds).modify({ isDeleted: true, isSynced: false, lastModified: Date.now() });
 
         // 4. Delete the flights
-        await db.flights.where('shiftId').equals(id).delete();
+        await db.flights.where('shiftId').equals(id).modify({ isDeleted: true, isSynced: false, lastModified: Date.now() });
       }
 
       // 5. Delete the shift itself
-      await db.shifts.delete(id);
+      await db.shifts.update(id, { isDeleted: true, isSynced: false, lastModified: Date.now() });
     });
   };
 
-  const saveFlight = (item: FlightData) => db.flights.add({ ...item, isSynced: false, deviceName: item.deviceName || getDeviceName() });
+  const saveFlight = (item: FlightData) => db.flights.add({ ...item, isSynced: false, lastModified: Date.now(), deviceName: item.deviceName || getDeviceName() });
   const updateFlight = (item: FlightData) => db.flights.put({ ...item, ...getEditMetadata(), isSynced: false, deviceName: item.deviceName || getDeviceName() });
   const deleteFlight = async (id: string) => {
     await db.transaction('rw', [db.flights, db.batteries, db.detections], async () => {
-      // Delete all batteries and detections associated with this flight
-      await db.batteries.where('flightId').equals(id).delete();
-      await db.detections.where('flightId').equals(id).delete();
-      await db.flights.delete(id);
+      await db.batteries.where('flightId').equals(id).modify({ isDeleted: true, isSynced: false, lastModified: Date.now() });
+      await db.detections.where('flightId').equals(id).modify({ isDeleted: true, isSynced: false, lastModified: Date.now() });
+      await db.flights.update(id, { isDeleted: true, isSynced: false, lastModified: Date.now() });
     });
   };
 
-  const saveBattery = (item: BatteryData) => db.batteries.add({ ...item, isSynced: false, deviceName: item.deviceName || getDeviceName() });
+  const saveBattery = (item: BatteryData) => db.batteries.add({ ...item, isSynced: false, lastModified: Date.now(), deviceName: item.deviceName || getDeviceName() });
   const updateBattery = (item: BatteryData) => db.batteries.put({ ...item, ...getEditMetadata(), isSynced: false, deviceName: item.deviceName || getDeviceName() });
-  const deleteBattery = (id: string) => db.batteries.delete(id);
+  const deleteBattery = (id: string) => db.batteries.update(id, { isDeleted: true, isSynced: false, lastModified: Date.now() });
 
-  const saveDetection = (item: DetectionData) => db.detections.add({ ...item, isSynced: false, deviceName: item.deviceName || getDeviceName() });
+  const saveDetection = (item: DetectionData) => db.detections.add({ ...item, isSynced: false, lastModified: Date.now(), deviceName: item.deviceName || getDeviceName() });
   const updateDetection = (item: DetectionData) => db.detections.put({ ...item, ...getEditMetadata(), isSynced: false, deviceName: item.deviceName || getDeviceName() });
-  const deleteDetection = (id: string) => db.detections.delete(id);
+  const deleteDetection = (id: string) => db.detections.update(id, { isDeleted: true, isSynced: false, lastModified: Date.now() });
   
-  const saveChecklist = (item: any) => db.vehicleChecklists.add({ ...item, isSynced: false, deviceName: item.deviceName || getDeviceName() });
+  const saveChecklist = (item: any) => db.vehicleChecklists.add({ ...item, isSynced: false, lastModified: Date.now(), deviceName: item.deviceName || getDeviceName() });
   const updateChecklist = (item: any) => db.vehicleChecklists.put({ ...item, ...getEditMetadata(), isSynced: false, deviceName: item.deviceName || getDeviceName() });
-  const deleteChecklist = (id: string) => db.vehicleChecklists.delete(id);
+  const deleteChecklist = (id: string) => db.vehicleChecklists.update(id, { isDeleted: true, isSynced: false, lastModified: Date.now() });
 
-  const saveDroneChecklist = (item: DroneChecklistData) => db.droneChecklists.add({ ...item, isSynced: false, deviceName: item.deviceName || getDeviceName() });
+  const saveDroneChecklist = (item: DroneChecklistData) => db.droneChecklists.add({ ...item, isSynced: false, lastModified: Date.now(), deviceName: item.deviceName || getDeviceName() });
   const updateDroneChecklist = (item: DroneChecklistData) => db.droneChecklists.put({ ...item, ...getEditMetadata(), isSynced: false, deviceName: item.deviceName || getDeviceName() });
-  const deleteDroneChecklist = (id: string) => db.droneChecklists.delete(id);
+  const deleteDroneChecklist = (id: string) => db.droneChecklists.update(id, { isDeleted: true, isSynced: false, lastModified: Date.now() });
   
   const updateLists = (newList: ListsData) => db.settings.put({ id: 'current', data: newList });
  
   // ─── Transactional merger for incoming P2P data payload ───
   const syncIncomingData = async (incoming: AppData) => {
     await db.transaction('rw', [db.shifts, db.flights, db.batteries, db.detections, db.vehicleChecklists, db.droneChecklists], async () => {
-      if (incoming.shifts && incoming.shifts.length > 0) {
-        for (const item of incoming.shifts) {
-          await db.shifts.put(item);
+      const syncTable = async (table: any, items: any[]) => {
+        if (!items || items.length === 0) return;
+        for (const item of items) {
+          const local = await table.get(item.id);
+          const incomingTime = item.lastModified || 0;
+          const localTime = local?.lastModified || 0;
+          // Last write wins resolver
+          if (!local || incomingTime >= localTime) {
+            await table.put(item);
+          }
         }
-      }
-      if (incoming.flights && incoming.flights.length > 0) {
-        for (const item of incoming.flights) {
-          await db.flights.put(item);
-        }
-      }
-      if (incoming.batteries && incoming.batteries.length > 0) {
-        for (const item of incoming.batteries) {
-          await db.batteries.put(item);
-        }
-      }
-      if (incoming.detections && incoming.detections.length > 0) {
-        for (const item of incoming.detections) {
-          await db.detections.put(item);
-        }
-      }
-      const checklistsToSync = incoming.checklists || (incoming as any).vehicleChecklists;
-      if (checklistsToSync && checklistsToSync.length > 0) {
-        for (const item of checklistsToSync) {
-          await db.vehicleChecklists.put(item);
-        }
-      }
-      if (incoming.droneChecklists && incoming.droneChecklists.length > 0) {
-        for (const item of incoming.droneChecklists) {
-          await db.droneChecklists.put(item);
-        }
-      }
+      };
+
+      await syncTable(db.shifts, incoming.shifts);
+      await syncTable(db.flights, incoming.flights);
+      await syncTable(db.batteries, incoming.batteries);
+      await syncTable(db.detections, incoming.detections);
+      await syncTable(db.vehicleChecklists, incoming.checklists || (incoming as any).vehicleChecklists);
+      await syncTable(db.droneChecklists, incoming.droneChecklists);
     });
   };
 
@@ -180,12 +181,23 @@ export function useDatabase() {
 
   const markDataAsSynced = async (data: AppData) => {
     await db.transaction('rw', [db.shifts, db.flights, db.batteries, db.detections, db.vehicleChecklists, db.droneChecklists], async () => {
-      if (data.shifts) for (const i of data.shifts) await db.shifts.update(i.id, { isSynced: true });
-      if (data.flights) for (const i of data.flights) await db.flights.update(i.id, { isSynced: true });
-      if (data.batteries) for (const i of data.batteries) await db.batteries.update(i.id, { isSynced: true });
-      if (data.detections) for (const i of data.detections) await db.detections.update(i.id, { isSynced: true });
-      if (data.checklists) for (const i of data.checklists) await db.vehicleChecklists.update(i.id, { isSynced: true });
-      if (data.droneChecklists) for (const i of data.droneChecklists) await db.droneChecklists.update(i.id, { isSynced: true });
+      const markTable = async (table: any, items: any[]) => {
+        if (!items || items.length === 0) return;
+        for (const item of items) {
+          const local = await table.get(item.id);
+          // Only mark as synced if the record hasn't been updated locally since it was sent
+          if (local && (!local.lastModified || !item.lastModified || local.lastModified <= item.lastModified)) {
+            await table.update(item.id, { isSynced: true });
+          }
+        }
+      };
+
+      await markTable(db.shifts, data.shifts);
+      await markTable(db.flights, data.flights);
+      await markTable(db.batteries, data.batteries);
+      await markTable(db.detections, data.detections);
+      await markTable(db.vehicleChecklists, data.checklists);
+      await markTable(db.droneChecklists, data.droneChecklists);
     });
   };
 
@@ -198,14 +210,23 @@ export function useDatabase() {
   //    - In Capacitor (APK): writes to Android internal storage
   //    - In browser (dev): no-op, Dexie handles everything
   const isFirstRender = useRef(true);
+  const persistTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false;
       return;
     }
     if (shifts.length > 0 || flights.length > 0 || batteries.length > 0 || detections.length > 0 || checklists.length > 0 || droneChecklists.length > 0) {
-      persistToDisk(fullData).catch(e => console.error('[DB] persist error:', e));
+      if (persistTimeoutRef.current) clearTimeout(persistTimeoutRef.current);
+      persistTimeoutRef.current = setTimeout(() => {
+        persistToDisk(fullData).catch(e => console.error('[DB] persist error:', e));
+      }, 2000);
     }
+    
+    return () => {
+      if (persistTimeoutRef.current) clearTimeout(persistTimeoutRef.current);
+    };
   }, [shifts, flights, batteries, detections, checklists, droneChecklists]);
 
   // 7. Load from physical disk on first boot and seed Dexie if DB is empty

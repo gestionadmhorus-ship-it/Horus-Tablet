@@ -59,6 +59,10 @@ function App() {
     return (localStorage.getItem('horus_sync_role') as AppRole) || null;
   });
 
+  // Historical Overrides for adding child records from RecordsExplorer
+  const [historicalShiftId, setHistoricalShiftId] = useState<string | undefined>(undefined);
+  const [historicalFlightData, setHistoricalFlightData] = useState<any>(undefined);
+
   const [themeMode, setThemeMode] = useState<'hud' | 'boost'>(() => {
     const stored = localStorage.getItem('theme_mode');
     if (stored === 'boost' || stored === 'hud') {
@@ -148,27 +152,40 @@ function App() {
 
   const totalRecords = data.shifts.length + data.flights.length + data.batteries.length + data.detections.length;
 
-  // Helper to chronologically parse locale timestamps like "20/5/2026 07:15:54"
+  // Helper to chronologically parse locale timestamps like "20/5/2026 07:15:54" or ISO "2026-05-27T10:00:00.000Z"
   const getChronologicalTime = (timestamp: string): number => {
     if (!timestamp) return 0;
+    
+    // Check if it's already an ISO timestamp (e.g. from new data format)
+    if (timestamp.includes('T') && timestamp.includes('Z')) {
+      const parsed = new Date(timestamp).getTime();
+      if (!isNaN(parsed)) return parsed;
+    }
+
     const [datePart, timePart, period] = timestamp.split(' ');
     if (!datePart) return 0;
     
     const dateSplit = datePart.split(/[-/]/);
     if (dateSplit.length === 3) {
+      // Legacy "DD/MM/YYYY" format heuristic
       let d = parseInt(dateSplit[0], 10);
       let m = parseInt(dateSplit[1], 10);
       let y = parseInt(dateSplit[2], 10);
       if (y < 100) y += 2000;
-      // Heuristic: if d > 12, format is dd/mm/yyyy. Otherwise assume dd/mm/yyyy for Argentina context.
-      if (d > 12 || m <= 12) {
-        const timeStr = (timePart || '00:00:00') + (period ? ` ${period}` : '');
-        const isoStr = `${y}-${m.toString().padStart(2, '0')}-${d.toString().padStart(2, '0')} ${timeStr}`;
-        const parsed = new Date(isoStr).getTime();
-        if (!isNaN(parsed)) return parsed;
+      
+      // If it looks like American MM/DD/YYYY where month > 12 is impossible
+      if (d <= 12 && m > 12) {
+        // Swap them
+        const temp = d; d = m; m = temp;
       }
+      
+      const timeStr = (timePart || '00:00:00') + (period ? ` ${period}` : '');
+      // Force ISO parsing via YYYY-MM-DD
+      const isoStr = `${y}-${m.toString().padStart(2, '0')}-${d.toString().padStart(2, '0')} ${timeStr}`;
+      const parsed = new Date(isoStr).getTime();
+      if (!isNaN(parsed)) return parsed;
     }
-    // Fallback
+    // Final fallback
     const fallback = new Date(timestamp).getTime();
     return isNaN(fallback) ? 0 : fallback;
   };
@@ -201,6 +218,8 @@ function App() {
     }
   }
 
+  const effectiveShiftId = historicalShiftId || activeShiftId;
+
   // ─── Determine active flight (must belong to active shift) ───
   let activeFlightId: string | undefined;
   let activeFlightName: string | undefined;
@@ -218,6 +237,12 @@ function App() {
       activeFlightData = latestFlight;
     }
   }
+
+  const effectiveFlightId = historicalFlightData?.id || activeFlightId;
+  const effectiveFlightName = historicalFlightData 
+    ? (historicalFlightData.flightType === 'HS' ? historicalFlightData.taskTypeAndLocation : historicalFlightData.lineName) 
+    : activeFlightName;
+  const effectiveFlightCategory = historicalFlightData?.category || activeFlightData?.category;
 
   const closeFlightWithPrompt = async (flight: import('./types').FlightData): Promise<boolean> => {
     let obs = '';
@@ -374,13 +399,13 @@ function App() {
       case 'flight':
         return (
           <FlightForm 
-            key={isNewFlightRequested ? 'new-flight' : (activeFlightId || 'create-flight')}
+            key={isNewFlightRequested ? 'new-flight' : (effectiveFlightId || 'create-flight')}
             onSave={(data) => { handleSaveFlight(data); setIsNewFlightRequested(false); }}
             onUpdate={updateFlight}
-            onBack={() => { setIsNewFlightRequested(false); setCurrentPage('dashboard'); }} 
+            onBack={() => { setIsNewFlightRequested(false); setHistoricalShiftId(undefined); setCurrentPage('dashboard'); }} 
             lists={activeLists} 
-            activeShiftId={activeShiftId}
-            editData={activeFlightId && activeFlightData && !isNewFlightRequested ? activeFlightData : undefined}
+            activeShiftId={effectiveShiftId}
+            editData={effectiveFlightId && activeFlightData && !isNewFlightRequested ? activeFlightData : undefined}
             defaultFlightType={newFlightType}
             onRegisterNew={() => { setNewFlightType(activeFlightData?.flightType || 'KMS'); setIsNewFlightRequested(true); }}
             onChangeShift={() => setCurrentPage('shift')}
@@ -391,11 +416,11 @@ function App() {
           <BatteriesDetectionsForm
             onSaveBattery={saveBattery}
             onSaveDetection={saveDetection}
-            onBack={() => setCurrentPage('dashboard')}
+            onBack={() => { setHistoricalFlightData(undefined); setCurrentPage('dashboard'); }}
             lists={activeLists}
-            activeFlightId={activeFlightId}
-            activeFlightName={activeFlightName}
-            activeFlightCategory={activeFlightData?.category}
+            activeFlightId={effectiveFlightId}
+            activeFlightName={effectiveFlightName}
+            activeFlightCategory={effectiveFlightCategory}
           />
         );
       case 'checklist':
@@ -482,6 +507,43 @@ function App() {
                 setCurrentPage('checklist-vehicular');
               }
             }}
+            onAddNew={(action) => {
+              setHistoricalShiftId(undefined);
+              setHistoricalFlightData(undefined);
+              if (action === 'shifts') {
+                setCurrentPage('shift');
+              } else if (action === 'flights_KMS') {
+                setNewFlightType('KMS');
+                setIsNewFlightRequested(true);
+                setCurrentPage('flight');
+              } else if (action === 'flights_HS') {
+                setNewFlightType('HS');
+                setIsNewFlightRequested(true);
+                setCurrentPage('flight');
+              } else if (action === 'batteries_detections') {
+                setCurrentPage('batteries');
+              } else if (action === 'checklists') {
+                setCurrentPage('checklist');
+              }
+            }}
+            onAddChildRecord={async (table, parentData) => {
+              if (table === 'shifts') {
+                const type = await window.customPrompt(`Nuevo vuelo para la jornada del coordinador ${parentData.coordinator}.\nEscribe "KMS" o "HS":`, 'KMS');
+                if (type === null) return; // cancelled
+                const t = type.trim().toUpperCase() || 'KMS';
+                if (t === 'KMS' || t === 'HS') {
+                  setHistoricalShiftId(parentData.id);
+                  setNewFlightType(t as 'KMS'|'HS');
+                  setIsNewFlightRequested(true);
+                  setCurrentPage('flight');
+                } else {
+                  await window.customAlert('Tipo de vuelo inválido. Debe ser KMS o HS.');
+                }
+              } else if (table === 'flights') {
+                setHistoricalFlightData(parentData);
+                setCurrentPage('batteries');
+              }
+            }}
             onSyncReceived={syncIncomingData}
           />
         );
@@ -561,7 +623,7 @@ function App() {
           </div>
           <div className="no-print" style={{ position: 'fixed', top: '1.5rem', right: '2rem', zIndex: 1000, display: 'flex', gap: '0.4rem', alignItems: 'center', background: 'var(--card-bg)', border: '1px solid var(--glass-border)', borderRadius: '10px', padding: '4px', boxShadow: 'var(--shadow-glow)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}>
             {[
-              { id: 'hud', label: '🌙 HUD', title: 'Modo Táctico' },
+              { id: 'hud', label: '🌙 HUD', title: 'Modo Oscuro' },
               { id: 'boost', label: '⚡ BOOST', title: 'HUD Alto Brillo' }
             ].map(t => (
               <button

@@ -25,6 +25,7 @@ export const DroneChecklistForm: React.FC<DroneChecklistFormProps> = ({
 
   // Paso / Fase activa en la vista
   const [activeStep, setActiveStep] = useState(1);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Estado inicial de casillas
   const [checks, setChecks] = useState({
@@ -92,7 +93,9 @@ export const DroneChecklistForm: React.FC<DroneChecklistFormProps> = ({
     }));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (isSaving) return;
+    
     if (!pilot) {
       window.customAlert('Por favor, selecciona el piloto a cargo.');
       return;
@@ -101,6 +104,9 @@ export const DroneChecklistForm: React.FC<DroneChecklistFormProps> = ({
       window.customAlert('Por favor, ingresa o selecciona el dron a utilizar.');
       return;
     }
+
+    setIsSaving(true);
+    try {
 
     const payload: DroneChecklistData = {
       id: editData?.id || `D-${Date.now()}`,
@@ -113,12 +119,15 @@ export const DroneChecklistForm: React.FC<DroneChecklistFormProps> = ({
       isSynced: false
     };
 
-    if (editData && onUpdate) {
-      onUpdate(payload);
-    } else {
-      onSave(payload);
+      if (editData && onUpdate) {
+        onUpdate(payload);
+      } else {
+        onSave(payload);
+      }
+      onBack();
+    } finally {
+      setIsSaving(false);
     }
-    onBack();
   };
 
   const renderCheckItems = (items: { key: keyof typeof checks; label: string }[]) => {
@@ -385,14 +394,17 @@ export const DroneChecklistForm: React.FC<DroneChecklistFormProps> = ({
           </button>
           <button 
             onClick={handleSave}
+            disabled={isSaving}
             className="btn-3d" 
             style={{ 
               background: 'var(--primary)', 
               color: '#000',
-              padding: '0.75rem 2rem'
+              padding: '0.75rem 2rem',
+              opacity: isSaving ? 0.6 : 1,
+              cursor: isSaving ? 'not-allowed' : 'pointer'
             }}
           >
-            {editData ? 'Actualizar Checklist' : 'Guardar y Registrar'}
+            {isSaving ? 'GUARDANDO...' : (editData ? 'Actualizar Checklist' : 'Guardar y Registrar')}
           </button>
         </div>
       </div>

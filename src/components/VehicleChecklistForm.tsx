@@ -49,6 +49,7 @@ const VehicleChecklistForm: React.FC<VehicleChecklistFormProps> = ({ onSave, onU
   });
 
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [isSaving, setIsSaving] = useState(false);
 
   // Update clock every second for accurate timestamp
   useEffect(() => {
@@ -121,6 +122,7 @@ const VehicleChecklistForm: React.FC<VehicleChecklistFormProps> = ({ onSave, onU
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSaving) return;
     
     // Dynamic mapping of keys to human-readable labels from checkGroups
     const checkLabels: Record<string, string> = {};
@@ -166,8 +168,10 @@ const VehicleChecklistForm: React.FC<VehicleChecklistFormProps> = ({ onSave, onU
 
     const confirmed = await window.customConfirm(confirmMessage);
     if (confirmed) {
-      if (isEditMode && editData && onUpdate) {
-        const updatedData: VehicleChecklistData = {
+      setIsSaving(true);
+      try {
+        if (isEditMode && editData && onUpdate) {
+          const updatedData: VehicleChecklistData = {
           ...editData,
           vehicleId: formData.vehicleId,
           driver: formData.driver,
@@ -191,8 +195,11 @@ const VehicleChecklistForm: React.FC<VehicleChecklistFormProps> = ({ onSave, onU
         };
         onSave(newData);
         await window.customAlert('✅ Checklist Vehicular guardado con éxito');
+        }
+        onBack();
+      } finally {
+        setIsSaving(false);
       }
-      onBack();
     }
   };
 
@@ -402,8 +409,25 @@ const VehicleChecklistForm: React.FC<VehicleChecklistFormProps> = ({ onSave, onU
           </div>
 
           <div className="no-print" style={{ marginTop: '2rem', display: 'flex', justifyContent: 'flex-end' }}>
-            <button type="submit" className="btn-3d" style={{ width: '100%', maxWidth: '350px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', padding: '1.2rem', background: '#ff6600', color: 'black' }}>
-              <Save size={24} /> <span>{isEditMode ? 'ACTUALIZAR CHECKLIST' : 'GUARDAR CHECKLIST'}</span>
+            <button 
+              type="submit" 
+              disabled={isSaving}
+              className="btn-3d" 
+              style={{ 
+                width: '100%', 
+                maxWidth: '350px', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                gap: '0.75rem', 
+                padding: '1.2rem', 
+                background: '#ff6600', 
+                color: 'black',
+                opacity: isSaving ? 0.6 : 1,
+                cursor: isSaving ? 'not-allowed' : 'pointer'
+              }}
+            >
+              <Save size={24} /> <span>{isSaving ? 'GUARDANDO...' : (isEditMode ? 'ACTUALIZAR CHECKLIST' : 'GUARDAR CHECKLIST')}</span>
             </button>
           </div>
         </form>
