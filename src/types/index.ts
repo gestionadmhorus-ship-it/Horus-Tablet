@@ -183,6 +183,8 @@ export interface DroneChecklistData {
   isSynced?: boolean;
   isEdited?: boolean;
   editedTimestamp?: string;
+  lastModified?: number;
+  isDeleted?: boolean;
 }
 
 /* ─── App State ─── */

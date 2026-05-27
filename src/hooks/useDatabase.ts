@@ -147,7 +147,7 @@ export function useDatabase() {
   // ─── Transactional merger for incoming P2P data payload ───
   const syncIncomingData = async (incoming: AppData) => {
     await db.transaction('rw', [db.shifts, db.flights, db.batteries, db.detections, db.vehicleChecklists, db.droneChecklists], async () => {
-      const syncTable = async (table: any, items: any[]) => {
+      const syncTable = async (table: any, items: any[] | undefined) => {
         if (!items || items.length === 0) return;
         for (const item of items) {
           const local = await table.get(item.id);
@@ -181,7 +181,7 @@ export function useDatabase() {
 
   const markDataAsSynced = async (data: AppData) => {
     await db.transaction('rw', [db.shifts, db.flights, db.batteries, db.detections, db.vehicleChecklists, db.droneChecklists], async () => {
-      const markTable = async (table: any, items: any[]) => {
+      const markTable = async (table: any, items: any[] | undefined) => {
         if (!items || items.length === 0) return;
         for (const item of items) {
           const local = await table.get(item.id);
