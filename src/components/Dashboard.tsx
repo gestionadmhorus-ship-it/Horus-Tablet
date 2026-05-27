@@ -529,15 +529,15 @@ const Dashboard: React.FC<DashboardProps> = ({
           onClick={onSettings}
           style={{
             background: 'var(--card-bg)',
-            border: `1px solid ${hasActiveShift ? 'var(--neon-green)' : 'var(--neon-red)'}`,
+            border: '1px solid #ff8800',
             borderRadius: '6px',
-            color: hasActiveShift ? 'var(--neon-green)' : 'var(--neon-red)',
+            color: '#ff8800',
             cursor: 'pointer',
             padding: '0.6rem',
             display: 'flex',
             alignItems: 'center',
             transition: 'all 0.2s ease',
-            boxShadow: 'var(--shadow-glow)',
+            boxShadow: '0 0 12px rgba(255, 136, 0, 0.6), inset 0 0 8px rgba(255, 136, 0, 0.2)',
             backdropFilter: 'blur(10px)',
             WebkitBackdropFilter: 'blur(10px)'
           }}
