@@ -1,6 +1,7 @@
 import React from 'react';
 import { LayoutDashboard, Plane, Cpu, Download, Clock, Settings, Pencil, RotateCcw, Power, ShieldCheck, RefreshCw } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { UpdateManager } from '../services/UpdateManager';
 
 interface DashboardProps {
   data?: any;
@@ -425,6 +426,18 @@ const Dashboard: React.FC<DashboardProps> = ({
           .card-live-metric {
             font-size: 0.65rem;
           }
+          .dashboard-top-actions {
+            position: relative !important;
+            top: auto !important;
+            right: auto !important;
+            width: 100%;
+            justify-content: flex-end;
+            margin-bottom: 0.5rem;
+            flex-wrap: wrap;
+          }
+          .dashboard-container {
+            padding-top: 0.75rem;
+          }
         }
       `}} />
 
@@ -434,7 +447,12 @@ const Dashboard: React.FC<DashboardProps> = ({
           <div className="dashboard-banner-subtitle">
             Sistema de Control Operativo {deviceName ? `| Terminal: ${deviceName}` : ''}
           </div>
-          <h1 className="dashboard-banner-title">Hermes II</h1>
+          <h1 className="dashboard-banner-title" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            Hermes II 
+            <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontWeight: 600, border: '1px solid var(--border-input)', padding: '2px 8px', borderRadius: '6px', background: 'var(--bg-dark)' }}>
+              {UpdateManager.getCurrentVersion()}
+            </span>
+          </h1>
         </div>
 
         {/* Brand identity area */}

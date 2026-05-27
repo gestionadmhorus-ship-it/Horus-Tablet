@@ -579,7 +579,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
               if (activeTable === 'shifts') {
                 props.onAddNew('shifts');
               } else if (activeTable === 'flights') {
-                const rawType = await window.customPrompt('Escribe "KMS" o "HS" para el tipo de vuelo', 'KMS');
+                const rawType = await window.customChoice('Selecciona el tipo de vuelo', ['KMS', 'HS']);
                 if (rawType === null) return; // cancelled
                 const type = rawType.trim() || 'KMS';
                 if (type.toUpperCase() === 'KMS' || type.toUpperCase() === 'HS') {

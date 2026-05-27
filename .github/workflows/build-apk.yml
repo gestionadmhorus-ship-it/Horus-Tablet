@@ -29,6 +29,23 @@ jobs:
     - name: Build Web App
       run: npm run build
 
+    - name: Prepare OTA Package
+      run: |
+        mkdir -p ota-dist
+        cd dist
+        zip -r ../ota-dist/bundle.zip ./*
+        cd ..
+        VERSION_TAG="v2.0.${{ github.run_number }}"
+        echo "{\"version\": \"$VERSION_TAG\", \"url\": \"https://raw.githubusercontent.com/${{ github.repository }}/ota-updates/bundle.zip\"}" > ota-dist/version.json
+
+    - name: Deploy OTA to GitHub Branch
+      uses: peaceiris/actions-gh-pages@v4
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_branch: ota-updates
+        publish_dir: ./ota-dist
+        commit_message: "Actualización OTA $VERSION_TAG"
+
     - name: Prepare Cordova Plugins Directory
       run: |
         mkdir -p android/capacitor-cordova-android-plugins/src/main/libs

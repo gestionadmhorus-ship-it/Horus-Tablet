@@ -20,6 +20,7 @@ declare global {
     customConfirm: (message: string) => Promise<boolean>;
     customAlert: (message: string) => Promise<void>;
     customPrompt: (message: string, placeholder?: string) => Promise<string | null>;
+    customChoice: (message: string, choices: string[]) => Promise<string | null>;
   }
 }
 
@@ -95,9 +96,10 @@ function App() {
   const [dialog, setDialog] = useState<{
     show: boolean;
     message: string;
-    type: 'alert' | 'confirm' | 'prompt';
+    type: 'alert' | 'confirm' | 'prompt' | 'choice';
     placeholder?: string;
     inputValue?: string;
+    choices?: string[];
     resolve: ((val: any) => void) | null;
   }>({
     show: false,
@@ -105,6 +107,7 @@ function App() {
     type: 'alert',
     placeholder: '',
     inputValue: '',
+    choices: [],
     resolve: null
   });
 
@@ -118,6 +121,7 @@ function App() {
           type: 'confirm',
           placeholder: '',
           inputValue: '',
+          choices: [],
           resolve
         });
       });
@@ -131,6 +135,7 @@ function App() {
           type: 'alert',
           placeholder: '',
           inputValue: '',
+          choices: [],
           resolve: () => resolve()
         });
       });
@@ -144,6 +149,21 @@ function App() {
           type: 'prompt',
           placeholder: placeholder || '',
           inputValue: '',
+          choices: [],
+          resolve
+        });
+      });
+    };
+
+    window.customChoice = (message: string, choices: string[]): Promise<string | null> => {
+      return new Promise((resolve) => {
+        setDialog({
+          show: true,
+          message,
+          type: 'choice',
+          placeholder: '',
+          inputValue: '',
+          choices,
           resolve
         });
       });
@@ -528,7 +548,7 @@ function App() {
             }}
             onAddChildRecord={async (table, parentData) => {
               if (table === 'shifts') {
-                const type = await window.customPrompt(`Nuevo vuelo para la jornada del coordinador ${parentData.coordinator}.\nEscribe "KMS" o "HS":`, 'KMS');
+                const type = await window.customChoice(`Nuevo vuelo para la jornada del coordinador ${parentData.coordinator}.\nSelecciona el tipo de vuelo:`, ['KMS', 'HS']);
                 if (type === null) return; // cancelled
                 const t = type.trim().toUpperCase() || 'KMS';
                 if (t === 'KMS' || t === 'HS') {
@@ -763,7 +783,7 @@ function App() {
             </div>
 
             <h3 style={{ color: 'white', fontSize: '1.4rem', fontWeight: 900, marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
-              {dialog.type === 'confirm' ? 'Confirmación Requerida' : dialog.type === 'prompt' ? 'Registro de Observación' : 'Notificación'}
+              {dialog.type === 'confirm' ? 'Confirmación Requerida' : dialog.type === 'prompt' ? 'Registro de Observación' : dialog.type === 'choice' ? 'Selección Requerida' : 'Notificación'}
             </h3>
             
             <p style={{ color: '#E0E0E0', fontSize: '1.05rem', lineHeight: '1.6', marginBottom: '1.5rem', whiteSpace: 'pre-line', fontWeight: 500 }}>
@@ -792,13 +812,41 @@ function App() {
               />
             )}
 
+            {dialog.type === 'choice' && dialog.choices && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
+                {dialog.choices.map(choice => (
+                  <button
+                    key={choice}
+                    onClick={() => {
+                      dialog.resolve?.(choice);
+                      setDialog({ show: false, message: '', type: 'alert', placeholder: '', inputValue: '', choices: [], resolve: null });
+                    }}
+                    className="btn-3d"
+                    style={{
+                      width: '100%',
+                      background: choice === 'KMS' ? 'var(--neon-green)' : choice === 'HS' ? 'var(--neon-cyan)' : 'var(--primary)',
+                      color: 'black',
+                      fontWeight: 900,
+                      textTransform: 'uppercase',
+                      padding: '1.25rem',
+                      fontSize: '1.2rem',
+                      borderRadius: '8px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Vuelo {choice}
+                  </button>
+                ))}
+              </div>
+            )}
+
             <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
               {dialog.type === 'confirm' || dialog.type === 'prompt' ? (
                 <>
                   <button
                     onClick={() => {
                       dialog.resolve?.(dialog.type === 'prompt' ? (dialog.inputValue || '') : true);
-                      setDialog({ show: false, message: '', type: 'alert', placeholder: '', inputValue: '', resolve: null });
+                      setDialog({ show: false, message: '', type: 'alert', placeholder: '', inputValue: '', choices: [], resolve: null });
                     }}
                     className="btn-3d"
                     style={{
@@ -817,7 +865,7 @@ function App() {
                   <button
                     onClick={() => {
                       dialog.resolve?.(dialog.type === 'prompt' ? null : false);
-                      setDialog({ show: false, message: '', type: 'alert', placeholder: '', inputValue: '', resolve: null });
+                      setDialog({ show: false, message: '', type: 'alert', placeholder: '', inputValue: '', choices: [], resolve: null });
                     }}
                     style={{
                       flex: 1,
@@ -843,11 +891,32 @@ function App() {
                     Cancelar
                   </button>
                 </>
+              ) : dialog.type === 'choice' ? (
+                  <button
+                    onClick={() => {
+                      dialog.resolve?.(null);
+                      setDialog({ show: false, message: '', type: 'alert', placeholder: '', inputValue: '', choices: [], resolve: null });
+                    }}
+                    style={{
+                      flex: 1,
+                      background: 'rgba(255,255,255,0.05)',
+                      border: '1px solid rgba(255,255,255,0.15)',
+                      color: '#AAA',
+                      fontWeight: 'bold',
+                      textTransform: 'uppercase',
+                      padding: '1rem',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    Cancelar
+                  </button>
               ) : (
                 <button
                   onClick={() => {
                     dialog.resolve?.(true);
-                    setDialog({ show: false, message: '', type: 'alert', placeholder: '', inputValue: '', resolve: null });
+                    setDialog({ show: false, message: '', type: 'alert', placeholder: '', inputValue: '', choices: [], resolve: null });
                   }}
                   className="btn-3d"
                   style={{

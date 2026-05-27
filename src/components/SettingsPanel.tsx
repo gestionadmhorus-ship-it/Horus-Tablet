@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import {
   X, Plus, Trash2, ChevronDown, ChevronUp, Settings,
-  ClipboardPaste, BookOpen, CheckCircle, AlertCircle, ChevronRight, Wifi, ShieldAlert
+  ClipboardPaste, BookOpen, CheckCircle, AlertCircle, ChevronRight, Wifi, ShieldAlert,
+  RefreshCcw, DownloadCloud
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Peer } from 'peerjs';
 import type { ListsData, ElementEntry, AnomalyEntry } from '../types';
 import { INSPECTION_CATEGORIES } from '../types';
 import { HorusSyncManager } from '../utils/legacySync';
+import { UpdateManager } from '../services/UpdateManager';
 
 interface SettingsPanelProps {
   lists: ListsData;
@@ -146,7 +148,13 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
   const [selectedCategory, setSelectedCategory] = useState('Otros');
   const [parseResult, setParseResult] = useState<{ type: 'success' | 'error' | 'warning'; msg: string } | null>(null);
   const [kbExpanded, setKbExpanded] = useState<Record<string, boolean>>({});
-  const [activeTab, setActiveTab] = useState<'lists' | 'knowledge' | 'connection'>('lists');
+  const [activeTab, setActiveTab] = useState<'lists' | 'knowledge' | 'connection' | 'updates'>('lists');
+
+  /* ─── Updates state ─── */
+  const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'available' | 'downloading' | 'error' | 'up-to-date'>('idle');
+  const [availableVersion, setAvailableVersion] = useState('');
+  const [updateUrl, setUpdateUrl] = useState('');
+  const [updateMsg, setUpdateMsg] = useState('');
 
   /* ─── Connection state ─── */
   const appRole = localStorage.getItem('horus_sync_role');
@@ -275,7 +283,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
   };
 
   /* ─── Styles ─── */
-  const tabBtnStyle = (tab: 'lists' | 'knowledge' | 'connection'): React.CSSProperties => ({
+  const tabBtnStyle = (tab: 'lists' | 'knowledge' | 'connection' | 'updates'): React.CSSProperties => ({
     flex: 1, padding: '0.75rem', border: 'none', cursor: 'pointer',
     fontWeight: 700, fontSize: '0.82rem', textTransform: 'uppercase', letterSpacing: '0.5px',
     background: activeTab === tab ? 'rgba(0,242,255,0.1)' : 'transparent',
@@ -283,6 +291,42 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
     borderBottom: `2px solid ${activeTab === tab ? 'var(--primary)' : 'transparent'}`,
     transition: 'all 0.2s ease'
   });
+
+  const handleCheckUpdate = async () => {
+    setUpdateStatus('checking');
+    setUpdateMsg('Conectando con GitHub para verificar actualizaciones...');
+    try {
+      const res = await UpdateManager.checkForUpdates();
+      if (res.hasUpdate) {
+        setUpdateStatus('available');
+        setAvailableVersion(res.version);
+        setUpdateUrl(res.url);
+        setUpdateMsg(`¡Nueva versión ${res.version} disponible y lista para descargar!`);
+      } else {
+        setUpdateStatus('up-to-date');
+        setUpdateMsg('Tu tablet ya cuenta con la versión más reciente.');
+      }
+    } catch (e: any) {
+      setUpdateStatus('error');
+      setUpdateMsg('No se pudo contactar al servidor. ¿Tienes la tablet conectada al WiFi o datos del celular?');
+    }
+  };
+
+  const handleApplyUpdate = async () => {
+    if (!updateUrl) return;
+    setUpdateStatus('downloading');
+    setUpdateMsg('Descargando parche de sistema... No cierres la aplicación. Se reiniciará sola al terminar.');
+    try {
+      await UpdateManager.performUpdate(updateUrl, availableVersion);
+      // Si llega aquí en web (simulación)
+      setUpdateStatus('up-to-date');
+      setUpdateMsg(`¡Actualizado con éxito a la versión ${availableVersion}!`);
+      // En nativo, la app ya se reinició en la línea de arriba.
+    } catch (e: any) {
+      setUpdateStatus('error');
+      setUpdateMsg('Ocurrió un error al instalar. Inténtalo de nuevo más tarde.');
+    }
+  };
 
   const sectionStyle: React.CSSProperties = {
     marginBottom: '0.75rem',
@@ -335,6 +379,11 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
           <button onClick={() => setActiveTab('connection')} style={tabBtnStyle('connection')}>
             <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
               <Wifi size={14} /> Red
+            </span>
+          </button>
+          <button onClick={() => setActiveTab('updates')} style={tabBtnStyle('updates')}>
+            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
+              <RefreshCcw size={14} /> Sistema
             </span>
           </button>
         </div>
@@ -745,6 +794,80 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
                   </button>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* ══════ TAB: UPDATES ══════ */}
+          {activeTab === 'updates' && (
+            <div style={{ padding: '0.5rem' }}>
+              <div style={{ ...sectionStyle, padding: '1.5rem', textAlign: 'center', border: '1px solid rgba(0, 242, 255, 0.4)', background: 'rgba(0, 242, 255, 0.05)' }}>
+                <h3 style={{ color: 'white', marginTop: 0, marginBottom: '0.5rem' }}>Gestión de Versiones</h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
+                  Este panel permite descargar parches de interfaz y lógica táctica de forma aislada. Sus datos no serán afectados.
+                </p>
+
+                <div style={{ background: 'rgba(0,0,0,0.5)', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem', border: '1px solid rgba(255,255,255,0.1)' }}>
+                  <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.3rem' }}>VERSIÓN ACTUAL INSTALADA</span>
+                  <span style={{ fontSize: '1.5rem', fontWeight: 900, color: 'var(--primary)', letterSpacing: '2px' }}>{UpdateManager.getCurrentVersion()}</span>
+                </div>
+
+                <button
+                  onClick={handleCheckUpdate}
+                  disabled={updateStatus === 'checking' || updateStatus === 'downloading'}
+                  className="btn-3d"
+                  style={{
+                    width: '100%',
+                    padding: '0.8rem',
+                    fontSize: '0.85rem',
+                    background: 'linear-gradient(135deg, var(--primary), #b89010)',
+                    color: 'black',
+                    fontWeight: 'bold',
+                    textTransform: 'uppercase',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                    marginBottom: '1rem',
+                    opacity: (updateStatus === 'checking' || updateStatus === 'downloading') ? 0.6 : 1
+                  }}
+                >
+                  <RefreshCcw size={16} className={updateStatus === 'checking' ? 'spinning' : ''} />
+                  Buscar Actualizaciones OTA
+                </button>
+
+                {updateStatus === 'available' && (
+                  <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(0, 255, 136, 0.1)', border: '1px solid rgba(0, 255, 136, 0.3)', borderRadius: '8px' }}>
+                    <p style={{ color: '#00ff88', fontWeight: 'bold', margin: '0 0 1rem 0' }}>{updateMsg}</p>
+                    <button
+                      onClick={handleApplyUpdate}
+                      className="btn-3d"
+                      style={{
+                        width: '100%',
+                        padding: '0.8rem',
+                        fontSize: '0.85rem',
+                        background: '#00ff88',
+                        color: 'black',
+                        fontWeight: 'bold',
+                        textTransform: 'uppercase',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem'
+                      }}
+                    >
+                      <DownloadCloud size={16} /> Descargar e Instalar
+                    </button>
+                  </div>
+                )}
+
+                {(updateStatus === 'up-to-date' || updateStatus === 'error' || updateStatus === 'downloading' || updateStatus === 'checking') && updateMsg && (
+                  <div style={{ 
+                    marginTop: '1rem', 
+                    padding: '0.8rem', 
+                    borderRadius: '8px',
+                    background: updateStatus === 'error' ? 'rgba(255, 68, 68, 0.1)' : 'rgba(255, 255, 255, 0.05)',
+                    border: `1px solid ${updateStatus === 'error' ? 'rgba(255, 68, 68, 0.3)' : 'rgba(255, 255, 255, 0.1)'}`,
+                    color: updateStatus === 'error' ? '#ff4444' : 'var(--text-secondary)',
+                    fontSize: '0.85rem'
+                  }}>
+                    {updateMsg}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
