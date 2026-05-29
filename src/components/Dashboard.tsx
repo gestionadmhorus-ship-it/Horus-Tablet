@@ -400,32 +400,52 @@ const Dashboard: React.FC<DashboardProps> = ({
 
         @media (max-width: 768px) {
           .dashboard-container {
-            padding: 0.75rem;
+            padding: 0.5rem;
+            padding-top: 0.5rem;
           }
           .dashboard-banner {
-            padding: 1rem;
+            padding: 0.75rem;
           }
           .dashboard-banner-title {
-            font-size: 1.3rem;
+            font-size: 1.15rem;
           }
           .dashboard-banner-subtitle {
-            font-size: 0.65rem;
+            font-size: 0.6rem;
           }
           .dashboard-grid {
-            grid-template-columns: 1fr !important;
-            gap: 1rem;
-            padding-bottom: 5rem; /* Espacio extra para que no se corten las tarjetas del final */
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 0.5rem;
+            padding-bottom: 0.5rem;
           }
           .col-span-2 { grid-column: span 1 !important; }
           .col-span-3 { grid-column: span 1 !important; }
-          .mobile-full-width { grid-column: span 1 !important; }
+          .mobile-full-width { grid-column: span 2 !important; }
 
           .dashboard-card {
-            padding: 1rem;
-            min-height: 135px;
+            padding: 0.6rem;
+            min-height: 95px;
+            justify-content: space-around;
+          }
+          .dashboard-card-title {
+            font-size: 0.85rem !important;
+            line-height: 1.1;
+          }
+          .dashboard-card-desc {
+            display: none !important;
           }
           .card-live-metric {
-            font-size: 0.65rem;
+            font-size: 0.6rem;
+            padding: 0.3rem 0.4rem;
+            margin-top: 0.3rem;
+          }
+          .card-icon-wrapper {
+            padding: 0.4rem;
+            width: fit-content;
+            margin-bottom: 0.2rem;
+          }
+          .card-icon-wrapper svg {
+            width: 18px;
+            height: 18px;
           }
           .dashboard-top-actions {
             position: relative !important;
@@ -435,9 +455,6 @@ const Dashboard: React.FC<DashboardProps> = ({
             justify-content: flex-end;
             margin-bottom: 0.5rem;
             flex-wrap: wrap;
-          }
-          .dashboard-container {
-            padding-top: 0.75rem;
           }
         }
       `}} />
