@@ -456,6 +456,32 @@ const Dashboard: React.FC<DashboardProps> = ({
             margin-bottom: 0.5rem;
             flex-wrap: wrap;
           }
+          .telemetry-wave {
+            display: none !important;
+          }
+          .flight-actions {
+            flex-direction: row !important;
+            gap: 0.25rem !important;
+            margin-top: 0.25rem;
+          }
+          .flight-actions > div {
+            gap: 0.25rem !important;
+            width: auto !important;
+            flex: 2;
+          }
+          .flight-actions button {
+            padding: 0.35rem !important;
+            flex: 1;
+          }
+          .action-text {
+            display: none !important;
+          }
+          .dashboard-edit-badge {
+            width: 24px !important;
+            height: 24px !important;
+            top: 6px !important;
+            right: 6px !important;
+          }
         }
       `}} />
 
@@ -698,26 +724,26 @@ const Dashboard: React.FC<DashboardProps> = ({
             </div>
 
             {isKMSActive && activeFlightName ? (
-              <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '0.4rem', zIndex: 10 }}>
+              <div className="flight-actions" style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '0.4rem', zIndex: 10 }}>
                 <div style={{ display: 'flex', gap: '0.4rem', width: '100%' }}>
                   <button 
                     onClick={(e) => { e.stopPropagation(); onEditFlight(); }}
                     style={{ flex: 1, padding: '0.45rem', background: 'rgba(217, 119, 6, 0.08)', border: '1px solid var(--primary)', color: 'var(--primary)', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.2rem', fontSize: '0.72rem' }}
                   >
-                    <Pencil size={11} /> EDITAR
+                    <Pencil size={11} /> <span className="action-text">EDITAR</span>
                   </button>
                   <button 
                     onClick={(e) => { e.stopPropagation(); onNewFlight('KMS'); }}
                     style={{ flex: 1, padding: '0.45rem', background: 'rgba(16, 185, 129, 0.08)', border: '1px solid var(--neon-green)', color: 'var(--neon-green)', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.2rem', fontSize: '0.72rem' }}
                   >
-                    + NUEVO
+                    <Plane size={11} /> <span className="action-text">+ NUEVO</span>
                   </button>
                 </div>
                 <button 
                   onClick={(e) => { e.stopPropagation(); onCloseFlight && activeFlightId && onCloseFlight(activeFlightId); }}
                   style={{ width: '100%', padding: '0.45rem', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid var(--neon-red)', color: 'var(--neon-red)', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.2rem', fontSize: '0.72rem' }}
                 >
-                  <Power size={11} /> CERRAR VUELO
+                  <Power size={11} /> <span className="action-text">CERRAR VUELO</span>
                 </button>
               </div>
             ) : (
@@ -758,26 +784,26 @@ const Dashboard: React.FC<DashboardProps> = ({
             </div>
 
             {isHSActive && activeFlightName ? (
-              <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '0.4rem', zIndex: 10 }}>
+              <div className="flight-actions" style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '0.4rem', zIndex: 10 }}>
                 <div style={{ display: 'flex', gap: '0.4rem', width: '100%' }}>
                   <button 
                     onClick={(e) => { e.stopPropagation(); onEditFlight(); }}
                     style={{ flex: 1, padding: '0.45rem', background: 'rgba(217, 119, 6, 0.08)', border: '1px solid var(--primary)', color: 'var(--primary)', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.2rem', fontSize: '0.72rem' }}
                   >
-                    <Pencil size={11} /> EDITAR
+                    <Pencil size={11} /> <span className="action-text">EDITAR</span>
                   </button>
                   <button 
                     onClick={(e) => { e.stopPropagation(); onNewFlight('HS'); }}
                     style={{ flex: 1, padding: '0.45rem', background: 'rgba(16, 185, 129, 0.08)', border: '1px solid var(--neon-green)', color: 'var(--neon-green)', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.2rem', fontSize: '0.72rem' }}
                   >
-                    + NUEVO
+                    <Clock size={11} /> <span className="action-text">+ NUEVO</span>
                   </button>
                 </div>
                 <button 
                   onClick={(e) => { e.stopPropagation(); onCloseFlight && activeFlightId && onCloseFlight(activeFlightId); }}
                   style={{ width: '100%', padding: '0.45rem', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid var(--neon-red)', color: 'var(--neon-red)', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.2rem', fontSize: '0.72rem' }}
                 >
-                  <Power size={11} /> CERRAR VUELO
+                  <Power size={11} /> <span className="action-text">CERRAR VUELO</span>
                 </button>
               </div>
             ) : (
