@@ -29,11 +29,12 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ 
   data, onNavigate, onSettings, hasActiveShift, hasActiveFlight, activeFlightType, onCloseShift, 
-  onReopenShift, hasTodayClosedShift, activeShiftId, activeFlightId, activeFlightName,
+  onReopenShift, hasTodayClosedShift, activeShiftId, activeFlightId,
   onEditShift, onEditFlight, onNewFlight, onCloseFlight, deviceName, syncStatus, appRole,
   currentTheme = 'hud', onChangeTheme
 }) => {
   const [currentTime, setCurrentTime] = React.useState(new Date());
+  const [actionMenu, setActionMenu] = React.useState<'KMS' | 'HS' | null>(null);
   const isKMSActive = hasActiveFlight && activeFlightType === 'KMS';
   const isHSActive = hasActiveFlight && activeFlightType === 'HS';
   const isBatteryEnabled = hasActiveFlight && activeFlightType === 'KMS';
@@ -421,6 +422,20 @@ const Dashboard: React.FC<DashboardProps> = ({
           .col-span-3 { grid-column: span 1 !important; }
           .mobile-full-width { grid-column: span 2 !important; }
 
+          .dashboard-banner {
+            border: 1px solid rgba(255, 255, 255, 0.12) !important;
+            border-bottom: 3px solid rgba(255, 255, 255, 0.25) !important;
+            border-right: 3px solid rgba(255, 255, 255, 0.25) !important;
+            box-shadow: 4px 4px 15px rgba(0, 0, 0, 0.5) !important;
+          }
+          
+          .dashboard-top-actions > div, .dashboard-top-actions > button {
+            border: 1px solid rgba(255, 255, 255, 0.12) !important;
+            border-bottom: 3px solid rgba(255, 255, 255, 0.25) !important;
+            border-right: 3px solid rgba(255, 255, 255, 0.25) !important;
+            box-shadow: 4px 4px 15px rgba(0, 0, 0, 0.5) !important;
+          }
+
           .dashboard-card {
             padding: 0.6rem;
             min-height: 95px;
@@ -577,18 +592,18 @@ const Dashboard: React.FC<DashboardProps> = ({
         <button
           onClick={onSettings}
           style={{
-            background: 'linear-gradient(135deg, rgba(0, 150, 255, 0.15), rgba(255, 136, 0, 0.15))',
+            background: 'rgba(0, 150, 255, 0.1)',
             border: '1px solid rgba(0, 150, 255, 0.5)',
-            borderRight: '2px solid #ff8800',
-            borderBottom: '2px solid #ff8800',
+            borderRight: '3px solid rgba(200, 200, 200, 0.5)',
+            borderBottom: '3px solid rgba(200, 200, 200, 0.5)',
             borderRadius: '8px',
-            color: '#ff8800',
+            color: '#0096ff',
             cursor: 'pointer',
             padding: '0.7rem',
             display: 'flex',
             alignItems: 'center',
             transition: 'all 0.2s ease',
-            boxShadow: '0 4px 15px rgba(255, 136, 0, 0.4), inset 0 0 10px rgba(0, 150, 255, 0.3)',
+            boxShadow: '0 4px 15px rgba(200, 200, 200, 0.25)',
             backdropFilter: 'blur(10px)',
             WebkitBackdropFilter: 'blur(10px)'
           }}
@@ -707,10 +722,10 @@ const Dashboard: React.FC<DashboardProps> = ({
         <div style={{ position: 'relative' }} className="col-span-2">
           <motion.div
             className={`dashboard-card ${isKMSActive ? 'card-vuelo-activo' : ''}`}
-            onClick={() => hasActiveShift && !isKMSActive ? onNewFlight('KMS') : undefined}
+            onClick={() => hasActiveShift ? (isKMSActive ? setActionMenu('KMS') : onNewFlight('KMS')) : undefined}
             style={{ 
               width: '100%', 
-              cursor: hasActiveShift && !isKMSActive ? 'pointer' : 'default',
+              cursor: hasActiveShift ? 'pointer' : 'default',
               opacity: hasActiveShift ? 1 : 0.5
             }}
           >
@@ -728,34 +743,9 @@ const Dashboard: React.FC<DashboardProps> = ({
               )}
             </div>
 
-            {isKMSActive && activeFlightName ? (
-              <div className="flight-actions" style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '0.4rem', zIndex: 10 }}>
-                <div style={{ display: 'flex', gap: '0.4rem', width: '100%' }}>
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); onEditFlight(); }}
-                    style={{ flex: 1, padding: '0.45rem', background: 'rgba(217, 119, 6, 0.08)', border: '1px solid var(--primary)', color: 'var(--primary)', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.2rem', fontSize: '0.72rem' }}
-                  >
-                    <Pencil size={11} /> <span className="action-text">EDITAR</span>
-                  </button>
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); onNewFlight('KMS'); }}
-                    style={{ flex: 1, padding: '0.45rem', background: 'rgba(16, 185, 129, 0.08)', border: '1px solid var(--neon-green)', color: 'var(--neon-green)', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.2rem', fontSize: '0.72rem' }}
-                  >
-                    <Plane size={11} /> <span className="action-text">+ NUEVO</span>
-                  </button>
-                </div>
-                <button 
-                  onClick={(e) => { e.stopPropagation(); onCloseFlight && activeFlightId && onCloseFlight(activeFlightId); }}
-                  style={{ width: '100%', padding: '0.45rem', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid var(--neon-red)', color: 'var(--neon-red)', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.2rem', fontSize: '0.72rem' }}
-                >
-                  <Power size={11} /> <span className="action-text">CERRAR VUELO</span>
-                </button>
-              </div>
-            ) : (
-              <div className="card-live-metric">
-                {hasActiveShift ? kmsText : 'Jornada Requerida'}
-              </div>
-            )}
+            <div className="card-live-metric">
+              {hasActiveShift ? (isKMSActive ? 'VUELO EN CURSO' : kmsText) : 'Jornada Requerida'}
+            </div>
           </motion.div>
           
           {!hasActiveShift && (
@@ -767,10 +757,10 @@ const Dashboard: React.FC<DashboardProps> = ({
         <div style={{ position: 'relative' }} className="col-span-2">
           <motion.div
             className={`dashboard-card ${isHSActive ? 'card-vuelo-activo' : ''}`}
-            onClick={() => hasActiveShift && !isHSActive ? onNewFlight('HS') : undefined}
+            onClick={() => hasActiveShift ? (isHSActive ? setActionMenu('HS') : onNewFlight('HS')) : undefined}
             style={{ 
               width: '100%', 
-              cursor: hasActiveShift && !isHSActive ? 'pointer' : 'default',
+              cursor: hasActiveShift ? 'pointer' : 'default',
               opacity: hasActiveShift ? 1 : 0.5
             }}
           >
@@ -788,34 +778,9 @@ const Dashboard: React.FC<DashboardProps> = ({
               )}
             </div>
 
-            {isHSActive && activeFlightName ? (
-              <div className="flight-actions" style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '0.4rem', zIndex: 10 }}>
-                <div style={{ display: 'flex', gap: '0.4rem', width: '100%' }}>
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); onEditFlight(); }}
-                    style={{ flex: 1, padding: '0.45rem', background: 'rgba(217, 119, 6, 0.08)', border: '1px solid var(--primary)', color: 'var(--primary)', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.2rem', fontSize: '0.72rem' }}
-                  >
-                    <Pencil size={11} /> <span className="action-text">EDITAR</span>
-                  </button>
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); onNewFlight('HS'); }}
-                    style={{ flex: 1, padding: '0.45rem', background: 'rgba(16, 185, 129, 0.08)', border: '1px solid var(--neon-green)', color: 'var(--neon-green)', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.2rem', fontSize: '0.72rem' }}
-                  >
-                    <Clock size={11} /> <span className="action-text">+ NUEVO</span>
-                  </button>
-                </div>
-                <button 
-                  onClick={(e) => { e.stopPropagation(); onCloseFlight && activeFlightId && onCloseFlight(activeFlightId); }}
-                  style={{ width: '100%', padding: '0.45rem', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid var(--neon-red)', color: 'var(--neon-red)', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.2rem', fontSize: '0.72rem' }}
-                >
-                  <Power size={11} /> <span className="action-text">CERRAR VUELO</span>
-                </button>
-              </div>
-            ) : (
-              <div className="card-live-metric">
-                {hasActiveShift ? hsText : 'Jornada Requerida'}
-              </div>
-            )}
+            <div className="card-live-metric">
+              {hasActiveShift ? (isHSActive ? 'VUELO EN CURSO' : hsText) : 'Jornada Requerida'}
+            </div>
           </motion.div>
           
           {!hasActiveShift && (
@@ -909,6 +874,30 @@ const Dashboard: React.FC<DashboardProps> = ({
       <footer className="dashboard-footer">
         <p style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '1px', margin: 0 }}>HORUS DRON | INTERFACE</p>
       </footer>
+
+      {actionMenu && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(5px)' }} onClick={() => setActionMenu(null)}>
+          <div style={{ background: 'var(--bg-dark)', padding: '1.5rem', borderRadius: '16px', border: '1.5px solid var(--border-input)', display: 'flex', flexDirection: 'column', gap: '1rem', width: '85%', maxWidth: '350px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ margin: 0, textAlign: 'center', color: 'var(--text-primary)', marginBottom: '0.5rem', fontSize: '1.1rem' }}>Opciones de Vuelo {actionMenu}</h3>
+            
+            <button onClick={() => { onEditFlight(); setActionMenu(null); }} style={{ padding: '1rem', background: 'rgba(217,119,6,0.1)', color: 'var(--primary)', border: '1px solid var(--primary)', borderRadius: '8px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', fontSize: '0.9rem' }}>
+              <Pencil size={16} /> Editar vuelo actual
+            </button>
+            
+            <button onClick={() => { onNewFlight(actionMenu); setActionMenu(null); }} style={{ padding: '1rem', background: 'rgba(16,185,129,0.1)', color: 'var(--neon-green)', border: '1px solid var(--neon-green)', borderRadius: '8px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', fontSize: '0.9rem' }}>
+              {actionMenu === 'KMS' ? <Plane size={16} /> : <Clock size={16} />} Agregar un vuelo nuevo
+            </button>
+            
+            <button onClick={() => { onCloseFlight && activeFlightId && onCloseFlight(activeFlightId); setActionMenu(null); }} style={{ padding: '1rem', background: 'rgba(239,68,68,0.1)', color: 'var(--neon-red)', border: '1px solid var(--neon-red)', borderRadius: '8px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', fontSize: '0.9rem' }}>
+              <Power size={16} /> Cerrar el vuelo
+            </button>
+            
+            <button onClick={() => setActionMenu(null)} style={{ padding: '1rem', background: 'transparent', color: 'var(--text-secondary)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontWeight: 'bold', marginTop: '0.5rem', fontSize: '0.9rem' }}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
