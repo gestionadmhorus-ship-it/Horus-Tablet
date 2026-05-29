@@ -73,9 +73,7 @@ export interface BatteryData {
   timestamp: string;
   pilot: string;
   droneBatteryName: string;   // Alphanumeric ID, max 3 chars
-  droneBattery: string;
   controlBatteryName: string; // Alphanumeric ID, max 3 chars
-  controlBattery: string;
   deviceName?: string;
   isSynced?: boolean;
   isEdited?: boolean;

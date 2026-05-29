@@ -620,7 +620,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
                 <th style={{ padding: '1.5rem 1.2rem', color: 'var(--primary)', fontSize: '0.9rem', textTransform: 'uppercase', fontWeight: 900, letterSpacing: '1px' }}>Fecha/Hora</th>
                 {activeTable === 'shifts' && <><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Coordinador</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Asistentes</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Vehículo</th></>}
                 {activeTable === 'flights' && <><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Piloto</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Línea</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Obs.</th></>}
-                {activeTable === 'batteries' && <><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Piloto</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>ID Dron</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Bat. Dron</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>ID RC</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Bat. RC</th></>}
+                {activeTable === 'batteries' && <><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Piloto</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>ID Dron</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>ID RC</th></>}
                 {activeTable === 'detections' && <><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Elemento</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Anomalía</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Criticidad</th></>}
                 {activeTable === 'checklists' && (
                   checklistSubtype === 'drone' ? (
@@ -681,9 +681,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
                     <>
                       <td style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>{item.pilot}</td>
                       <td style={{ padding: '1.2rem', color: 'var(--neon-cyan)', fontWeight: 800 }}>{item.droneBatteryName || '—'}</td>
-                      <td style={{ padding: '1.2rem', color: 'var(--text-primary)', fontWeight: 800 }}>{item.droneBattery}%</td>
                       <td style={{ padding: '1.2rem', color: 'var(--neon-cyan)', fontWeight: 800 }}>{item.controlBatteryName || '—'}</td>
-                      <td style={{ padding: '1.2rem', color: 'var(--text-primary)', fontWeight: 800 }}>{item.controlBattery}%</td>
                     </>
                   )}
                   {activeTable === 'detections' && (
@@ -906,13 +904,13 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
                       <div className="history-card-item">
                         <span className="history-card-label">Batería Dron:</span>
                         <span className="history-card-value" style={{ color: 'var(--neon-cyan)', fontWeight: 'bold' }}>
-                          {item.droneBatteryName || 'Dron'}: {item.droneBattery}%
+                          {item.droneBatteryName || 'Dron'}
                         </span>
                       </div>
                       <div className="history-card-item">
                         <span className="history-card-label">Batería RC:</span>
                         <span className="history-card-value" style={{ color: 'var(--neon-cyan)', fontWeight: 'bold' }}>
-                          {item.controlBatteryName || 'RC'}: {item.controlBattery}%
+                          {item.controlBatteryName || 'RC'}
                         </span>
                       </div>
                     </>
@@ -1201,18 +1199,8 @@ const EditModal: React.FC<{
                   <input type="text" maxLength={3} value={formData.droneBatteryName || ''} onChange={e => setFormData({ ...formData, droneBatteryName: e.target.value.toUpperCase() })} />
                 </div>
                 <div>
-                  <label>Batería Dron %</label>
-                  <input type="number" value={formData.droneBattery} onChange={e => setFormData({ ...formData, droneBattery: e.target.value })} />
-                </div>
-              </div>
-              <div className="grid-cols-2">
-                <div>
                   <label>ID Batería Control</label>
                   <input type="text" maxLength={3} value={formData.controlBatteryName || ''} onChange={e => setFormData({ ...formData, controlBatteryName: e.target.value.toUpperCase() })} />
-                </div>
-                <div>
-                  <label>Batería RC %</label>
-                  <input type="number" value={formData.controlBattery} onChange={e => setFormData({ ...formData, controlBattery: e.target.value })} />
                 </div>
               </div>
             </>

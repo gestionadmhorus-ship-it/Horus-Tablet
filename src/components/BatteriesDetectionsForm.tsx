@@ -72,7 +72,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
   const [isSaving, setIsSaving] = useState(false);
 
   /* ─── Battery state ─── */
-  const [batteryData, setBatteryData] = useState({ pilot: '', droneBatteryName: '', droneBattery: '', controlBatteryName: '', controlBattery: '' });
+  const [batteryData, setBatteryData] = useState({ pilot: '', droneBatteryName: '', controlBatteryName: '' });
 
   /* ─── Detection state (cascading) ─── */
   const [selectedElement, setSelectedElement] = useState('');
@@ -126,7 +126,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
       const now = new Date();
       onSaveBattery({ id: generateId('BAT'), flightId: activeFlightId, timestamp: `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`, ...batteryData });
       await window.customAlert('✅ Baterías guardadas con éxito');
-      setBatteryData({ pilot: '', droneBatteryName: '', droneBattery: '', controlBatteryName: '', controlBattery: '' });
+      setBatteryData({ pilot: '', droneBatteryName: '', controlBatteryName: '' });
     } finally {
       setIsSaving(false);
     }
@@ -254,14 +254,6 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
                   onChange={e => setBatteryData({ ...batteryData, droneBatteryName: e.target.value.toUpperCase() })}
                   style={{ marginBottom: '0.75rem' }}
                 />
-                <label>Carga Dron (%)</label>
-                <div style={{ position: 'relative' }}>
-                  <input type="number" required min={0} max={100} placeholder="Ej: 85"
-                    value={batteryData.droneBattery}
-                    onChange={e => setBatteryData({ ...batteryData, droneBattery: e.target.value })}
-                  />
-                  <BatteryBar value={batteryData.droneBattery} />
-                </div>
               </div>
               <div>
                 <label>ID Batería Control</label>
@@ -270,14 +262,6 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
                   onChange={e => setBatteryData({ ...batteryData, controlBatteryName: e.target.value.toUpperCase() })}
                   style={{ marginBottom: '0.75rem' }}
                 />
-                <label>Carga Control (%)</label>
-                <div style={{ position: 'relative' }}>
-                  <input type="number" required min={0} max={100} placeholder="Ej: 92"
-                    value={batteryData.controlBattery}
-                    onChange={e => setBatteryData({ ...batteryData, controlBattery: e.target.value })}
-                  />
-                  <BatteryBar value={batteryData.controlBattery} />
-                </div>
               </div>
             </div>
 
