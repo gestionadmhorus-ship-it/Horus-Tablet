@@ -425,8 +425,10 @@ const Dashboard: React.FC<DashboardProps> = ({
             padding: 0.6rem;
             min-height: 95px;
             justify-content: space-around;
-            border: 1.5px solid var(--border-input) !important;
-            box-shadow: 0 6px 16px rgba(0,0,0,0.25) !important;
+            border: 1px solid rgba(255, 255, 255, 0.12) !important;
+            border-bottom: 3px solid rgba(255, 255, 255, 0.25) !important;
+            border-right: 3px solid rgba(255, 255, 255, 0.25) !important;
+            box-shadow: 4px 4px 15px rgba(0, 0, 0, 0.5) !important;
             background: var(--bg-dark) !important;
           }
           .dashboard-card-title {
