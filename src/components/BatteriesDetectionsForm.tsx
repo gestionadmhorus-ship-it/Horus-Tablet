@@ -55,14 +55,7 @@ const SmartSelect: React.FC<{
   </div>
 );
 
-/* ─── Battery level bar ─── */
-const BatteryBar: React.FC<{ value: string }> = ({ value }) => {
-  const pct = Math.min(Math.max(Number(value) || 0, 0), 100);
-  const color = pct > 50 ? 'var(--accent)' : pct > 20 ? '#ffcc00' : '#ff4444';
-  return value ? (
-    <div style={{ position: 'absolute', bottom: '-5px', left: 0, width: `${pct}%`, height: '3px', background: color, borderRadius: '0 0 4px 4px', transition: 'width 0.4s ease' }} />
-  ) : null;
-};
+
 
 /* ═══════════════ COMPONENT ═══════════════ */
 const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
