@@ -782,8 +782,11 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
               ) : (
                 <div style={{ ...sectionStyle, padding: '1.5rem', textAlign: 'center', border: '1px solid #ff4444', background: 'rgba(255,68,68,0.05)' }}>
                   <h3 style={{ color: '#ff4444', marginTop: 0, marginBottom: '0.5rem' }}>Zona de Peligro</h3>
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '2rem' }}>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1rem' }}>
                     Si cambiaste de operación, puedes desvincularte de la Central actual. Deberás escanear el QR de la nueva Central para volver a operar.
+                  </p>
+                  <p style={{ color: '#ff4444', fontSize: '0.85rem', marginBottom: '2rem', fontWeight: 'bold' }}>
+                    ⚠️ ADVERTENCIA: Al desvincularte perderás toda la información registrada localmente. Se recomienda encarecidamente sincronizar y descargar toda tu información desde el Historial antes de continuar.
                   </p>
                   <button
                     onClick={handleUnbindClient}
