@@ -425,6 +425,9 @@ const Dashboard: React.FC<DashboardProps> = ({
             padding: 0.6rem;
             min-height: 95px;
             justify-content: space-around;
+            border: 1.5px solid var(--border-input) !important;
+            box-shadow: 0 6px 16px rgba(0,0,0,0.25) !important;
+            background: var(--bg-dark) !important;
           }
           .dashboard-card-title {
             font-size: 0.85rem !important;
@@ -672,7 +675,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               <h2 className="dashboard-card-title">Inicio de Jornada</h2>
               <p className="dashboard-card-desc">Logística y personal de base.</p>
               {hasActiveShift && (
-                <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0', fontWeight: 600 }}>
+                <p className="dashboard-card-desc" style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0', fontWeight: 600 }}>
                   {shiftSubText}
                 </p>
               )}
@@ -717,7 +720,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               <h2 className="dashboard-card-title">Vuelos KMS</h2>
               <p className="dashboard-card-desc">Inspección de líneas críticas.</p>
               {hasActiveShift && (
-                <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <p className="dashboard-card-desc" style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {kmsSubText}
                 </p>
               )}
@@ -777,7 +780,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               <h2 className="dashboard-card-title">Vuelos HS</h2>
               <p className="dashboard-card-desc">Registro de tareas por horas.</p>
               {hasActiveShift && (
-                <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <p className="dashboard-card-desc" style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {hsSubText}
                 </p>
               )}
@@ -838,7 +841,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               <h2 className="dashboard-card-title">Baterías & Anomalías</h2>
               <p className="dashboard-card-desc">Telemetría y fallas detectadas.</p>
               {isBatteryEnabled && (
-                <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0', fontWeight: 600 }}>
+                <p className="dashboard-card-desc" style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0', fontWeight: 600 }}>
                   {detectionsSubText}
                 </p>
               )}
@@ -883,7 +886,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         <motion.div
           whileTap={{ scale: 0.98 }}
           onClick={() => onNavigate('checklist')}
-          className="dashboard-card col-span-2 mobile-full-width"
+          className="dashboard-card col-span-2"
           style={{ cursor: 'pointer' }}
         >
           {renderTelemetryWave('var(--primary)', '7s')}
