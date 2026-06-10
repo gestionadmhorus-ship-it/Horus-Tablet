@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Save, ArrowLeft,
-  Battery, AlertTriangle, ChevronRight, ChevronLeft, FileText, Info
+  Battery, AlertTriangle, ChevronRight, ChevronLeft, FileText, Info,
+  Clock, Lock, Unlock, Plus, Minus
 } from 'lucide-react';
 import type { BatteryData, DetectionData, ListsData } from '../types';
 import { generateId } from '../utils/idGenerator';
@@ -64,6 +65,10 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
   const [activePanel, setActivePanel] = useState<ActivePanel>('batteries');
   const [isSaving, setIsSaving] = useState(false);
 
+  /* ─── Detection Time Sync state ─── */
+  const [currentTime, setCurrentTime] = useState<Date>(new Date());
+  const [fixedTime, setFixedTime] = useState<Date | null>(null);
+
   /* ─── Battery state ─── */
   const [batteryData, setBatteryData] = useState({ pilot: '', droneBatteryName: '', controlBatteryName: '' });
 
@@ -74,6 +79,35 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
   const [criticality, setCriticality] = useState('');
   const [fileName, setFileName] = useState('');
   const [observations, setObservations] = useState('');
+
+  /* ─── Time Sync logic ─── */
+  useEffect(() => {
+    if (activePanel !== 'detections' || fixedTime !== null) return;
+    
+    const interval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [activePanel, fixedTime]);
+
+  const handleToggleFixTime = () => {
+    if (fixedTime === null) {
+      setFixedTime(new Date());
+    } else {
+      setFixedTime(null);
+      setCurrentTime(new Date());
+    }
+  };
+
+  const handleAdjustTime = (seconds: number) => {
+    let baseTime = fixedTime;
+    if (baseTime === null) {
+      baseTime = new Date();
+    }
+    const newTime = new Date(baseTime.getTime() + seconds * 1000);
+    setFixedTime(newTime);
+  };
 
 
   /* ─── Cascading logic ─── */
@@ -136,11 +170,11 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
     
     setIsSaving(true);
     try {
-      const now = new Date();
+      const saveTime = fixedTime || new Date();
       onSaveDetection({
         id: generateId('DET'),
         flightId: activeFlightId,
-        timestamp: `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`,
+        timestamp: `${saveTime.toLocaleDateString()} ${saveTime.toLocaleTimeString()}`,
         element: selectedElement,
         anomaly: selectedAnomaly,
         recommendation,
@@ -151,6 +185,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
       await window.customAlert('✅ Detección guardada con éxito');
       setSelectedElement(''); setSelectedAnomaly(''); setRecommendation('');
       setCriticality(''); setFileName(''); setObservations('');
+      setFixedTime(null); // Reset fixed time back to real-time clock
     } finally {
       setIsSaving(false);
     }
@@ -314,6 +349,168 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
                 </span>
               </div>
             )}
+
+            {/* ─ Sincronización de Hora / Ajustes ─ */}
+            <div style={{
+              background: 'var(--card-bg)',
+              border: '1px solid var(--glass-border)',
+              borderRadius: '12px',
+              padding: '1rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.75rem',
+              boxShadow: 'var(--shadow-glow)'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Clock size={18} color="var(--text-secondary)" />
+                  <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', fontWeight: 800, letterSpacing: '1px' }}>HORA REGISTRO DETECCIÓN</span>
+                </div>
+                {fixedTime !== null ? (
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.25rem',
+                    fontSize: '0.75rem',
+                    color: '#FFD600',
+                    fontWeight: 'bold',
+                    background: 'rgba(255,214,0,0.1)',
+                    padding: '3px 8px',
+                    borderRadius: '6px',
+                    border: '1px solid rgba(255,214,0,0.3)'
+                  }}>
+                    <Lock size={12} /> HORA FIJADA
+                  </span>
+                ) : (
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.25rem',
+                    fontSize: '0.75rem',
+                    color: '#00ff88',
+                    fontWeight: 'bold',
+                    background: 'rgba(0,255,136,0.1)',
+                    padding: '3px 8px',
+                    borderRadius: '6px',
+                    border: '1px solid rgba(0,255,136,0.3)'
+                  }}>
+                    <span style={{
+                      width: '6px',
+                      height: '6px',
+                      background: '#00ff88',
+                      borderRadius: '50%',
+                      display: 'inline-block'
+                    }}></span>
+                    TIEMPO REAL
+                  </span>
+                )}
+              </div>
+
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                background: 'rgba(0, 0, 0, 0.4)',
+                border: '1px solid rgba(255, 255, 255, 0.05)',
+                borderRadius: '8px',
+                padding: '0.5rem 1rem'
+              }}>
+                <span style={{
+                  fontSize: '1.5rem',
+                  fontFamily: 'monospace',
+                  fontWeight: 900,
+                  color: fixedTime !== null ? '#FFD600' : 'white',
+                  textShadow: fixedTime !== null ? '0 0 10px rgba(255,214,0,0.3)' : 'none'
+                }}>
+                  {(fixedTime || currentTime).toLocaleTimeString()}
+                </span>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
+                  {(fixedTime || currentTime).toLocaleDateString()}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.25rem' }}>
+                <button
+                  type="button"
+                  onClick={handleToggleFixTime}
+                  className="btn-3d"
+                  style={{
+                    flex: 2,
+                    padding: '10px',
+                    fontSize: '0.82rem',
+                    fontWeight: 900,
+                    textTransform: 'uppercase',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.5rem',
+                    background: fixedTime !== null ? '#FF1744' : 'var(--primary)',
+                    color: fixedTime !== null ? 'white' : 'black',
+                    border: 'none',
+                    borderRadius: '8px',
+                    boxShadow: fixedTime !== null ? '0 6px 18px rgba(255,23,68,0.15)' : '0 6px 18px rgba(16,185,129,0.15)'
+                  }}
+                >
+                  {fixedTime !== null ? (
+                    <>
+                      <Unlock size={16} /> LIBERAR RELOJ
+                    </>
+                  ) : (
+                    <>
+                      <Lock size={16} /> FIJAR HORA
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleAdjustTime(-1)}
+                  className="btn-3d"
+                  style={{
+                    flex: 1,
+                    padding: '10px',
+                    fontSize: '0.9rem',
+                    fontWeight: 900,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.25rem',
+                    background: 'black',
+                    color: 'var(--primary)',
+                    border: '1px solid var(--primary)',
+                    borderRadius: '8px',
+                    boxShadow: 'none'
+                  }}
+                  title="Restar 1 segundo"
+                >
+                  <Minus size={16} /> 1s
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleAdjustTime(1)}
+                  className="btn-3d"
+                  style={{
+                    flex: 1,
+                    padding: '10px',
+                    fontSize: '0.9rem',
+                    fontWeight: 900,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.25rem',
+                    background: 'black',
+                    color: 'var(--primary)',
+                    border: '1px solid var(--primary)',
+                    borderRadius: '8px',
+                    boxShadow: 'none'
+                  }}
+                  title="Sumar 1 segundo"
+                >
+                  <Plus size={16} /> 1s
+                </button>
+              </div>
+            </div>
 
             {/* ─ Elemento ─ */}
             <div>
