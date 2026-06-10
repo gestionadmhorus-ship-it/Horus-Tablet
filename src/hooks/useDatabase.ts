@@ -3,6 +3,7 @@ import { db } from '../db/db';
 import { DEFAULT_LISTS, type ListsData, type AppData, type ShiftData, type FlightData, type BatteryData, type DetectionData, type DroneChecklistData } from '../types';
 import { useEffect, useRef } from 'react';
 import { persistToDisk, loadFromDisk } from '../services/NativeStorage';
+import { formatTimestamp } from '../utils/dateUtils';
 
 export function useDatabase() {
   // 1. Live Queries for real-time UI updates
@@ -89,7 +90,7 @@ export function useDatabase() {
     return {
       isEdited: true,
       lastModified: Date.now(),
-      editedTimestamp: `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`
+      editedTimestamp: formatTimestamp(now)
     };
   };
 

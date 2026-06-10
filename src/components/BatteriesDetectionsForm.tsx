@@ -7,6 +7,7 @@ import {
 import type { BatteryData, DetectionData, ListsData } from '../types';
 import { generateId } from '../utils/idGenerator';
 import { SearchableSelect } from './SearchableSelect';
+import { formatTime24h, formatDateDMY, formatTimestamp } from '../utils/dateUtils';
 
 interface BatteriesDetectionsFormProps {
   onSaveBattery: (data: BatteryData) => void;
@@ -151,7 +152,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
     
     try {
       const now = new Date();
-      onSaveBattery({ id: generateId('BAT'), flightId: activeFlightId, timestamp: `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`, ...batteryData });
+      onSaveBattery({ id: generateId('BAT'), flightId: activeFlightId, timestamp: formatTimestamp(now), ...batteryData });
       await window.customAlert('✅ Baterías guardadas con éxito');
       setBatteryData({ pilot: '', droneBatteryName: '', controlBatteryName: '' });
     } finally {
@@ -174,7 +175,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
       onSaveDetection({
         id: generateId('DET'),
         flightId: activeFlightId,
-        timestamp: `${saveTime.toLocaleDateString()} ${saveTime.toLocaleTimeString()}`,
+        timestamp: formatTimestamp(saveTime),
         element: selectedElement,
         anomaly: selectedAnomaly,
         recommendation,
@@ -422,10 +423,10 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
                   color: fixedTime !== null ? '#FFD600' : 'white',
                   textShadow: fixedTime !== null ? '0 0 10px rgba(255,214,0,0.3)' : 'none'
                 }}>
-                  {(fixedTime || currentTime).toLocaleTimeString()}
+                  {formatTime24h(fixedTime || currentTime)}
                 </span>
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
-                  {(fixedTime || currentTime).toLocaleDateString()}
+                  {formatDateDMY(fixedTime || currentTime)}
                 </span>
               </div>
 

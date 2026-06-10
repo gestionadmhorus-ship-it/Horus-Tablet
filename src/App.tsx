@@ -13,6 +13,7 @@ import type { AppRole } from './types';
 import { useDatabase } from './hooks/useDatabase';
 import { useAutoSync } from './hooks/useAutoSync';
 import { exportToExcel, exportToJSON } from './utils/exportUtils';
+import { formatDateDMY, formatTimestamp } from './utils/dateUtils';
 import { FileJson, Table, X, CheckCircle, Power } from 'lucide-react';
 import { CapacitorUpdater } from '@capgo/capacitor-updater';
 import { Capacitor } from '@capacitor/core';
@@ -223,7 +224,7 @@ function App() {
   const activeLists = { ...lists };
   let activeShiftId: string | undefined;
   
-  const todayDateStr = new Date().toLocaleDateString();
+  const todayDateStr = formatDateDMY(new Date());
   
   // Sort shifts chronologically before finding the latest
   const sortedShifts = [...data.shifts].sort((a, b) => getChronologicalTime(a.timestamp) - getChronologicalTime(b.timestamp));
@@ -276,7 +277,7 @@ function App() {
   const closeFlightWithPrompt = async (flight: import('./types').FlightData): Promise<boolean> => {
     let obs = '';
     const now = new Date();
-    const closedTime = `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
+    const closedTime = formatTimestamp(now);
     
     if (flight.flightType === 'HS') {
       const result = await window.customPrompt(
@@ -317,7 +318,7 @@ function App() {
       for (const f of activeFlights) {
         let obs = '';
         const now = new Date();
-        const closedTime = `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
+        const closedTime = formatTimestamp(now);
         if (f.flightType === 'HS') {
           const result = await window.customPrompt(
             `Se cerrará el vuelo HS anterior (${f.taskTypeAndLocation || 'Sin nombre'}) para iniciar este nuevo vuelo.\nIngrese observaciones finales (opcional):`,
@@ -351,7 +352,7 @@ function App() {
         for (const f of activeFlights) {
           let obs = '';
           const now = new Date();
-          const closedTime = `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
+          const closedTime = formatTimestamp(now);
           if (f.flightType === 'HS') {
             const result = await window.customPrompt(
               `Se cerrará el vuelo HS activo (${f.taskTypeAndLocation || 'Sin nombre'}) por cierre de jornada.\nIngrese observaciones finales (opcional):`,

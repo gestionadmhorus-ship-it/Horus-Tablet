@@ -3,6 +3,7 @@ import { Save, ArrowLeft, Printer, ShieldCheck } from 'lucide-react';
 import type { VehicleChecklistData, ListsData } from '../types';
 import { generateId } from '../utils/idGenerator';
 import { SearchableSelect } from './SearchableSelect';
+import { formatDateDMY, formatTimestamp } from '../utils/dateUtils';
 
 interface VehicleChecklistFormProps {
   onSave: (data: VehicleChecklistData) => void;
@@ -185,7 +186,7 @@ const VehicleChecklistForm: React.FC<VehicleChecklistFormProps> = ({ onSave, onU
       } else {
         const newData: VehicleChecklistData = {
           id: generateId('CHK'),
-          timestamp: `${currentTime.toLocaleDateString()} ${currentTime.toLocaleTimeString()}`,
+          timestamp: formatTimestamp(currentTime),
           vehicleId: formData.vehicleId,
           driver: formData.driver,
           mileage: parseInt(formData.mileage, 10),
@@ -273,7 +274,7 @@ const VehicleChecklistForm: React.FC<VehicleChecklistFormProps> = ({ onSave, onU
             <ShieldCheck size={18} color="#ff6600" /> gestionadm.horus@gmail.com
           </p>
           <p style={{ color: 'var(--text-primary)', fontSize: '1.1rem', fontWeight: 600, marginTop: '1rem' }}>
-            {isEditMode ? 'Fecha y hora registrada:' : 'Fecha y hora actual:'} <span style={{ color: '#ff6600', fontWeight: 'bold' }}>{isEditMode && editData ? editData.timestamp : `${currentTime.toLocaleDateString()} ${currentTime.toLocaleTimeString()}`}</span>
+            {isEditMode ? 'Fecha y hora registrada:' : 'Fecha y hora actual:'} <span style={{ color: '#ff6600', fontWeight: 'bold' }}>{isEditMode && editData ? editData.timestamp : formatTimestamp(currentTime)}</span>
           </p>
         </div>
 
@@ -287,7 +288,7 @@ const VehicleChecklistForm: React.FC<VehicleChecklistFormProps> = ({ onSave, onU
             <div className="grid-cols-2 print-grid-3" style={{ gap: '1.5rem' }}>
               <div>
                 <label style={{ color: '#ff6600' }}>Fecha del Chequeo *</label>
-                <input type="text" value={isEditMode && editData ? editData.timestamp.split(' ')[0] : currentTime.toLocaleDateString()} disabled style={{ background: 'rgba(0,0,0,0.5)', color: '#888', cursor: 'not-allowed' }} />
+                <input type="text" value={isEditMode && editData ? editData.timestamp.split(' ')[0] : formatDateDMY(currentTime)} disabled style={{ background: 'rgba(0,0,0,0.5)', color: '#888', cursor: 'not-allowed' }} />
               </div>
               <div>
                 <SearchableSelect

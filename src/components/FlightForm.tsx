@@ -4,6 +4,8 @@ import type { FlightData, ListsData } from '../types';
 import { INSPECTION_CATEGORIES } from '../types';
 import { SearchableSelect } from './SearchableSelect';
 
+import { formatTimestamp } from '../utils/dateUtils';
+
 interface FlightFormProps {
   onSave: (data: FlightData) => void;
   onUpdate?: (data: FlightData) => void;
@@ -66,7 +68,7 @@ const FlightForm: React.FC<FlightFormProps> = ({
       const newData: FlightData = {
         id: flightId,
         shiftId: activeShiftId,
-        timestamp: `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`,
+        timestamp: formatTimestamp(now),
         flightType,
         ...formData
       };

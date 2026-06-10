@@ -2,6 +2,7 @@ import React from 'react';
 import { LayoutDashboard, Plane, Cpu, Download, Clock, Settings, Pencil, RotateCcw, Power, ShieldCheck, RefreshCw } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { UpdateManager } from '../services/UpdateManager';
+import { formatTime24h, formatDateDMY } from '../utils/dateUtils';
 
 interface DashboardProps {
   data?: any;
@@ -643,7 +644,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem' }}>
           <Clock size={16} color="var(--text-secondary)" />
           <span className="dashboard-clock-text">
-            {currentTime.toLocaleDateString()} | {currentTime.toLocaleTimeString()}
+            {formatDateDMY(currentTime)} | {formatTime24h(currentTime)}
           </span>
           {hasActiveShift && (
             <motion.button

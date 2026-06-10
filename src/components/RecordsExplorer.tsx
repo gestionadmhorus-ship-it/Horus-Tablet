@@ -68,9 +68,16 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
     
     const timePart = parts[1] || '00:00:00';
     const timeParts = timePart.split(':');
-    const hours = parseInt(timeParts[0] || '0', 10);
+    let hours = parseInt(timeParts[0] || '0', 10);
     const minutes = parseInt(timeParts[1] || '0', 10);
     const seconds = parseInt(timeParts[2] || '0', 10);
+    
+    const ampm = ((parts[2] || '') + (timePart || '')).toLowerCase();
+    if (ampm.includes('p') && hours < 12) {
+      hours += 12;
+    } else if (ampm.includes('a') && hours === 12) {
+      hours = 0;
+    }
     
     const d = new Date(year, month, day, hours, minutes, seconds);
     return isNaN(d.getTime()) ? null : d;

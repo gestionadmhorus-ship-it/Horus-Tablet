@@ -3,6 +3,7 @@ import { Save, ArrowLeft } from 'lucide-react';
 import type { ShiftData, ListsData } from '../types';
 import { generateId } from '../utils/idGenerator';
 import { SearchableSelect } from './SearchableSelect';
+import { formatTimestamp } from '../utils/dateUtils';
 
 interface ShiftFormProps {
   onSave: (data: ShiftData) => void;
@@ -81,7 +82,7 @@ const ShiftForm: React.FC<ShiftFormProps> = ({ onSave, onUpdate, onBack, lists, 
     } else {
       const newData: ShiftData = {
         id: generateId('JORN'),
-        timestamp: `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`,
+        timestamp: formatTimestamp(now),
         coordinator: formData.coordinator,
         assistants: finalAssistants,
         vehicle: formData.vehicle,
