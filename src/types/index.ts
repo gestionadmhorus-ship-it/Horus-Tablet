@@ -206,6 +206,24 @@ export interface SyncConfig {
   blockedClients?: string[]; // Array of deviceNames that the server ignores
 }
 
+/* ─── Real-time Unit Telemetry ─── */
+export interface UnitStatus {
+  deviceName: string;
+  connected: boolean;
+  lastSeen: number;           // ms epoch — used to detect "no signal"
+  hasActiveShift: boolean;
+  coordinator?: string;
+  vehicle?: string;
+  drone?: string;
+  assistants?: string[];
+  hasActiveFlight: boolean;
+  activeFlightType?: 'KMS' | 'HS';
+  activeFlightName?: string;
+  kmsCount: number;
+  hsCount: number;
+  detectionsCount: number;
+}
+
 export const INSPECTION_CATEGORIES = [
   "Línea de 13.2 kV",
   "Línea de 33 kV",

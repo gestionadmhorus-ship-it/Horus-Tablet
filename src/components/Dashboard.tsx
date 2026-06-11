@@ -1,8 +1,9 @@
 import React from 'react';
-import { LayoutDashboard, Plane, Cpu, Download, Clock, Settings, Pencil, RotateCcw, Power, ShieldCheck, RefreshCw } from 'lucide-react';
+import { LayoutDashboard, Plane, Cpu, Download, Clock, Settings, Pencil, RotateCcw, Power, ShieldCheck, RefreshCw, Radio, Wifi, WifiOff } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { UpdateManager } from '../services/UpdateManager';
 import { formatTime24h, formatDateDMY } from '../utils/dateUtils';
+import type { UnitStatus } from '../types';
 
 interface DashboardProps {
   data?: any;
@@ -28,13 +29,14 @@ interface DashboardProps {
   onChangeTheme?: (theme: 'hud' | 'boost') => void;
   onForceSync?: () => Promise<{ success: boolean; message: string }>;
   lastSyncTimestamp?: string | null;
+  unitsStatus?: Map<string, UnitStatus>;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ 
   data, onNavigate, onSettings, hasActiveShift, hasActiveFlight, activeFlightType, onCloseShift, 
   onReopenShift, hasTodayClosedShift, activeShiftId, activeFlightId,
   onEditShift, onEditFlight, onNewFlight, onCloseFlight, deviceName, syncStatus, appRole,
-  currentTheme = 'hud', onChangeTheme, onForceSync, lastSyncTimestamp
+  currentTheme = 'hud', onChangeTheme, onForceSync, lastSyncTimestamp, unitsStatus
 }) => {
   const [currentTime, setCurrentTime] = React.useState(new Date());
   const [actionMenu, setActionMenu] = React.useState<'KMS' | 'HS' | null>(null);
@@ -520,6 +522,176 @@ const Dashboard: React.FC<DashboardProps> = ({
             right: 6px !important;
           }
         }
+        /* ─── Units Telemetry Panel (server only) ─── */
+        .units-panel {
+          width: 100%;
+          background: rgba(0, 242, 255, 0.02);
+          border: 1px solid rgba(0, 242, 255, 0.12);
+          border-radius: 16px;
+          padding: 1rem 1.25rem;
+          flex-shrink: 0;
+          box-sizing: border-box;
+        }
+        .units-panel-header {
+          display: flex;
+          align-items: center;
+          gap: 0.6rem;
+          margin-bottom: 0.75rem;
+        }
+        .units-panel-title {
+          font-size: 0.7rem;
+          font-weight: 800;
+          text-transform: uppercase;
+          letter-spacing: 2px;
+          color: var(--primary);
+        }
+        .units-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+          gap: 0.6rem;
+        }
+        .unit-card {
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 12px;
+          padding: 0.75rem 0.9rem;
+          display: flex;
+          flex-direction: column;
+          gap: 0.4rem;
+          transition: border-color 0.3s ease, background 0.3s ease;
+          position: relative;
+          overflow: hidden;
+        }
+        .unit-card.unit-online {
+          border-color: rgba(0, 255, 136, 0.2);
+          background: rgba(0, 255, 136, 0.03);
+        }
+        .unit-card.unit-offline {
+          border-color: rgba(255, 60, 60, 0.15);
+          opacity: 0.65;
+        }
+        .unit-card-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 0.5rem;
+        }
+        .unit-name {
+          font-size: 0.85rem;
+          font-weight: 800;
+          color: var(--text-primary);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .unit-status-badge {
+          display: flex;
+          align-items: center;
+          gap: 0.3rem;
+          font-size: 0.62rem;
+          font-weight: 800;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          padding: 2px 7px;
+          border-radius: 4px;
+          white-space: nowrap;
+          flex-shrink: 0;
+        }
+        .unit-status-badge.online {
+          background: rgba(0, 255, 136, 0.1);
+          color: #00ff88;
+          border: 1px solid rgba(0, 255, 136, 0.3);
+        }
+        .unit-status-badge.offline {
+          background: rgba(255, 60, 60, 0.1);
+          color: #ff6060;
+          border: 1px solid rgba(255, 60, 60, 0.25);
+        }
+        .unit-dot {
+          width: 7px;
+          height: 7px;
+          border-radius: 50%;
+          flex-shrink: 0;
+        }
+        .unit-dot.online {
+          background: #00ff88;
+          box-shadow: 0 0 6px #00ff88;
+          animation: pulse 1.5s infinite;
+        }
+        .unit-dot.offline {
+          background: #ff6060;
+        }
+        .unit-meta-row {
+          display: flex;
+          align-items: center;
+          gap: 0.35rem;
+          font-size: 0.7rem;
+          color: var(--text-secondary);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .unit-meta-row.active-value {
+          color: var(--neon-green);
+          font-weight: 700;
+        }
+        .unit-stats-row {
+          display: flex;
+          gap: 0.4rem;
+          margin-top: 0.2rem;
+          flex-wrap: wrap;
+        }
+        .unit-stat-chip {
+          display: flex;
+          align-items: center;
+          gap: 0.25rem;
+          font-size: 0.62rem;
+          font-weight: 700;
+          padding: 2px 6px;
+          border-radius: 6px;
+          background: rgba(255, 255, 255, 0.04);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          color: var(--text-secondary);
+          text-transform: uppercase;
+          letter-spacing: 0.3px;
+        }
+        .unit-stat-chip.has-value {
+          background: rgba(0, 242, 255, 0.06);
+          border-color: rgba(0, 242, 255, 0.2);
+          color: var(--primary);
+        }
+        .unit-stat-chip.flight-active {
+          background: rgba(0, 255, 136, 0.08);
+          border-color: rgba(0, 255, 136, 0.25);
+          color: #00ff88;
+          animation: pulse-border 2s infinite;
+        }
+        @keyframes pulse-border {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(0,255,136,0.3); }
+          50% { box-shadow: 0 0 0 3px rgba(0,255,136,0.0); }
+        }
+        .unit-no-shift {
+          font-size: 0.7rem;
+          color: var(--text-secondary);
+          font-style: italic;
+          opacity: 0.7;
+        }
+        .units-empty {
+          text-align: center;
+          padding: 0.9rem;
+          color: var(--text-secondary);
+          font-size: 0.78rem;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem;
+          opacity: 0.6;
+        }
+        @media (max-width: 768px) {
+          .units-panel {
+            display: none;
+          }
+        }
       `}} />
 
       {/* Modern Banner */}
@@ -917,7 +1089,94 @@ const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </motion.div>
       </div>
- 
+
+      {/* ─── Unidades de Campo (server only) ─── */}
+      {appRole === 'server' && (
+        <div className="units-panel">
+          <div className="units-panel-header">
+            <Radio size={14} color="var(--primary)" />
+            <span className="units-panel-title">Unidades de Campo</span>
+            {unitsStatus && unitsStatus.size > 0 && (
+              <span style={{ marginLeft: 'auto', fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                {Array.from(unitsStatus.values()).filter(u => u.connected).length} / {unitsStatus.size} en línea
+              </span>
+            )}
+          </div>
+
+          {(!unitsStatus || unitsStatus.size === 0) ? (
+            <div className="units-empty">
+              <WifiOff size={14} />
+              Esperando conexión de unidades de campo...
+            </div>
+          ) : (
+            <div className="units-grid">
+              {Array.from(unitsStatus.values()).map(unit => {
+                const isOnline = unit.connected;
+                const flightLabel = unit.hasActiveFlight
+                  ? unit.activeFlightType === 'KMS'
+                    ? `KMS: ${unit.activeFlightName || '—'}`
+                    : `HS: ${unit.activeFlightName || '—'}`
+                  : null;
+                return (
+                  <div key={unit.deviceName} className={`unit-card ${isOnline ? 'unit-online' : 'unit-offline'}`}>
+                    {/* Header: name + online badge */}
+                    <div className="unit-card-header">
+                      <span className="unit-name">{unit.deviceName}</span>
+                      <span className={`unit-status-badge ${isOnline ? 'online' : 'offline'}`}>
+                        <span className={`unit-dot ${isOnline ? 'online' : 'offline'}`} />
+                        {isOnline ? 'En línea' : 'Sin señal'}
+                      </span>
+                    </div>
+
+                    {/* Shift info */}
+                    {unit.hasActiveShift ? (
+                      <>
+                        <div className="unit-meta-row active-value">
+                          <Wifi size={10} style={{ flexShrink: 0 }} />
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>Coord: {unit.coordinator || '—'}</span>
+                        </div>
+                        {unit.vehicle && (
+                          <div className="unit-meta-row">
+                            <span style={{ opacity: 0.5 }}>🚗</span>
+                            <span>{unit.vehicle}</span>
+                            {unit.drone && <><span style={{ opacity: 0.4 }}>|</span><span>🚁 {unit.drone}</span></>}
+                          </div>
+                        )}
+
+                        {/* Flight status */}
+                        {flightLabel && (
+                          <div className="unit-meta-row" style={{ color: '#00ff88', fontWeight: 700 }}>
+                            <Plane size={10} style={{ flexShrink: 0 }} />
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{flightLabel}</span>
+                          </div>
+                        )}
+
+                        {/* Stats row */}
+                        <div className="unit-stats-row">
+                          <span className={`unit-stat-chip ${unit.kmsCount > 0 ? 'has-value' : ''} ${unit.hasActiveFlight && unit.activeFlightType === 'KMS' ? 'flight-active' : ''}`}>
+                            <Plane size={9} /> KMS {unit.kmsCount}
+                          </span>
+                          <span className={`unit-stat-chip ${unit.hsCount > 0 ? 'has-value' : ''} ${unit.hasActiveFlight && unit.activeFlightType === 'HS' ? 'flight-active' : ''}`}>
+                            <Clock size={9} /> HS {unit.hsCount}
+                          </span>
+                          {unit.detectionsCount > 0 && (
+                            <span className="unit-stat-chip has-value" style={{ color: 'var(--neon-red)', borderColor: 'rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.06)' }}>
+                              ⚠ {unit.detectionsCount} det.
+                            </span>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <span className="unit-no-shift">Sin jornada activa</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       <footer className="dashboard-footer">
         <p style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '1px', margin: 0 }}>HORUS DRON | INTERFACE</p>
       </footer>

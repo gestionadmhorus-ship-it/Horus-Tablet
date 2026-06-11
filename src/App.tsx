@@ -9,7 +9,7 @@ import { ChecklistSelector } from './components/ChecklistSelector';
 import SettingsPanel from './components/SettingsPanel';
 import RecordsExplorer from './components/RecordsExplorer';
 import { RoleSetup } from './components/RoleSetup';
-import type { AppRole } from './types';
+import type { AppRole, UnitStatus } from './types';
 import { useDatabase } from './hooks/useDatabase';
 import { useAutoSync } from './hooks/useAutoSync';
 import { exportToExcel, exportToJSON } from './utils/exportUtils';
@@ -105,12 +105,70 @@ function App() {
     }
   }, []);
 
-  const { syncStatus, forceSync, lastSyncTimestamp } = useAutoSync(
+  // ── STATUS snapshot for broadcasting to the server ──
+  // Built with useCallback so the reference is stable and won't re-trigger useAutoSync.
+  const getStatusSnapshot = React.useCallback((): Omit<UnitStatus, 'deviceName' | 'connected' | 'lastSeen'> => {
+    // Compute derived values inline from the current closure
+    const todayStr = formatDateDMY(new Date());
+    const sortedShiftsSnap = [...data.shifts].sort((a, b) => {
+      const ta = new Date(a.timestamp).getTime() || 0;
+      const tb = new Date(b.timestamp).getTime() || 0;
+      return ta - tb;
+    });
+    const latestShiftSnap = sortedShiftsSnap.length > 0 ? sortedShiftsSnap[sortedShiftsSnap.length - 1] : undefined;
+    const hasActiveShiftSnap = !!(latestShiftSnap && latestShiftSnap.timestamp.split(' ')[0] === todayStr && latestShiftSnap.status !== 'closed');
+    const activeShiftIdSnap = hasActiveShiftSnap ? latestShiftSnap?.id : undefined;
+
+    const activeFlightsSnap = activeShiftIdSnap ? data.flights.filter(f => f.shiftId === activeShiftIdSnap && f.status !== 'closed') : [];
+    const latestFlightSnap = activeFlightsSnap.length > 0 ? activeFlightsSnap[activeFlightsSnap.length - 1] : undefined;
+    const hasActiveFlightSnap = !!latestFlightSnap;
+
+    const shiftFlights = activeShiftIdSnap ? data.flights.filter(f => f.shiftId === activeShiftIdSnap) : [];
+    const shiftFlightIds = shiftFlights.map(f => f.id);
+    const kmsCount = shiftFlights.filter(f => f.flightType === 'KMS').length;
+    const hsCount = shiftFlights.filter(f => f.flightType === 'HS').length;
+    const detectionsCount = data.detections.filter(d => shiftFlightIds.includes(d.flightId || '')).length;
+
+    return {
+      hasActiveShift: hasActiveShiftSnap,
+      coordinator: latestShiftSnap?.coordinator,
+      vehicle: latestShiftSnap?.vehicle,
+      drone: latestShiftSnap?.drone,
+      assistants: latestShiftSnap?.assistants,
+      hasActiveFlight: hasActiveFlightSnap,
+      activeFlightType: latestFlightSnap?.flightType || undefined,
+      activeFlightName: latestFlightSnap?.flightType === 'HS' ? latestFlightSnap?.taskTypeAndLocation : latestFlightSnap?.lineName,
+      kmsCount,
+      hsCount,
+      detectionsCount,
+    };
+  }, [data]);
+
+  const [unitsStatus, setUnitsStatus] = React.useState<Map<string, UnitStatus>>(() => new Map());
+
+  const handleStatusUpdate = React.useCallback((status: UnitStatus) => {
+    setUnitsStatus(prev => {
+      const next = new Map(prev);
+      next.set(status.deviceName, status);
+      return next;
+    });
+  }, []);
+
+  const { syncStatus, forceSync, lastSyncTimestamp, unitsStatus: hookUnitsStatus } = useAutoSync(
     appRole,
     getUnsyncedData,
     markDataAsSynced,
-    syncIncomingData
+    syncIncomingData,
+    appRole === 'client' ? getStatusSnapshot : undefined,
+    appRole === 'server' ? handleStatusUpdate : undefined
   );
+
+  // Merge hook-managed units state into local state for the dashboard
+  React.useEffect(() => {
+    if (hookUnitsStatus.size > 0) {
+      setUnitsStatus(hookUnitsStatus);
+    }
+  }, [hookUnitsStatus]);
 
   const handleDeviceNameChange = (val: string) => {
     setDeviceName(val);
@@ -408,6 +466,7 @@ function App() {
       case 'dashboard':
         return (
           <Dashboard
+            data={data}
             onNavigate={(page) => {
               setIsNewFlightRequested(false);
               setCurrentPage(page);
@@ -431,6 +490,9 @@ function App() {
             appRole={appRole}
             currentTheme={themeMode}
             onChangeTheme={setThemeMode}
+            onForceSync={forceSync}
+            lastSyncTimestamp={lastSyncTimestamp}
+            unitsStatus={unitsStatus}
           />
         );
       case 'shift':
@@ -623,6 +685,7 @@ function App() {
             onChangeTheme={setThemeMode}
             onForceSync={forceSync}
             lastSyncTimestamp={lastSyncTimestamp}
+            unitsStatus={unitsStatus}
           />
         );
     }

@@ -1,20 +1,25 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { Peer } from 'peerjs';
-import type { AppData, AppRole } from '../types';
+import type { AppData, AppRole, UnitStatus } from '../types';
 
-const RECONNECT_INTERVAL = 10000; // 10 seconds
+const RECONNECT_INTERVAL = 10000;        // 10 seconds
+const STATUS_BROADCAST_INTERVAL = 15000; // 15 seconds
+const STALE_THRESHOLD = 35000;           // 35 seconds → mark as "no signal"
 
 export function useAutoSync(
   role: AppRole | null,
   getUnsyncedData: () => Promise<AppData>,
   markDataAsSynced: (data: AppData) => Promise<void>,
-  onDataReceived: (data: AppData) => Promise<void>
+  onDataReceived: (data: AppData) => Promise<void>,
+  getStatusSnapshot?: () => Omit<UnitStatus, 'deviceName' | 'connected' | 'lastSeen'>,
+  onStatusUpdate?: (status: UnitStatus) => void
 ) {
   const [syncStatus, setSyncStatus] = useState<string>('Inicializando red...');
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncTimestamp, setLastSyncTimestamp] = useState<string | null>(
     () => localStorage.getItem('horus_last_sync_ts')
   );
+  const [unitsStatus, setUnitsStatus] = useState<Map<string, UnitStatus>>(() => new Map());
   const peerRef = useRef<Peer | null>(null);
 
   const recordSyncSuccess = () => {
@@ -28,18 +33,71 @@ export function useAutoSync(
   const getUnsyncedDataRef = useRef(getUnsyncedData);
   const markDataAsSyncedRef = useRef(markDataAsSynced);
   const onDataReceivedRef = useRef(onDataReceived);
+  const getStatusSnapshotRef = useRef(getStatusSnapshot);
+  const onStatusUpdateRef = useRef(onStatusUpdate);
 
   useEffect(() => {
     getUnsyncedDataRef.current = getUnsyncedData;
     markDataAsSyncedRef.current = markDataAsSynced;
     onDataReceivedRef.current = onDataReceived;
-  }, [getUnsyncedData, markDataAsSynced, onDataReceived]);
+    getStatusSnapshotRef.current = getStatusSnapshot;
+    onStatusUpdateRef.current = onStatusUpdate;
+  }, [getUnsyncedData, markDataAsSynced, onDataReceived, getStatusSnapshot, onStatusUpdate]);
+
+  // ── Ticker that marks stale units as disconnected (server-side) ──
+  useEffect(() => {
+    if (role !== 'server') return;
+    const ticker = setInterval(() => {
+      const now = Date.now();
+      setUnitsStatus(prev => {
+        let changed = false;
+        const next = new Map(prev);
+        next.forEach((unit, key) => {
+          if (unit.connected && now - unit.lastSeen > STALE_THRESHOLD) {
+            next.set(key, { ...unit, connected: false });
+            changed = true;
+          }
+        });
+        return changed ? next : prev;
+      });
+    }, 5000);
+    return () => clearInterval(ticker);
+  }, [role]);
+
+  // ── Handle incoming STATUS_UPDATE on the server ──
+  const handleStatusUpdate = useCallback((data: any) => {
+    const { deviceName, status } = data;
+    if (!deviceName || !status) return;
+    const unitStatus: UnitStatus = {
+      deviceName,
+      connected: true,
+      lastSeen: Date.now(),
+      ...status,
+    };
+    setUnitsStatus(prev => {
+      const next = new Map(prev);
+      next.set(deviceName, unitStatus);
+      return next;
+    });
+    // Also register as known client
+    const knownStr = localStorage.getItem('horus_known_clients') || '[]';
+    let known: string[] = JSON.parse(knownStr);
+    if (!known.includes(deviceName)) {
+      known.push(deviceName);
+      localStorage.setItem('horus_known_clients', JSON.stringify(known));
+      window.dispatchEvent(new Event('horus_known_clients_updated'));
+    }
+    if (onStatusUpdateRef.current) {
+      onStatusUpdateRef.current(unitStatus);
+    }
+  }, []);
 
   useEffect(() => {
     if (!role) return;
 
     let reconnectTimer: any;
     let syncAttemptTimer: any;
+    let statusBroadcastTimer: any;
     let isActive = true;
 
     const connectPeer = () => {
@@ -71,6 +129,12 @@ export function useAutoSync(
               return;
             }
 
+            // ── STATUS_UPDATE from a field unit ──
+            if (data.type === 'STATUS_UPDATE') {
+              handleStatusUpdate(data);
+              return;
+            }
+
             // ── Explorador notifica desvinculación ──
             if (data.type === 'DISCONNECT') {
               const name = data.deviceName as string | undefined;
@@ -79,6 +143,13 @@ export function useAutoSync(
                 const updated = known.filter(c => c !== name);
                 localStorage.setItem('horus_known_clients', JSON.stringify(updated));
                 window.dispatchEvent(new Event('horus_known_clients_updated'));
+                // Mark unit as disconnected in state
+                setUnitsStatus(prev => {
+                  const next = new Map(prev);
+                  const existing = next.get(name);
+                  if (existing) next.set(name, { ...existing, connected: false });
+                  return next;
+                });
                 setSyncStatus(`🔌 "${name}" se ha desvinculado.`);
                 setTimeout(() => { if (isActive) setSyncStatus('📡 Control: En línea y escuchando.'); }, 3000);
               }
@@ -98,7 +169,6 @@ export function useAutoSync(
               else if (p.detections?.[0]) senderDeviceName = p.detections[0].deviceName;
 
               if (blockedClients.includes(senderDeviceName)) {
-                // Notify client it was removed; auto-unblock so re-pairing is possible
                 conn.send({ type: 'SYNC_ERROR', code: 'REMOVED_BY_SERVER', message: 'Fuiste eliminado de la red por Control.' });
                 conn.close();
                 const updatedBlocked = blockedClients.filter(c => c !== senderDeviceName);
@@ -151,6 +221,26 @@ export function useAutoSync(
         const peer = new Peer({ debug: 1 });
         peerRef.current = peer;
 
+        // ── STATUS broadcast function for client ──
+        const broadcastStatus = () => {
+          if (!isActive || !peerRef.current || peerRef.current.disconnected) return;
+          const targetServerId = localStorage.getItem('horus_target_server_id');
+          if (!targetServerId || !getStatusSnapshotRef.current) return;
+
+          const snapshot = getStatusSnapshotRef.current();
+          const deviceName = localStorage.getItem('horus_device_name') || 'Unknown';
+
+          try {
+            const conn = peerRef.current.connect(targetServerId);
+            conn.on('open', () => {
+              conn.send({ type: 'STATUS_UPDATE', deviceName, status: snapshot });
+              // Close quickly after sending
+              setTimeout(() => { try { conn.close(); } catch {} }, 500);
+            });
+            conn.on('error', () => { /* silent — status is best-effort */ });
+          } catch { /* silent */ }
+        };
+
         const attemptSync = async () => {
           if (!isActive || !peerRef.current || peerRef.current.disconnected) return;
 
@@ -158,7 +248,7 @@ export function useAutoSync(
           if (!targetServerId) {
              setSyncStatus('⚠️ No hay Control vinculado. Escanea un QR en Configuración.');
              setIsSyncing(false);
-             return; // Stop reconnect loop if no target is set
+             return;
           }
 
           const unsynced = await getUnsyncedDataRef.current();
@@ -196,7 +286,6 @@ export function useAutoSync(
               setIsSyncing(false);
               conn.close();
             } else if (data.type === 'SYNC_ERROR' && data.code === 'REMOVED_BY_SERVER') {
-              // Jefe eliminated this device — reset config and go back to RoleSetup
               setSyncStatus('⚠️ Control te ha eliminado de la red. Vuelve a escanear el QR.');
               setIsSyncing(false);
               conn.close();
@@ -210,7 +299,6 @@ export function useAutoSync(
           });
 
           conn.on('error', () => {
-            // Server not found or connection dropped
             setSyncStatus('🔍 Control no encontrado. Reintentando luego...');
             setIsSyncing(false);
             conn.close();
@@ -226,6 +314,9 @@ export function useAutoSync(
           if (!isActive) return;
           setSyncStatus('🔍 Conectado a la red. Revisando datos pendientes...');
           attemptSync();
+          // Start STATUS broadcast loop
+          broadcastStatus();
+          statusBroadcastTimer = setInterval(broadcastStatus, STATUS_BROADCAST_INTERVAL);
         });
 
         peer.on('error', (err) => {
@@ -248,11 +339,12 @@ export function useAutoSync(
       isActive = false;
       clearTimeout(reconnectTimer);
       clearTimeout(syncAttemptTimer);
+      clearInterval(statusBroadcastTimer);
       if (peerRef.current) {
         peerRef.current.destroy();
       }
     };
-  }, [role]);
+  }, [role, handleStatusUpdate]);
 
   const forceSync = (): Promise<{ success: boolean; message: string }> => {
     return new Promise(async (resolve) => {
@@ -341,5 +433,5 @@ export function useAutoSync(
     });
   };
 
-  return { syncStatus, isSyncing, forceSync, lastSyncTimestamp };
+  return { syncStatus, isSyncing, forceSync, lastSyncTimestamp, unitsStatus };
 }
