@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Dashboard from './components/Dashboard';
 import ShiftForm from './components/ShiftForm';
 import FlightForm from './components/FlightForm';
@@ -107,7 +107,7 @@ function App() {
 
   // ── STATUS snapshot for broadcasting to the server ──
   // Built with useCallback so the reference is stable and won't re-trigger useAutoSync.
-  const getStatusSnapshot = React.useCallback((): Omit<UnitStatus, 'deviceName' | 'connected' | 'lastSeen'> => {
+  const getStatusSnapshot = useCallback((): Omit<UnitStatus, 'deviceName' | 'connected' | 'lastSeen'> => {
     // Compute derived values inline from the current closure
     const todayStr = formatDateDMY(new Date());
     const sortedShiftsSnap = [...data.shifts].sort((a, b) => {
@@ -144,9 +144,9 @@ function App() {
     };
   }, [data]);
 
-  const [unitsStatus, setUnitsStatus] = React.useState<Map<string, UnitStatus>>(() => new Map());
+  const [unitsStatus, setUnitsStatus] = useState<Map<string, UnitStatus>>(() => new Map());
 
-  const handleStatusUpdate = React.useCallback((status: UnitStatus) => {
+  const handleStatusUpdate = useCallback((status: UnitStatus) => {
     setUnitsStatus(prev => {
       const next = new Map(prev);
       next.set(status.deviceName, status);
@@ -164,7 +164,7 @@ function App() {
   );
 
   // Merge hook-managed units state into local state for the dashboard
-  React.useEffect(() => {
+  useEffect(() => {
     if (hookUnitsStatus.size > 0) {
       setUnitsStatus(hookUnitsStatus);
     }
