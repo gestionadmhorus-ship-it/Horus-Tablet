@@ -56,6 +56,10 @@ export function useAutoSync(
           if (!isActive) return;
           
           conn.on('data', async (data: any) => {
+            if (data.type === 'PING') {
+              conn.send({ type: 'PONG' });
+              return;
+            }
 
             // ── Explorador notifica desvinculación ──
             if (data.type === 'DISCONNECT') {
@@ -239,5 +243,91 @@ export function useAutoSync(
     };
   }, [role]);
 
-  return { syncStatus, isSyncing };
+  const forceSync = (): Promise<{ success: boolean; message: string }> => {
+    return new Promise(async (resolve) => {
+      if (!role) {
+        return resolve({ success: false, message: 'La red no está inicializada.' });
+      }
+      if (role === 'server') {
+        return resolve({ success: true, message: 'El dispositivo está configurado como Panel de Control (Servidor). Está escuchando y listo para recibir datos.' });
+      }
+
+      const targetServerId = localStorage.getItem('horus_target_server_id');
+      if (!targetServerId) {
+        return resolve({ success: false, message: 'No hay un Panel de Control vinculado. Escanee el código QR en Configuración.' });
+      }
+
+      if (!peerRef.current || peerRef.current.destroyed) {
+        return resolve({ success: false, message: 'El sistema de red de la tablet no está activo. Verifique su conexión Wi-Fi.' });
+      }
+
+      setSyncStatus('📤 Sincronización forzada en curso...');
+      setIsSyncing(true);
+
+      const unsynced = await getUnsyncedDataRef.current();
+      const hasData = 
+        unsynced.shifts.length > 0 || 
+        unsynced.flights.length > 0 || 
+        unsynced.batteries.length > 0 || 
+        unsynced.detections.length > 0 || 
+        (unsynced.checklists && unsynced.checklists.length > 0);
+
+      const conn = peerRef.current.connect(targetServerId);
+      
+      const timeoutId = setTimeout(() => {
+        conn.close();
+        setIsSyncing(false);
+        setSyncStatus(hasData ? '❌ Error de sincronización.' : '✅ Todo está sincronizado.');
+        resolve({ success: false, message: 'No se pudo contactar al Panel de Control. Asegúrese de que esté encendido y en la misma red Wi-Fi.' });
+      }, 8000);
+
+      conn.on('open', () => {
+        if (hasData) {
+          setSyncStatus('📤 Enviando datos pendientes...');
+          conn.send({ type: 'SYNC_PAYLOAD', payload: unsynced });
+        } else {
+          setSyncStatus('📤 Verificando conexión con Central...');
+          conn.send({ type: 'PING' });
+        }
+      });
+
+      conn.on('data', async (data: any) => {
+        clearTimeout(timeoutId);
+        if (data.type === 'SYNC_ACK') {
+          try {
+            await markDataAsSyncedRef.current(unsynced);
+            setSyncStatus('✅ Sincronización exitosa.');
+            setTimeout(() => {
+              setSyncStatus('✅ Todo está sincronizado.');
+            }, 3000);
+            resolve({ success: true, message: 'Sincronización exitosa: El Panel de Control recibió todos los datos pendientes correctamente.' });
+          } catch (err: any) {
+            setSyncStatus('❌ Error al marcar datos.');
+            resolve({ success: false, message: `Error guardando estado local: ${err.message}` });
+          } finally {
+            setIsSyncing(false);
+            conn.close();
+          }
+        } else if (data.type === 'PONG') {
+          setSyncStatus('✅ Todo está sincronizado.');
+          setIsSyncing(false);
+          conn.close();
+          resolve({ success: true, message: 'Conexión exitosa: El Panel de Control está en línea y todos los datos del dispositivo están al día.' });
+        } else if (data.type === 'SYNC_ERROR') {
+          setIsSyncing(false);
+          conn.close();
+          resolve({ success: false, message: `El servidor rechazó la sincronización: ${data.message || 'Error desconocido'}` });
+        }
+      });
+
+      conn.on('error', () => {
+        clearTimeout(timeoutId);
+        setIsSyncing(false);
+        conn.close();
+        resolve({ success: false, message: 'No se pudo establecer conexión con el Panel de Control. Verifique su red Wi-Fi.' });
+      });
+    });
+  };
+
+  return { syncStatus, isSyncing, forceSync };
 }

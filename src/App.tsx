@@ -90,7 +90,7 @@ function App() {
     }
   }, []);
 
-  const { syncStatus } = useAutoSync(
+  const { syncStatus, forceSync } = useAutoSync(
     appRole,
     getUnsyncedData,
     markDataAsSynced,
@@ -604,6 +604,7 @@ function App() {
             appRole={appRole}
             currentTheme={themeMode}
             onChangeTheme={setThemeMode}
+            onForceSync={forceSync}
           />
         );
     }

@@ -26,19 +26,34 @@ interface DashboardProps {
   appRole?: string | null;
   currentTheme?: 'hud' | 'boost';
   onChangeTheme?: (theme: 'hud' | 'boost') => void;
+  onForceSync?: () => Promise<{ success: boolean; message: string }>;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ 
   data, onNavigate, onSettings, hasActiveShift, hasActiveFlight, activeFlightType, onCloseShift, 
   onReopenShift, hasTodayClosedShift, activeShiftId, activeFlightId,
   onEditShift, onEditFlight, onNewFlight, onCloseFlight, deviceName, syncStatus, appRole,
-  currentTheme = 'hud', onChangeTheme
+  currentTheme = 'hud', onChangeTheme, onForceSync
 }) => {
   const [currentTime, setCurrentTime] = React.useState(new Date());
   const [actionMenu, setActionMenu] = React.useState<'KMS' | 'HS' | null>(null);
+  const [isSyncingForced, setIsSyncingForced] = React.useState(false);
   const isKMSActive = hasActiveFlight && activeFlightType === 'KMS';
   const isHSActive = hasActiveFlight && activeFlightType === 'HS';
   const isBatteryEnabled = hasActiveFlight && activeFlightType === 'KMS';
+
+  const handleForceSyncClick = async () => {
+    if (isSyncingForced || !onForceSync) return;
+    setIsSyncingForced(true);
+    try {
+      const res = await onForceSync();
+      await window.customAlert(res.message);
+    } catch (err: any) {
+      await window.customAlert(`❌ Error durante la sincronización: ${err.message || err}`);
+    } finally {
+      setIsSyncingForced(false);
+    }
+  };
 
   React.useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -590,6 +605,30 @@ const Dashboard: React.FC<DashboardProps> = ({
             </button>
           ))}
         </div>
+        <button
+          onClick={handleForceSyncClick}
+          disabled={isSyncingForced}
+          style={{
+            background: 'rgba(0, 255, 136, 0.1)',
+            border: '1px solid rgba(0, 255, 136, 0.5)',
+            borderRight: '3px solid rgba(200, 200, 200, 0.5)',
+            borderBottom: '3px solid rgba(200, 200, 200, 0.5)',
+            borderRadius: '8px',
+            color: '#00ff88',
+            cursor: isSyncingForced ? 'not-allowed' : 'pointer',
+            padding: '0.7rem',
+            display: 'flex',
+            alignItems: 'center',
+            transition: 'all 0.2s ease',
+            boxShadow: '0 4px 15px rgba(0, 255, 136, 0.15)',
+            backdropFilter: 'blur(10px)',
+            WebkitBackdropFilter: 'blur(10px)',
+            opacity: isSyncingForced ? 0.7 : 1
+          }}
+          title="Forzar Sincronización Directa"
+        >
+          <RefreshCw size={22} className={isSyncingForced ? 'spinning' : ''} />
+        </button>
         <button
           onClick={onSettings}
           style={{
