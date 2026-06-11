@@ -154,6 +154,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
       onSaveBattery({ id: generateId('BAT'), flightId: activeFlightId, timestamp: formatTimestamp(now), ...batteryData });
       await window.customAlert('✅ Baterías guardadas con éxito');
       setBatteryData({ pilot: '', droneBatteryName: '', controlBatteryName: '' });
+      setActivePanel('detections');
     } finally {
       setIsSaving(false);
     }

@@ -256,11 +256,13 @@ function App() {
   let activeFlightData: import('./types').FlightData | undefined;
   let activeFlightType: 'KMS' | 'HS' | undefined;
 
-  if (data.flights.length > 0) {
-    // Sort flights chronologically before finding the latest
-    const sortedFlights = [...data.flights].sort((a, b) => getChronologicalTime(a.timestamp) - getChronologicalTime(b.timestamp));
-    const latestFlight = sortedFlights[sortedFlights.length - 1];
-    if (activeShiftId && latestFlight && latestFlight.shiftId === activeShiftId && latestFlight.status !== 'closed') {
+  if (data.flights.length > 0 && activeShiftId) {
+    // Filter flights belonging to current active shift that are still open
+    const activeShiftFlights = data.flights.filter(f => f.shiftId === activeShiftId && f.status !== 'closed');
+    if (activeShiftFlights.length > 0) {
+      // Sort to get the latest in case there are multiple open flights
+      const sortedFlights = [...activeShiftFlights].sort((a, b) => getChronologicalTime(a.timestamp) - getChronologicalTime(b.timestamp));
+      const latestFlight = sortedFlights[sortedFlights.length - 1];
       activeFlightId = latestFlight.id;
       activeFlightType = latestFlight.flightType || 'KMS';
       activeFlightName = activeFlightType === 'HS' ? latestFlight.taskTypeAndLocation : latestFlight.lineName;
