@@ -1230,7 +1230,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             </div>
 
             {/* Right: Actions & Sync Feed */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxHeight: '720px', overflowY: 'auto', paddingRight: '8px' }}>
               
               {/* Control Actions Box */}
               <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border-input)', borderRadius: '16px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -1284,7 +1284,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               </div>
 
               {/* Recent Sync Feed */}
-              <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border-input)', borderRadius: '16px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', flex: 1, minHeight: '200px' }}>
+              <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border-input)', borderRadius: '16px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '260px', minHeight: '150px' }}>
                 <span style={{ fontSize: '0.9rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--primary)' }}>Sincronizaciones</span>
                 
                 {(!syncHistory || syncHistory.length === 0) ? (
@@ -1292,7 +1292,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                     Ningún dato recibido todavía hoy.
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', overflowY: 'auto', maxHeight: '420px', paddingRight: '4px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', overflowY: 'auto', maxHeight: '160px', paddingRight: '4px' }}>
                     {syncHistory.map((s, idx) => {
                       const timeStr = new Date(s.timestamp).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
                       const totalReceived = s.kmsCount + s.hsCount;
