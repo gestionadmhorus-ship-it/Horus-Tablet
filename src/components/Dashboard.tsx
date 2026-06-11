@@ -1,3 +1,4 @@
+import React from 'react';
 import { LayoutDashboard, Plane, Cpu, Download, Clock, Settings, Pencil, RotateCcw, Power, ShieldCheck, RefreshCw, Radio, Wifi, WifiOff, CheckCircle, Table } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { UpdateManager } from '../services/UpdateManager';
@@ -895,6 +896,7 @@ const Dashboard: React.FC<DashboardProps> = ({
           )}
         </div>
       </div>
+      )}
 
       {/* Cards Grid */}
       {appRole !== 'server' && (
