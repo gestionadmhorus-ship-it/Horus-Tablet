@@ -41,7 +41,8 @@ function App() {
     updateLists,
     syncIncomingData,
     getUnsyncedData,
-    markDataAsSynced
+    markDataAsSynced,
+    getAllData
   } = useDatabase();
   
   const [showExportModal, setShowExportModal] = useState(false);
@@ -178,13 +179,14 @@ function App() {
     });
   }, [syncIncomingData]);
 
-  const { syncStatus, forceSync, lastSyncTimestamp, unitsStatus: hookUnitsStatus } = useAutoSync(
+  const { syncStatus, forceSync, lastSyncTimestamp, unitsStatus: hookUnitsStatus, requestFullBackup } = useAutoSync(
     appRole,
     getUnsyncedData,
     markDataAsSynced,
     handleSyncIncomingData,
     appRole === 'client' ? getStatusSnapshot : undefined,
-    appRole === 'server' ? handleStatusUpdate : undefined
+    appRole === 'server' ? handleStatusUpdate : undefined,
+    getAllData
   );
 
   // Merge hook-managed units state into local state for the dashboard
@@ -197,6 +199,35 @@ function App() {
   const handleDeviceNameChange = (val: string) => {
     setDeviceName(val);
     localStorage.setItem('horus_device_name', val);
+  };
+
+  const handleRequestFullBackup = async (targetDeviceName: string, peerId: string) => {
+    if (!requestFullBackup) return;
+    const res = await requestFullBackup(peerId);
+    if (res.success && res.payload) {
+      try {
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        const filename = `Recuperacion_${targetDeviceName}_${timestamp}.json`;
+        
+        const dataStr = JSON.stringify(res.payload, null, 2);
+        const dataBlob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(dataBlob);
+        
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        
+        await window.customAlert(`Copia histórica recibida y guardada en Descargas como:\n${filename}`);
+      } catch (err: any) {
+        await window.customAlert(`Error guardando archivo local: ${err.message || err}`);
+      }
+    } else {
+      await window.customAlert(`No se pudo recuperar los datos: ${res.message}`);
+    }
   };
 
   // Reusable custom dialog state
@@ -714,6 +745,7 @@ function App() {
             unitsStatus={unitsStatus}
             syncHistory={syncHistory}
             onExport={() => setShowExportModal(true)}
+            onRequestFullBackup={handleRequestFullBackup}
           />
         );
     }

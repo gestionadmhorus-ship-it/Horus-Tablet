@@ -180,6 +180,16 @@ export function useDatabase() {
     return { shifts: s, flights: f, batteries: b, detections: d, checklists: c, droneChecklists: dc };
   };
 
+  const getAllData = async (): Promise<AppData> => {
+    const s = await db.shifts.filter((i) => !i.isDeleted).toArray();
+    const f = await db.flights.filter((i) => !i.isDeleted).toArray();
+    const b = await db.batteries.filter((i) => !i.isDeleted).toArray();
+    const d = await db.detections.filter((i) => !i.isDeleted).toArray();
+    const c = await db.vehicleChecklists.filter((i) => !i.isDeleted).toArray();
+    const dc = await db.droneChecklists.filter((i) => !i.isDeleted).toArray();
+    return { shifts: s, flights: f, batteries: b, detections: d, checklists: c, droneChecklists: dc };
+  };
+
   const markDataAsSynced = async (data: AppData) => {
     await db.transaction('rw', [db.shifts, db.flights, db.batteries, db.detections, db.vehicleChecklists, db.droneChecklists], async () => {
       const markTable = async (table: any, items: any[] | undefined) => {
@@ -264,6 +274,7 @@ export function useDatabase() {
     updateLists,
     syncIncomingData,
     getUnsyncedData,
-    markDataAsSynced
+    markDataAsSynced,
+    getAllData
   };
 }

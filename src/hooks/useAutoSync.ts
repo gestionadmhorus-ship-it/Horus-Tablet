@@ -12,7 +12,8 @@ export function useAutoSync(
   markDataAsSynced: (data: AppData) => Promise<void>,
   onDataReceived: (data: AppData) => Promise<void>,
   getStatusSnapshot?: () => Omit<UnitStatus, 'deviceName' | 'connected' | 'lastSeen'>,
-  onStatusUpdate?: (status: UnitStatus) => void
+  onStatusUpdate?: (status: UnitStatus) => void,
+  getAllData?: () => Promise<AppData>
 ) {
   const [syncStatus, setSyncStatus] = useState<string>('Inicializando red...');
   const [isSyncing, setIsSyncing] = useState(false);
@@ -35,6 +36,7 @@ export function useAutoSync(
   const onDataReceivedRef = useRef(onDataReceived);
   const getStatusSnapshotRef = useRef(getStatusSnapshot);
   const onStatusUpdateRef = useRef(onStatusUpdate);
+  const getAllDataRef = useRef(getAllData);
 
   useEffect(() => {
     getUnsyncedDataRef.current = getUnsyncedData;
@@ -42,7 +44,8 @@ export function useAutoSync(
     onDataReceivedRef.current = onDataReceived;
     getStatusSnapshotRef.current = getStatusSnapshot;
     onStatusUpdateRef.current = onStatusUpdate;
-  }, [getUnsyncedData, markDataAsSynced, onDataReceived, getStatusSnapshot, onStatusUpdate]);
+    getAllDataRef.current = getAllData;
+  }, [getUnsyncedData, markDataAsSynced, onDataReceived, getStatusSnapshot, onStatusUpdate, getAllData]);
 
   // ── Ticker that marks stale units as disconnected (server-side) ──
   useEffect(() => {
@@ -66,10 +69,11 @@ export function useAutoSync(
 
   // ── Handle incoming STATUS_UPDATE on the server ──
   const handleStatusUpdate = useCallback((data: any) => {
-    const { deviceName, status } = data;
+    const { deviceName, peerId, status } = data;
     if (!deviceName || !status) return;
     const unitStatus: UnitStatus = {
       deviceName,
+      peerId,
       connected: true,
       lastSeen: Date.now(),
       ...status,
@@ -221,6 +225,22 @@ export function useAutoSync(
         const peer = new Peer({ debug: 1 });
         peerRef.current = peer;
 
+        // Listen for incoming control/recovery connections on the client
+        peer.on('connection', (conn) => {
+          conn.on('data', async (data: any) => {
+            if (data.type === 'REQUEST_FULL_BACKUP') {
+              try {
+                if (getAllDataRef.current) {
+                  const allData = await getAllDataRef.current();
+                  conn.send({ type: 'FULL_BACKUP_PAYLOAD', payload: allData });
+                }
+              } catch (err) {
+                console.error('Error serving full backup request:', err);
+              }
+            }
+          });
+        });
+
         // ── STATUS broadcast function for client ──
         const broadcastStatus = () => {
           if (!isActive || !peerRef.current || peerRef.current.disconnected) return;
@@ -233,7 +253,12 @@ export function useAutoSync(
           try {
             const conn = peerRef.current.connect(targetServerId);
             conn.on('open', () => {
-              conn.send({ type: 'STATUS_UPDATE', deviceName, status: snapshot });
+              conn.send({ 
+                type: 'STATUS_UPDATE', 
+                deviceName, 
+                peerId: peerRef.current ? peerRef.current.id : undefined, 
+                status: snapshot 
+              });
               // Close quickly after sending
               setTimeout(() => { try { conn.close(); } catch {} }, 500);
             });
@@ -433,5 +458,53 @@ export function useAutoSync(
     });
   };
 
-  return { syncStatus, isSyncing, forceSync, lastSyncTimestamp, unitsStatus };
+  const requestFullBackup = (peerId: string): Promise<{ success: boolean; message: string; payload?: AppData }> => {
+    return new Promise((resolve) => {
+      if (!peerRef.current || peerRef.current.destroyed) {
+        return resolve({ success: false, message: 'La red del Panel de Control no está activa.' });
+      }
+      if (!peerId) {
+        return resolve({ success: false, message: 'El dispositivo no posee una dirección de red (Peer ID) válida.' });
+      }
+
+      setSyncStatus('📡 Conectando con dispositivo para copia...');
+      const conn = peerRef.current.connect(peerId);
+      
+      const timeoutId = setTimeout(() => {
+        conn.close();
+        setSyncStatus('📡 Control: En línea y escuchando.');
+        resolve({ success: false, message: 'Tiempo de espera agotado al conectar con el dispositivo.' });
+      }, 12000);
+
+      conn.on('open', () => {
+        setSyncStatus('📥 Solicitando copia histórica completa...');
+        conn.send({ type: 'REQUEST_FULL_BACKUP' });
+      });
+
+      conn.on('data', (data: any) => {
+        clearTimeout(timeoutId);
+        if (data.type === 'FULL_BACKUP_PAYLOAD') {
+          conn.close();
+          setSyncStatus('✅ Copia histórica recibida.');
+          setTimeout(() => {
+            setSyncStatus('📡 Control: En línea y escuchando.');
+          }, 3000);
+          resolve({ success: true, message: 'Copia histórica recibida con éxito.', payload: data.payload });
+        } else {
+          conn.close();
+          setSyncStatus('📡 Control: En línea y escuchando.');
+          resolve({ success: false, message: 'Respuesta inválida del dispositivo.' });
+        }
+      });
+
+      conn.on('error', (err) => {
+        clearTimeout(timeoutId);
+        conn.close();
+        setSyncStatus('📡 Control: En línea y escuchando.');
+        resolve({ success: false, message: `Error al conectar: ${err.message || 'desconocido'}` });
+      });
+    });
+  };
+
+  return { syncStatus, isSyncing, forceSync, lastSyncTimestamp, unitsStatus, requestFullBackup };
 }

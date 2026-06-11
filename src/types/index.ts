@@ -209,6 +209,7 @@ export interface SyncConfig {
 /* ─── Real-time Unit Telemetry ─── */
 export interface UnitStatus {
   deviceName: string;
+  peerId?: string;            // Temporary peer ID for Control recovery connections
   connected: boolean;
   lastSeen: number;           // ms epoch — used to detect "no signal"
   hasActiveShift: boolean;

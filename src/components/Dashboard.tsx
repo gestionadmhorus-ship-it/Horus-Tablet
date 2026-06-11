@@ -32,6 +32,7 @@ interface DashboardProps {
   unitsStatus?: Map<string, UnitStatus>;
   syncHistory?: { deviceName: string; timestamp: number; kmsCount: number; hsCount: number }[];
   onExport?: () => void;
+  onRequestFullBackup?: (deviceName: string, peerId: string) => Promise<void>;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ 
@@ -39,7 +40,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   onReopenShift, hasTodayClosedShift, activeShiftId, activeFlightId,
   onEditShift, onEditFlight, onNewFlight, onCloseFlight, deviceName, syncStatus, appRole,
   currentTheme = 'hud', onChangeTheme, onForceSync, lastSyncTimestamp, unitsStatus,
-  syncHistory = [], onExport
+  syncHistory = [], onExport, onRequestFullBackup
 }) => {
   const [currentTime, setCurrentTime] = React.useState(new Date());
   const [actionMenu, setActionMenu] = React.useState<'KMS' | 'HS' | null>(null);
@@ -1305,6 +1306,55 @@ const Dashboard: React.FC<DashboardProps> = ({
                             <CheckCircle size={12} color="#00ff88" />
                             <span>Recibido: {totalReceived > 0 ? `${totalReceived} vuelos` : 'datos de jornada'}</span>
                           </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Device Recovery Panel */}
+              <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border-input)', borderRadius: '16px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <span style={{ fontSize: '0.9rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <RefreshCw size={16} /> Recuperación de Dispositivos
+                </span>
+                
+                {(!unitsStatus || unitsStatus.size === 0) ? (
+                  <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontStyle: 'italic', padding: '0.5rem' }}>
+                    Ninguna unidad vinculada.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                    {Array.from(unitsStatus.values()).map(unit => {
+                      const isOnline = unit.connected;
+                      return (
+                        <div key={unit.deviceName} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '8px', padding: '0.8rem' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                            <span style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)' }}>{unit.deviceName}</span>
+                            <span style={{ fontSize: '0.75rem', color: isOnline ? '#00ff88' : 'var(--text-secondary)', fontWeight: 600 }}>
+                              {isOnline ? 'En línea' : 'Sin señal'}
+                            </span>
+                          </div>
+                          <button
+                            disabled={!isOnline}
+                            onClick={() => onRequestFullBackup && onRequestFullBackup(unit.deviceName, unit.peerId || '')}
+                            style={{
+                              padding: '8px 12px',
+                              background: isOnline ? 'rgba(0, 242, 255, 0.08)' : 'rgba(255,255,255,0.02)',
+                              border: `1.5px solid ${isOnline ? 'var(--primary)' : 'rgba(255,255,255,0.1)'}`,
+                              borderRadius: '6px',
+                              color: isOnline ? 'var(--text-primary)' : 'var(--text-secondary)',
+                              fontSize: '0.85rem',
+                              fontWeight: 'bold',
+                              cursor: isOnline ? 'pointer' : 'not-allowed',
+                              transition: 'all 0.2s ease',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.4rem'
+                            }}
+                          >
+                            <Download size={13} /> Solicitar Copia
+                          </button>
                         </div>
                       );
                     })}
