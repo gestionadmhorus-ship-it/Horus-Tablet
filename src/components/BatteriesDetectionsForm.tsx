@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Save, ArrowLeft,
-  Battery, AlertTriangle, ChevronRight, ChevronLeft, FileText, Info,
+  Battery, AlertTriangle, ChevronRight, ChevronLeft, Info,
   Clock, Lock, Unlock, Plus, Minus
 } from 'lucide-react';
 import type { BatteryData, DetectionData, ListsData } from '../types';
@@ -78,7 +78,6 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
   const [selectedAnomaly, setSelectedAnomaly] = useState('');
   const [recommendation, setRecommendation] = useState('');
   const [criticality, setCriticality] = useState('');
-  const [fileName, setFileName] = useState('');
   const [observations, setObservations] = useState('');
 
   /* ─── Time Sync logic ─── */
@@ -172,6 +171,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
     setIsSaving(true);
     try {
       const saveTime = fixedTime || new Date();
+      const generatedFileName = formatTime24h(saveTime).replace(/:/g, '');
       onSaveDetection({
         id: generateId('DET'),
         flightId: activeFlightId,
@@ -180,12 +180,12 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
         anomaly: selectedAnomaly,
         recommendation,
         criticality,
-        fileName,
+        fileName: generatedFileName,
         observations
       });
       await window.customAlert('✅ Detección guardada con éxito');
       setSelectedElement(''); setSelectedAnomaly(''); setRecommendation('');
-      setCriticality(''); setFileName(''); setObservations('');
+      setCriticality(''); setObservations('');
       setFixedTime(null); // Reset fixed time back to real-time clock
     } finally {
       setIsSaving(false);
@@ -640,14 +640,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
               )}
             </div>
 
-            {/* ─ Archivo del Dron ─ */}
-            <div>
-              <label>Archivo del Dron</label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <FileText size={16} color="var(--text-secondary)" style={{ flexShrink: 0 }} />
-                <input type="text" value={fileName} onChange={e => setFileName(e.target.value)} placeholder="Ej: DJI_0014.JPG" style={{ flex: 1 }} />
-              </div>
-            </div>
+
 
             {/* ─ Observaciones ─ */}
             <div>
