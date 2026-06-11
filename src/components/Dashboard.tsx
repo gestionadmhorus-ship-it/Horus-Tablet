@@ -1,5 +1,4 @@
-import React from 'react';
-import { LayoutDashboard, Plane, Cpu, Download, Clock, Settings, Pencil, RotateCcw, Power, ShieldCheck, RefreshCw, Radio, Wifi, WifiOff } from 'lucide-react';
+import { LayoutDashboard, Plane, Cpu, Download, Clock, Settings, Pencil, RotateCcw, Power, ShieldCheck, RefreshCw, Radio, Wifi, WifiOff, CheckCircle, Table } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { UpdateManager } from '../services/UpdateManager';
 import { formatTime24h, formatDateDMY } from '../utils/dateUtils';
@@ -30,13 +29,16 @@ interface DashboardProps {
   onForceSync?: () => Promise<{ success: boolean; message: string }>;
   lastSyncTimestamp?: string | null;
   unitsStatus?: Map<string, UnitStatus>;
+  syncHistory?: { deviceName: string; timestamp: number; kmsCount: number; hsCount: number }[];
+  onExport?: () => void;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ 
   data, onNavigate, onSettings, hasActiveShift, hasActiveFlight, activeFlightType, onCloseShift, 
   onReopenShift, hasTodayClosedShift, activeShiftId, activeFlightId,
   onEditShift, onEditFlight, onNewFlight, onCloseFlight, deviceName, syncStatus, appRole,
-  currentTheme = 'hud', onChangeTheme, onForceSync, lastSyncTimestamp, unitsStatus
+  currentTheme = 'hud', onChangeTheme, onForceSync, lastSyncTimestamp, unitsStatus,
+  syncHistory = [], onExport
 }) => {
   const [currentTime, setCurrentTime] = React.useState(new Date());
   const [actionMenu, setActionMenu] = React.useState<'KMS' | 'HS' | null>(null);
@@ -833,7 +835,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       </div>
 
       {/* Reopen shift banner */}
-      {!hasActiveShift && hasTodayClosedShift && (
+      {appRole !== 'server' && !hasActiveShift && hasTodayClosedShift && (
         <div className="dashboard-reopen-banner">
           <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>⚠️ La jornada de hoy fue cerrada</span>
           <button
@@ -858,7 +860,8 @@ const Dashboard: React.FC<DashboardProps> = ({
       )}
 
       {/* Clock & Close Shift section */}
-      <div className="dashboard-clock-section">
+      {appRole !== 'server' && (
+        <div className="dashboard-clock-section">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem' }}>
           <Clock size={16} color="var(--text-secondary)" />
           <span className="dashboard-clock-text">
@@ -894,7 +897,8 @@ const Dashboard: React.FC<DashboardProps> = ({
       </div>
 
       {/* Cards Grid */}
-      <div className="dashboard-grid">
+      {appRole !== 'server' && (
+        <div className="dashboard-grid">
         {/* ─── Inicio de Jornada ─── */}
         <div style={{ position: 'relative' }} className="col-span-2">
           <motion.div
@@ -1088,92 +1092,217 @@ const Dashboard: React.FC<DashboardProps> = ({
             {hasActiveShift ? `${checklistText} | ${checklistSubText}` : 'Jornada Requerida'}
           </div>
         </motion.div>
-      </div>
+        </div>
+      )}
 
-      {/* ─── Unidades de Campo (server only) ─── */}
+      {/* ─── SERVER DASHBOARD (PC/CONTROL) ─── */}
       {appRole === 'server' && (
-        <div className="units-panel">
-          <div className="units-panel-header">
-            <Radio size={14} color="var(--primary)" />
-            <span className="units-panel-title">Unidades de Campo</span>
-            {unitsStatus && unitsStatus.size > 0 && (
-              <span style={{ marginLeft: 'auto', fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                {Array.from(unitsStatus.values()).filter(u => u.connected).length} / {unitsStatus.size} en línea
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%', boxSizing: 'border-box', marginTop: '1rem' }}>
+          
+          {/* Top stats block */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+            <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+              <span style={{ fontSize: '0.62rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '1px' }}>Jornadas Activas</span>
+              <span style={{ fontSize: '1.8rem', fontWeight: 900, color: 'var(--primary)' }}>
+                {unitsStatus ? Array.from(unitsStatus.values()).filter(u => u.hasActiveShift && u.connected).length : 0}
               </span>
-            )}
+              <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>de {unitsStatus ? unitsStatus.size : 0} unidades conocidas</span>
+            </div>
+
+            <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+              <span style={{ fontSize: '0.62rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '1px' }}>Vuelos en Curso</span>
+              <span style={{ fontSize: '1.8rem', fontWeight: 900, color: '#00ff88' }}>
+                {unitsStatus ? Array.from(unitsStatus.values()).filter(u => u.hasActiveFlight && u.connected).length : 0}
+              </span>
+              <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>monitoreando en vivo</span>
+            </div>
+
+            <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+              <span style={{ fontSize: '0.62rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '1px' }}>Total Vuelos del Día</span>
+              <span style={{ fontSize: '1.8rem', fontWeight: 900, color: 'var(--text-primary)' }}>
+                {unitsStatus ? Array.from(unitsStatus.values()).reduce((sum, u) => sum + u.kmsCount + u.hsCount, 0) : 0}
+              </span>
+              <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>KMS y HS consolidados</span>
+            </div>
+
+            <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+              <span style={{ fontSize: '0.62rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '1px' }}>Detecciones/Alertas</span>
+              <span style={{ fontSize: '1.8rem', fontWeight: 900, color: 'var(--neon-red)' }}>
+                {unitsStatus ? Array.from(unitsStatus.values()).reduce((sum, u) => sum + u.detectionsCount, 0) : 0}
+              </span>
+              <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>anomalías críticas</span>
+            </div>
           </div>
 
-          {(!unitsStatus || unitsStatus.size === 0) ? (
-            <div className="units-empty">
-              <WifiOff size={14} />
-              Esperando conexión de unidades de campo...
+          {/* Main layout grid for Server */}
+          <div style={{ display: 'grid', gridTemplateColumns: '2.5fr 1fr', gap: '1.5rem' }} className="server-main-grid">
+            
+            {/* Left: Telemetry Panel */}
+            <div className="units-panel" style={{ background: 'rgba(255, 255, 255, 0.01)', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
+              <div className="units-panel-header" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.75rem', marginBottom: '1rem' }}>
+                <Radio size={16} color="var(--primary)" />
+                <span className="units-panel-title" style={{ fontSize: '0.85rem' }}>Telemetría de Flota</span>
+                {unitsStatus && unitsStatus.size > 0 && (
+                  <span style={{ marginLeft: 'auto', fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 700 }}>
+                    {Array.from(unitsStatus.values()).filter(u => u.connected).length} / {unitsStatus.size} Conectados
+                  </span>
+                )}
+              </div>
+
+              {(!unitsStatus || unitsStatus.size === 0) ? (
+                <div className="units-empty" style={{ padding: '3rem 1rem' }}>
+                  <WifiOff size={24} style={{ opacity: 0.5 }} />
+                  <span>Esperando vinculación y reporte de unidades de campo...</span>
+                </div>
+              ) : (
+                <div className="units-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '0.8rem' }}>
+                  {Array.from(unitsStatus.values()).map(unit => {
+                    const isOnline = unit.connected;
+                    const flightLabel = unit.hasActiveFlight
+                      ? unit.activeFlightType === 'KMS'
+                        ? `KMS: ${unit.activeFlightName || '—'}`
+                        : `HS: ${unit.activeFlightName || '—'}`
+                      : null;
+                    return (
+                      <div key={unit.deviceName} className={`unit-card ${isOnline ? 'unit-online' : 'unit-offline'}`} style={{ padding: '1rem', border: `1.5px solid ${isOnline ? 'rgba(0, 255, 136, 0.15)' : 'rgba(255, 255, 255, 0.05)'}`, background: isOnline ? 'rgba(0, 255, 136, 0.01)' : 'rgba(0,0,0,0.1)' }}>
+                        <div className="unit-card-header" style={{ marginBottom: '0.5rem' }}>
+                          <span className="unit-name" style={{ fontSize: '0.95rem' }}>{unit.deviceName}</span>
+                          <span className={`unit-status-badge ${isOnline ? 'online' : 'offline'}`} style={{ fontSize: '0.58rem' }}>
+                            <span className={`unit-dot ${isOnline ? 'online' : 'offline'}`} />
+                            {isOnline ? 'En línea' : 'Sin señal'}
+                          </span>
+                        </div>
+
+                        {unit.hasActiveShift ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                            <div className="unit-meta-row active-value" style={{ fontSize: '0.78rem' }}>
+                              <Wifi size={12} />
+                              <span>Coord: {unit.coordinator || '—'}</span>
+                            </div>
+                            {unit.vehicle && (
+                              <div className="unit-meta-row" style={{ fontSize: '0.72rem' }}>
+                                <span>🚗 {unit.vehicle}</span>
+                                {unit.drone && <span> | 🚁 {unit.drone}</span>}
+                              </div>
+                            )}
+
+                            {flightLabel && (
+                              <div className="unit-meta-row" style={{ color: '#00ff88', fontWeight: 800, fontSize: '0.75rem', background: 'rgba(0,255,136,0.05)', padding: '4px 8px', borderRadius: '4px', marginTop: '0.2rem' }}>
+                                <Plane size={11} className="spinning" />
+                                <span>{flightLabel}</span>
+                              </div>
+                            )}
+
+                            <div className="unit-stats-row" style={{ marginTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.04)', paddingTop: '0.5rem' }}>
+                              <span className={`unit-stat-chip ${unit.kmsCount > 0 ? 'has-value' : ''}`} style={{ fontSize: '0.68rem', padding: '3px 8px' }}>
+                                <Plane size={10} /> KMS {unit.kmsCount}
+                              </span>
+                              <span className={`unit-stat-chip ${unit.hsCount > 0 ? 'has-value' : ''}`} style={{ fontSize: '0.68rem', padding: '3px 8px' }}>
+                                <Clock size={10} /> HS {unit.hsCount}
+                              </span>
+                              {unit.detectionsCount > 0 && (
+                                <span className="unit-stat-chip has-value" style={{ color: 'var(--neon-red)', borderColor: 'rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.06)', fontSize: '0.68rem', padding: '3px 8px' }}>
+                                  ⚠ {unit.detectionsCount}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="unit-no-shift" style={{ marginTop: '0.5rem', fontSize: '0.75rem' }}>Sin jornada activa</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          ) : (
-            <div className="units-grid">
-              {Array.from(unitsStatus.values()).map(unit => {
-                const isOnline = unit.connected;
-                const flightLabel = unit.hasActiveFlight
-                  ? unit.activeFlightType === 'KMS'
-                    ? `KMS: ${unit.activeFlightName || '—'}`
-                    : `HS: ${unit.activeFlightName || '—'}`
-                  : null;
-                return (
-                  <div key={unit.deviceName} className={`unit-card ${isOnline ? 'unit-online' : 'unit-offline'}`}>
-                    {/* Header: name + online badge */}
-                    <div className="unit-card-header">
-                      <span className="unit-name">{unit.deviceName}</span>
-                      <span className={`unit-status-badge ${isOnline ? 'online' : 'offline'}`}>
-                        <span className={`unit-dot ${isOnline ? 'online' : 'offline'}`} />
-                        {isOnline ? 'En línea' : 'Sin señal'}
-                      </span>
-                    </div>
 
-                    {/* Shift info */}
-                    {unit.hasActiveShift ? (
-                      <>
-                        <div className="unit-meta-row active-value">
-                          <Wifi size={10} style={{ flexShrink: 0 }} />
-                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>Coord: {unit.coordinator || '—'}</span>
-                        </div>
-                        {unit.vehicle && (
-                          <div className="unit-meta-row">
-                            <span style={{ opacity: 0.5 }}>🚗</span>
-                            <span>{unit.vehicle}</span>
-                            {unit.drone && <><span style={{ opacity: 0.4 }}>|</span><span>🚁 {unit.drone}</span></>}
-                          </div>
-                        )}
+            {/* Right: Actions & Sync Feed */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+              
+              {/* Control Actions Box */}
+              <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border-input)', borderRadius: '16px', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                <span style={{ fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--primary)' }}>Acciones de Control</span>
+                
+                <button
+                  onClick={() => onNavigate('explorer')}
+                  style={{
+                    width: '100%',
+                    padding: '0.9rem',
+                    background: 'rgba(0, 242, 255, 0.05)',
+                    border: '1.5px solid var(--primary)',
+                    borderRadius: '10px',
+                    color: 'var(--text-primary)',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.5rem',
+                    fontSize: '0.85rem',
+                    transition: 'all 0.2s ease',
+                    boxShadow: '0 4px 15px rgba(0, 242, 255, 0.05)'
+                  }}
+                >
+                  <Download size={16} /> Explorar Registros
+                </button>
 
-                        {/* Flight status */}
-                        {flightLabel && (
-                          <div className="unit-meta-row" style={{ color: '#00ff88', fontWeight: 700 }}>
-                            <Plane size={10} style={{ flexShrink: 0 }} />
-                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{flightLabel}</span>
-                          </div>
-                        )}
+                <button
+                  onClick={onExport}
+                  style={{
+                    width: '100%',
+                    padding: '0.9rem',
+                    background: 'rgba(0, 255, 136, 0.05)',
+                    border: '1.5px solid rgba(0, 255, 136, 0.4)',
+                    borderRadius: '10px',
+                    color: '#00ff88',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.5rem',
+                    fontSize: '0.85rem',
+                    transition: 'all 0.2s ease',
+                    boxShadow: '0 4px 15px rgba(0, 255, 136, 0.05)'
+                  }}
+                >
+                  <Table size={16} /> Exportar Reportes
+                </button>
+              </div>
 
-                        {/* Stats row */}
-                        <div className="unit-stats-row">
-                          <span className={`unit-stat-chip ${unit.kmsCount > 0 ? 'has-value' : ''} ${unit.hasActiveFlight && unit.activeFlightType === 'KMS' ? 'flight-active' : ''}`}>
-                            <Plane size={9} /> KMS {unit.kmsCount}
-                          </span>
-                          <span className={`unit-stat-chip ${unit.hsCount > 0 ? 'has-value' : ''} ${unit.hasActiveFlight && unit.activeFlightType === 'HS' ? 'flight-active' : ''}`}>
-                            <Clock size={9} /> HS {unit.hsCount}
-                          </span>
-                          {unit.detectionsCount > 0 && (
-                            <span className="unit-stat-chip has-value" style={{ color: 'var(--neon-red)', borderColor: 'rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.06)' }}>
-                              ⚠ {unit.detectionsCount} det.
-                            </span>
-                          )}
-                        </div>
-                      </>
-                    ) : (
-                      <span className="unit-no-shift">Sin jornada activa</span>
-                    )}
+              {/* Recent Sync Feed */}
+              <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border-input)', borderRadius: '16px', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.8rem', flex: 1, minHeight: '200px' }}>
+                <span style={{ fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--primary)' }}>Sincronizaciones</span>
+                
+                {(!syncHistory || syncHistory.length === 0) ? (
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', color: 'var(--text-secondary)', fontStyle: 'italic', textAlign: 'center', padding: '1rem' }}>
+                    Ningún dato recibido todavía hoy.
                   </div>
-                );
-              })}
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', overflowY: 'auto', maxHeight: '300px', paddingRight: '4px' }}>
+                    {syncHistory.map((s, idx) => {
+                      const timeStr = new Date(s.timestamp).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                      const totalReceived = s.kmsCount + s.hsCount;
+                      return (
+                        <div key={idx} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '8px', padding: '0.6rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-primary)' }}>{s.deviceName}</span>
+                            <span style={{ fontSize: '0.6rem', color: 'var(--text-secondary)' }}>{timeStr}</span>
+                          </div>
+                          <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                            <CheckCircle size={10} color="#00ff88" />
+                            <span>Recibido: {totalReceived > 0 ? `${totalReceived} vuelos` : 'datos de jornada'}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
             </div>
-          )}
+          </div>
         </div>
       )}
 

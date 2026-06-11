@@ -154,11 +154,35 @@ function App() {
     });
   }, []);
 
+  const [syncHistory, setSyncHistory] = useState<{ deviceName: string; timestamp: number; kmsCount: number; hsCount: number }[]>(() => {
+    const stored = localStorage.getItem('horus_sync_history');
+    return stored ? JSON.parse(stored) : [];
+  });
+
+  const handleSyncIncomingData = useCallback(async (payload: any) => {
+    let senderName = 'Unknown';
+    if (payload.shifts?.[0]) senderName = payload.shifts[0].deviceName;
+    else if (payload.flights?.[0]) senderName = payload.flights[0].deviceName;
+    else if (payload.batteries?.[0]) senderName = payload.batteries[0].deviceName;
+    else if (payload.detections?.[0]) senderName = payload.detections[0].deviceName;
+
+    const kmsCount = (payload.flights || []).filter((f: any) => f.flightType === 'KMS').length;
+    const hsCount = (payload.flights || []).filter((f: any) => f.flightType === 'HS').length;
+
+    await syncIncomingData(payload);
+
+    setSyncHistory(prev => {
+      const updated = [{ deviceName: senderName, timestamp: Date.now(), kmsCount, hsCount }, ...prev].slice(0, 10);
+      localStorage.setItem('horus_sync_history', JSON.stringify(updated));
+      return updated;
+    });
+  }, [syncIncomingData]);
+
   const { syncStatus, forceSync, lastSyncTimestamp, unitsStatus: hookUnitsStatus } = useAutoSync(
     appRole,
     getUnsyncedData,
     markDataAsSynced,
-    syncIncomingData,
+    handleSyncIncomingData,
     appRole === 'client' ? getStatusSnapshot : undefined,
     appRole === 'server' ? handleStatusUpdate : undefined
   );
@@ -493,6 +517,8 @@ function App() {
             onForceSync={forceSync}
             lastSyncTimestamp={lastSyncTimestamp}
             unitsStatus={unitsStatus}
+            syncHistory={syncHistory}
+            onExport={() => setShowExportModal(true)}
           />
         );
       case 'shift':
@@ -686,6 +712,8 @@ function App() {
             onForceSync={forceSync}
             lastSyncTimestamp={lastSyncTimestamp}
             unitsStatus={unitsStatus}
+            syncHistory={syncHistory}
+            onExport={() => setShowExportModal(true)}
           />
         );
     }
