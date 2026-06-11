@@ -27,13 +27,14 @@ interface DashboardProps {
   currentTheme?: 'hud' | 'boost';
   onChangeTheme?: (theme: 'hud' | 'boost') => void;
   onForceSync?: () => Promise<{ success: boolean; message: string }>;
+  lastSyncTimestamp?: string | null;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ 
   data, onNavigate, onSettings, hasActiveShift, hasActiveFlight, activeFlightType, onCloseShift, 
   onReopenShift, hasTodayClosedShift, activeShiftId, activeFlightId,
   onEditShift, onEditFlight, onNewFlight, onCloseFlight, deviceName, syncStatus, appRole,
-  currentTheme = 'hud', onChangeTheme, onForceSync
+  currentTheme = 'hud', onChangeTheme, onForceSync, lastSyncTimestamp
 }) => {
   const [currentTime, setCurrentTime] = React.useState(new Date());
   const [actionMenu, setActionMenu] = React.useState<'KMS' | 'HS' | null>(null);
@@ -616,18 +617,24 @@ const Dashboard: React.FC<DashboardProps> = ({
             borderRadius: '8px',
             color: '#00ff88',
             cursor: isSyncingForced ? 'not-allowed' : 'pointer',
-            padding: '0.7rem',
+            padding: '0.5rem 0.7rem',
             display: 'flex',
+            flexDirection: 'column',
             alignItems: 'center',
+            gap: '2px',
             transition: 'all 0.2s ease',
             boxShadow: '0 4px 15px rgba(0, 255, 136, 0.15)',
             backdropFilter: 'blur(10px)',
             WebkitBackdropFilter: 'blur(10px)',
-            opacity: isSyncingForced ? 0.7 : 1
+            opacity: isSyncingForced ? 0.7 : 1,
+            minWidth: '54px'
           }}
-          title="Forzar Sincronización Directa"
+          title={lastSyncTimestamp ? `ÚLTIMO ENVÍO: ${lastSyncTimestamp}` : 'Forzar Sincronización Directa'}
         >
-          <RefreshCw size={22} className={isSyncingForced ? 'spinning' : ''} />
+          <RefreshCw size={20} className={isSyncingForced ? 'spinning' : ''} />
+          <span style={{ fontSize: '0.5rem', fontWeight: 800, letterSpacing: '0.3px', textTransform: 'uppercase', lineHeight: 1, opacity: 0.85, whiteSpace: 'nowrap' }}>
+            {lastSyncTimestamp ? lastSyncTimestamp : 'SYNC'}
+          </span>
         </button>
         <button
           onClick={onSettings}

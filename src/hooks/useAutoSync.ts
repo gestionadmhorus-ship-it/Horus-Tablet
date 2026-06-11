@@ -12,7 +12,17 @@ export function useAutoSync(
 ) {
   const [syncStatus, setSyncStatus] = useState<string>('Inicializando red...');
   const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSyncTimestamp, setLastSyncTimestamp] = useState<string | null>(
+    () => localStorage.getItem('horus_last_sync_ts')
+  );
   const peerRef = useRef<Peer | null>(null);
+
+  const recordSyncSuccess = () => {
+    const now = new Date();
+    const ts = now.toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    localStorage.setItem('horus_last_sync_ts', ts);
+    setLastSyncTimestamp(ts);
+  };
 
   // Use refs for stable callbacks to avoid re-triggering the effect
   const getUnsyncedDataRef = useRef(getUnsyncedData);
@@ -178,6 +188,7 @@ export function useAutoSync(
           conn.on('data', async (data: any) => {
             if (data.type === 'SYNC_ACK') {
               await markDataAsSyncedRef.current(unsynced);
+              recordSyncSuccess();
               setSyncStatus('✅ Sincronización automática exitosa.');
               setTimeout(() => {
                 if (isActive) setSyncStatus('✅ Todo está sincronizado.');
@@ -296,6 +307,7 @@ export function useAutoSync(
         if (data.type === 'SYNC_ACK') {
           try {
             await markDataAsSyncedRef.current(unsynced);
+            recordSyncSuccess();
             setSyncStatus('✅ Sincronización exitosa.');
             setTimeout(() => {
               setSyncStatus('✅ Todo está sincronizado.');
@@ -329,5 +341,5 @@ export function useAutoSync(
     });
   };
 
-  return { syncStatus, isSyncing, forceSync };
+  return { syncStatus, isSyncing, forceSync, lastSyncTimestamp };
 }

@@ -90,7 +90,22 @@ function App() {
     }
   }, []);
 
-  const { syncStatus, forceSync } = useAutoSync(
+  // ── Detectar rol forzado desde URL (usado por launch_control.vbs) ──
+  // Si la URL contiene ?force_role=server, configuramos el dispositivo como Control Panel
+  // y limpiamos el parámetro de la URL para no repetirlo en cada recarga.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const forcedRole = params.get('force_role') as AppRole | null;
+    if (forcedRole === 'server' || forcedRole === 'client') {
+      localStorage.setItem('horus_sync_role', forcedRole);
+      setAppRole(forcedRole);
+      // Clean the URL param without triggering a page reload
+      const cleanUrl = window.location.pathname;
+      window.history.replaceState({}, '', cleanUrl);
+    }
+  }, []);
+
+  const { syncStatus, forceSync, lastSyncTimestamp } = useAutoSync(
     appRole,
     getUnsyncedData,
     markDataAsSynced,
@@ -607,6 +622,7 @@ function App() {
             currentTheme={themeMode}
             onChangeTheme={setThemeMode}
             onForceSync={forceSync}
+            lastSyncTimestamp={lastSyncTimestamp}
           />
         );
     }

@@ -49,7 +49,7 @@ function createWindow() {
     height: 800,
     minWidth: 900,
     minHeight: 600,
-    title: 'Horus Tablet Campo - Jefe',
+    title: 'Hermes II — Tablet',
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
       contextIsolation: true,
