@@ -222,8 +222,35 @@ function App() {
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
+
+        // Guardar automáticamente en el listado de copias de localStorage
+        try {
+          const rawBackups = localStorage.getItem('horus_saved_backups');
+          const backups = rawBackups ? JSON.parse(rawBackups) : [];
+          
+          const newBackup = {
+            id: `Recuperacion_${targetDeviceName}_${timestamp}`,
+            filename: filename,
+            deviceName: targetDeviceName,
+            timestamp: new Date().toLocaleString('es-AR'),
+            payload: res.payload
+          };
+          
+          backups.push(newBackup);
+          if (backups.length > 5) {
+            backups.shift();
+          }
+          localStorage.setItem('horus_saved_backups', JSON.stringify(backups));
+        } catch (storageErr) {
+          console.error('Error guardando en localStorage:', storageErr);
+        }
         
-        await window.customAlert(`Copia histórica recibida y guardada en Descargas como:\n${filename}`);
+        const goToViewer = await window.customConfirm(
+          `Copia histórica de "${targetDeviceName}" recibida y guardada en el Visualizador.\n\n¿Deseas abrir el Visualizador de Respaldos ahora?`
+        );
+        if (goToViewer) {
+          setCurrentPage('backup-viewer');
+        }
       } catch (err: any) {
         await window.customAlert(`Error guardando archivo local: ${err.message || err}`);
       }

@@ -1,7 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { 
   ArrowLeft, FileJson, Table, AlertTriangle, 
-  Battery, ShieldCheck, Calendar, ChevronRight, ChevronDown, Info 
+  Battery, ShieldCheck, Calendar, ChevronRight, ChevronDown, Info,
+  Trash2, FolderOpen
 } from 'lucide-react';
 import type { AppData } from '../types';
 import { exportToExcel } from '../utils/exportUtils';
@@ -24,6 +25,29 @@ const BackupViewer: React.FC<BackupViewerProps> = ({ onBack }) => {
 
   // Drag and drop states
   const [isDragging, setIsDragging] = useState<boolean>(false);
+
+  // Lista de copias guardadas en localStorage
+  const [savedBackups, setSavedBackups] = useState<any[]>(() => {
+    try {
+      const raw = localStorage.getItem('horus_saved_backups');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const handleDeleteSavedBackup = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation(); // Evitar abrir la copia al hacer clic en borrar
+    const filtered = savedBackups.filter(b => b.id !== id);
+    setSavedBackups(filtered);
+    localStorage.setItem('horus_saved_backups', JSON.stringify(filtered));
+  };
+
+  const handleSelectSavedBackup = (backup: any) => {
+    setBackupData(backup.payload);
+    setFileName(backup.filename);
+    setErrorMsg('');
+  };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -182,43 +206,127 @@ const BackupViewer: React.FC<BackupViewerProps> = ({ onBack }) => {
         </div>
       )}
 
-      {/* Drop Zone o Cargar Archivo */}
+      {/* Listado y Carga */}
       {!backupData ? (
-        <div 
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          onClick={() => fileInputRef.current?.click()}
-          style={{
-            border: isDragging ? '2px dashed var(--primary)' : '2px dashed var(--glass-border)',
-            background: isDragging ? 'rgba(240, 196, 25, 0.04)' : 'rgba(255, 255, 255, 0.01)',
-            borderRadius: '16px',
-            padding: '4rem 2rem',
-            textAlign: 'center',
-            cursor: 'pointer',
-            transition: 'all 0.2s ease',
-            boxShadow: isDragging ? '0 0 25px rgba(240,196,25,0.05)' : 'none'
-          }}
-        >
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            onChange={handleFileChange} 
-            accept=".json" 
-            style={{ display: 'none' }} 
-          />
-          <FileJson size={48} color={isDragging ? 'var(--primary)' : 'var(--text-secondary)'} style={{ marginBottom: '1rem', opacity: 0.8 }} />
-          <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1.2rem', color: 'var(--text-primary)' }}>
-            Arrastra el archivo de copia aquí
-          </h3>
-          <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-            o haz clic para buscar en tu computadora (ej: <code style={{ color: 'var(--primary)' }}>Recuperacion_*.json</code>)
-          </p>
-          {errorMsg && (
-            <div style={{ marginTop: '1.5rem', color: 'var(--neon-red)', fontSize: '0.9rem', fontWeight: 'bold' }}>
-              ⚠️ {errorMsg}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {/* Listado de Copias si existen */}
+          {savedBackups.length > 0 && (
+            <div className="glass" style={{ padding: '1.5rem' }}>
+              <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.1rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 800 }}>
+                <FolderOpen size={20} color="var(--primary)" /> Copias de Dispositivos en la PC
+              </h3>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {savedBackups.map((backup) => (
+                  <div 
+                    key={backup.id} 
+                    onClick={() => handleSelectSavedBackup(backup)}
+                    style={{ 
+                      padding: '1rem', 
+                      background: 'rgba(255, 255, 255, 0.02)', 
+                      border: '1px solid var(--glass-border)', 
+                      borderRadius: '12px', 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      alignItems: 'center', 
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.background = 'rgba(240, 196, 25, 0.02)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--glass-border)'; e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)'; }}
+                  >
+                    <div>
+                      <strong style={{ color: 'var(--text-primary)', fontSize: '0.95rem' }}>
+                        Copia de: {backup.deviceName}
+                      </strong>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                        Archivo: {backup.filename}
+                      </div>
+                    </div>
+                    
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+                      <span style={{ fontSize: '0.8rem', fontFamily: 'monospace', color: 'var(--text-secondary)' }}>
+                        {backup.timestamp}
+                      </span>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button
+                          onClick={() => handleSelectSavedBackup(backup)}
+                          className="btn-3d"
+                          style={{
+                            padding: '0.4rem 0.8rem',
+                            background: 'rgba(240, 196, 25, 0.1)',
+                            border: '1px solid var(--primary)',
+                            color: 'var(--primary)',
+                            fontWeight: 'bold',
+                            fontSize: '0.8rem'
+                          }}
+                        >
+                          VER REGISTROS
+                        </button>
+                        <button
+                          onClick={(e) => handleDeleteSavedBackup(e, backup.id)}
+                          style={{
+                            padding: '0.4rem 0.6rem',
+                            background: 'rgba(255, 23, 68, 0.1)',
+                            border: '1px solid var(--neon-red)',
+                            borderRadius: '6px',
+                            color: 'var(--neon-red)',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.2s ease'
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--neon-red)'; e.currentTarget.style.color = 'white'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255, 23, 68, 0.1)'; e.currentTarget.style.color = 'var(--neon-red)'; }}
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
+
+          {/* Zona de arrastre */}
+          <div 
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onClick={() => fileInputRef.current?.click()}
+            style={{
+              border: isDragging ? '2px dashed var(--primary)' : '2px dashed var(--glass-border)',
+              background: isDragging ? 'rgba(240, 196, 25, 0.04)' : 'rgba(255, 255, 255, 0.01)',
+              borderRadius: '16px',
+              padding: '3rem 2rem',
+              textAlign: 'center',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              boxShadow: isDragging ? '0 0 25px rgba(240,196,25,0.05)' : 'none'
+            }}
+          >
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              onChange={handleFileChange} 
+              accept=".json" 
+              style={{ display: 'none' }} 
+            />
+            <FileJson size={40} color={isDragging ? 'var(--primary)' : 'var(--text-secondary)'} style={{ marginBottom: '0.8rem', opacity: 0.8 }} />
+            <h3 style={{ margin: '0 0 0.4rem 0', fontSize: '1.1rem', color: 'var(--text-primary)' }}>
+              Cargar archivo JSON externo
+            </h3>
+            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+              Arrastra aquí o haz clic para buscar en tu computadora (ej: <code style={{ color: 'var(--primary)' }}>Recuperacion_*.json</code>)
+            </p>
+            {errorMsg && (
+              <div style={{ marginTop: '1rem', color: 'var(--neon-red)', fontSize: '0.9rem', fontWeight: 'bold' }}>
+                ⚠️ {errorMsg}
+              </div>
+            )}
+          </div>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -269,7 +377,7 @@ const BackupViewer: React.FC<BackupViewerProps> = ({ onBack }) => {
                   padding: '0.8rem 1.2rem'
                 }}
               >
-                CARGAR OTRO ARCHIVO
+                VER OTRAS COPIAS
               </button>
             </div>
           </div>
