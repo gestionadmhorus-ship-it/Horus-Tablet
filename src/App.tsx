@@ -9,6 +9,7 @@ import { ChecklistSelector } from './components/ChecklistSelector';
 import SettingsPanel from './components/SettingsPanel';
 import RecordsExplorer from './components/RecordsExplorer';
 import { RoleSetup } from './components/RoleSetup';
+import BackupViewer from './components/BackupViewer';
 import type { AppRole, UnitStatus } from './types';
 import { useDatabase } from './hooks/useDatabase';
 import { useAutoSync } from './hooks/useAutoSync';
@@ -712,6 +713,12 @@ function App() {
               }
             }}
             onSyncReceived={syncIncomingData}
+          />
+        );
+      case 'backup-viewer':
+        return (
+          <BackupViewer
+            onBack={() => setCurrentPage('dashboard')}
           />
         );
       default:

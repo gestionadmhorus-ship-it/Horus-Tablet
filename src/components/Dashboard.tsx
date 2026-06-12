@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, Plane, Cpu, Download, Clock, Settings, Pencil, RotateCcw, Power, ShieldCheck, RefreshCw, Radio, Wifi, WifiOff, CheckCircle, Table } from 'lucide-react';
+import { LayoutDashboard, Plane, Cpu, Download, Clock, Settings, Pencil, RotateCcw, Power, ShieldCheck, RefreshCw, Radio, Wifi, WifiOff, CheckCircle, Table, FileJson } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { UpdateManager } from '../services/UpdateManager';
 import { formatTime24h, formatDateDMY } from '../utils/dateUtils';
@@ -1304,6 +1304,29 @@ const Dashboard: React.FC<DashboardProps> = ({
                   }}
                 >
                   <RefreshCw size={18} /> Recuperar Dispositivo
+                </button>
+
+                <button
+                  onClick={() => onNavigate('backup-viewer')}
+                  style={{
+                    width: '100%',
+                    padding: '1.1rem',
+                    background: 'rgba(255, 255, 255, 0.03)',
+                    border: '1.5px solid rgba(255, 255, 255, 0.15)',
+                    borderRadius: '10px',
+                    color: 'var(--text-primary)',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.6rem',
+                    fontSize: '1.05rem',
+                    transition: 'all 0.2s ease',
+                    boxShadow: '0 4px 15px rgba(255, 255, 255, 0.02)'
+                  }}
+                >
+                  <FileJson size={18} /> Visualizar Respaldos
                 </button>
               </div>
 
