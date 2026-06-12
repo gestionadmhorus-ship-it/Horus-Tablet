@@ -579,6 +579,7 @@ function App() {
             unitsStatus={unitsStatus}
             syncHistory={syncHistory}
             onExport={() => setShowExportModal(true)}
+            onRequestFullBackup={handleRequestFullBackup}
           />
         );
       case 'shift':

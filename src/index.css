@@ -504,3 +504,40 @@ label {
   margin-bottom: 1rem;
 }
 
+/* Recovery Modal Buttons */
+.btn-recovery-request {
+  padding: 10px 16px;
+  background: rgba(255, 159, 67, 0.08);
+  border: 1.5px solid #ff9f43;
+  border-radius: 8px;
+  color: #ff9f43;
+  font-size: 0.88rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.btn-recovery-request:hover:not(:disabled) {
+  background: #ff9f43;
+  color: #000000;
+  box-shadow: 0 0 15px rgba(255, 159, 67, 0.4);
+  transform: translateY(-1px);
+}
+.btn-recovery-request:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.btn-recovery-request:disabled {
+  background: rgba(255, 255, 255, 0.02);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+

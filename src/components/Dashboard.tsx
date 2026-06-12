@@ -46,6 +46,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [actionMenu, setActionMenu] = React.useState<'KMS' | 'HS' | null>(null);
   const [showRecoveryModal, setShowRecoveryModal] = React.useState(false);
   const [isSyncingForced, setIsSyncingForced] = React.useState(false);
+  const [loadingBackup, setLoadingBackup] = React.useState<string | null>(null);
   const isKMSActive = hasActiveFlight && activeFlightType === 'KMS';
   const isHSActive = hasActiveFlight && activeFlightType === 'HS';
   const isBatteryEnabled = hasActiveFlight && activeFlightType === 'KMS';
@@ -1434,6 +1435,33 @@ const Dashboard: React.FC<DashboardProps> = ({
               Solicita y descarga un respaldo completo de todos los registros históricos almacenados en la tablet seleccionada. Los datos se guardan en un archivo JSON independiente en tu PC.
             </p>
 
+            {/* Estado de sincronización/recuperación en tiempo real */}
+            {syncStatus && (syncStatus.includes('copia') || syncStatus.includes('Copia') || syncStatus.includes('recuper') || syncStatus.includes('Recuper')) && (
+              <div style={{ 
+                background: 'rgba(255, 159, 67, 0.08)', 
+                border: '1px solid rgba(255, 159, 67, 0.3)', 
+                color: '#ff9f43', 
+                padding: '0.8rem 1rem', 
+                borderRadius: '8px', 
+                fontSize: '0.88rem',
+                fontWeight: 'bold',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+              }}>
+                <span style={{ 
+                  width: '12px', 
+                  height: '12px', 
+                  border: '2px solid currentColor', 
+                  borderTopColor: 'transparent', 
+                  borderRadius: '50%', 
+                  display: 'inline-block', 
+                  animation: 'spin 1s linear infinite' 
+                }} />
+                {syncStatus}
+              </div>
+            )}
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', margin: '0.5rem 0' }}>
               {(!unitsStatus || unitsStatus.size === 0) ? (
                 <div style={{ fontSize: '0.92rem', color: 'var(--text-secondary)', fontStyle: 'italic', padding: '1rem', textAlign: 'center', background: 'rgba(255,255,255,0.02)', borderRadius: '10px' }}>
@@ -1442,6 +1470,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               ) : (
                 Array.from(unitsStatus.values()).map(unit => {
                   const isOnline = unit.connected;
+                  const isCurrentLoading = loadingBackup === unit.deviceName;
                   return (
                     <div 
                       key={unit.deviceName} 
@@ -1463,26 +1492,38 @@ const Dashboard: React.FC<DashboardProps> = ({
                         </span>
                       </div>
                       <button
-                        disabled={!isOnline}
-                        onClick={() => {
-                          onRequestFullBackup && onRequestFullBackup(unit.deviceName, unit.peerId || '');
-                        }}
-                        style={{
-                          padding: '10px 16px',
-                          background: isOnline ? 'rgba(255, 159, 67, 0.1)' : 'rgba(255,255,255,0.02)',
-                          border: `1.5px solid ${isOnline ? '#ff9f43' : 'rgba(255,255,255,0.1)'}`,
-                          borderRadius: '8px',
-                          color: isOnline ? '#ff9f43' : 'var(--text-secondary)',
-                          fontSize: '0.88rem',
-                          fontWeight: 'bold',
-                          cursor: isOnline ? 'pointer' : 'not-allowed',
-                          transition: 'all 0.2s ease',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.5rem'
+                        className="btn-recovery-request"
+                        disabled={!isOnline || !!loadingBackup}
+                        onClick={async () => {
+                          if (!onRequestFullBackup) return;
+                          setLoadingBackup(unit.deviceName);
+                          try {
+                            await onRequestFullBackup(unit.deviceName, unit.peerId || '');
+                          } catch (err) {
+                            console.error(err);
+                          } finally {
+                            setLoadingBackup(null);
+                          }
                         }}
                       >
-                        <Download size={14} /> Solicitar Copia
+                        {isCurrentLoading ? (
+                          <>
+                            <span style={{ 
+                              width: '12px', 
+                              height: '12px', 
+                              border: '2px solid currentColor', 
+                              borderTopColor: 'transparent', 
+                              borderRadius: '50%', 
+                              display: 'inline-block', 
+                              animation: 'spin 1s linear infinite' 
+                            }} />
+                            Recuperando...
+                          </>
+                        ) : (
+                          <>
+                            <Download size={14} /> Solicitar Copia
+                          </>
+                        )}
                       </button>
                     </div>
                   );
