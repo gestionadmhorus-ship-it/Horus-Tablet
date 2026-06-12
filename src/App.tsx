@@ -186,7 +186,8 @@ function App() {
     handleSyncIncomingData,
     appRole === 'client' ? getStatusSnapshot : undefined,
     appRole === 'server' ? handleStatusUpdate : undefined,
-    getAllData
+    getAllData,
+    deviceName
   );
 
   // Merge hook-managed units state into local state for the dashboard

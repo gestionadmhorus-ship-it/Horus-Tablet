@@ -13,7 +13,8 @@ export function useAutoSync(
   onDataReceived: (data: AppData) => Promise<void>,
   getStatusSnapshot?: () => Omit<UnitStatus, 'deviceName' | 'connected' | 'lastSeen'>,
   onStatusUpdate?: (status: UnitStatus) => void,
-  getAllData?: () => Promise<AppData>
+  getAllData?: () => Promise<AppData>,
+  deviceName?: string
 ) {
   const [syncStatus, setSyncStatus] = useState<string>('Inicializando red...');
   const [isSyncing, setIsSyncing] = useState(false);
@@ -105,6 +106,11 @@ export function useAutoSync(
     let isActive = true;
 
     const connectPeer = () => {
+      // Clear existing timers to prevent memory leaks and duplicate runs
+      clearTimeout(reconnectTimer);
+      clearTimeout(syncAttemptTimer);
+      clearInterval(statusBroadcastTimer);
+
       if (peerRef.current) {
         peerRef.current.destroy();
       }
@@ -222,7 +228,10 @@ export function useAutoSync(
 
       } else if (role === 'client') {
         setSyncStatus('🔍 Cliente: Buscando red...');
-        const peer = new Peer({ debug: 1 });
+        const name = deviceName || localStorage.getItem('horus_device_name') || 'Unknown';
+        const sanitizedName = name.replace(/[^a-zA-Z0-9-_]/g, '');
+        const clientPeerId = `horus-tablet-peer-${sanitizedName}`;
+        const peer = new Peer(clientPeerId, { debug: 1 });
         peerRef.current = peer;
 
         // Listen for incoming control/recovery connections on the client
@@ -232,10 +241,37 @@ export function useAutoSync(
               try {
                 if (getAllDataRef.current) {
                   const allData = await getAllDataRef.current();
-                  conn.send({ type: 'FULL_BACKUP_PAYLOAD', payload: allData });
+                  const jsonString = JSON.stringify(allData);
+                  const CHUNK_SIZE = 16384; // 16KB chunks
+                  const totalChunks = Math.ceil(jsonString.length / CHUNK_SIZE);
+
+                  // Send header
+                  conn.send({
+                    type: 'FULL_BACKUP_HEADER',
+                    totalChunks,
+                    totalSize: jsonString.length
+                  });
+
+                  // Send chunks
+                  for (let i = 0; i < totalChunks; i++) {
+                    const chunk = jsonString.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+                    conn.send({
+                      type: 'FULL_BACKUP_CHUNK',
+                      chunkIndex: i,
+                      chunkData: chunk
+                    });
+                    // Tiny delay to avoid saturating SCTP buffer
+                    await new Promise(r => setTimeout(r, 20));
+                  }
+
+                  // Send completion signal
+                  conn.send({ type: 'FULL_BACKUP_END' });
                 }
-              } catch (err) {
+              } catch (err: any) {
                 console.error('Error serving full backup request:', err);
+                try {
+                  conn.send({ type: 'BACKUP_ERROR', message: err.message || String(err) });
+                } catch {}
               }
             }
           });
@@ -369,7 +405,7 @@ export function useAutoSync(
         peerRef.current.destroy();
       }
     };
-  }, [role, handleStatusUpdate]);
+  }, [role, handleStatusUpdate, deviceName]);
 
   const forceSync = (): Promise<{ success: boolean; message: string }> => {
     return new Promise(async (resolve) => {
@@ -470,27 +506,64 @@ export function useAutoSync(
       setSyncStatus('📡 Conectando con dispositivo para copia...');
       const conn = peerRef.current.connect(peerId);
       
-      const timeoutId = setTimeout(() => {
-        conn.close();
-        setSyncStatus('📡 Control: En línea y escuchando.');
-        resolve({ success: false, message: 'Tiempo de espera agotado al conectar con el dispositivo.' });
-      }, 12000);
+      let timeoutId: any;
+      const resetTimeout = (seconds = 12) => {
+        if (timeoutId) clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
+          conn.close();
+          setSyncStatus('📡 Control: En línea y escuchando.');
+          resolve({ success: false, message: 'Tiempo de espera agotado al recibir los datos.' });
+        }, seconds * 1000);
+      };
+
+      resetTimeout(15); // Initial connection timeout
 
       conn.on('open', () => {
         setSyncStatus('📥 Solicitando copia histórica completa...');
         conn.send({ type: 'REQUEST_FULL_BACKUP' });
+        resetTimeout(12);
       });
 
+      let receivedChunks: string[] = [];
+      let totalExpectedChunks = 0;
+
       conn.on('data', (data: any) => {
-        clearTimeout(timeoutId);
-        if (data.type === 'FULL_BACKUP_PAYLOAD') {
+        if (data.type === 'FULL_BACKUP_HEADER') {
+          resetTimeout(12);
+          totalExpectedChunks = data.totalChunks;
+          receivedChunks = new Array(totalExpectedChunks);
+          setSyncStatus(`📥 Recibiendo copia (0/${totalExpectedChunks} partes)...`);
+        } else if (data.type === 'FULL_BACKUP_CHUNK') {
+          resetTimeout(12); // Extend timeout on each incoming chunk
+          if (data.chunkIndex >= 0 && data.chunkIndex < totalExpectedChunks) {
+            receivedChunks[data.chunkIndex] = data.chunkData;
+            const receivedCount = receivedChunks.filter(x => x !== undefined).length;
+            setSyncStatus(`📥 Recibiendo copia (${receivedCount}/${totalExpectedChunks} partes)...`);
+          }
+        } else if (data.type === 'FULL_BACKUP_END') {
+          if (timeoutId) clearTimeout(timeoutId);
           conn.close();
-          setSyncStatus('✅ Copia histórica recibida.');
-          setTimeout(() => {
+          
+          try {
+            const fullJson = receivedChunks.join('');
+            const payload = JSON.parse(fullJson);
+            
+            setSyncStatus('✅ Copia histórica recibida.');
+            setTimeout(() => {
+              setSyncStatus('📡 Control: En línea y escuchando.');
+            }, 3000);
+            resolve({ success: true, message: 'Copia histórica recibida con éxito.', payload });
+          } catch (parseErr: any) {
             setSyncStatus('📡 Control: En línea y escuchando.');
-          }, 3000);
-          resolve({ success: true, message: 'Copia histórica recibida con éxito.', payload: data.payload });
+            resolve({ success: false, message: `Error al reconstruir la copia: ${parseErr.message || String(parseErr)}` });
+          }
+        } else if (data.type === 'BACKUP_ERROR') {
+          if (timeoutId) clearTimeout(timeoutId);
+          conn.close();
+          setSyncStatus('📡 Control: En línea y escuchando.');
+          resolve({ success: false, message: `El dispositivo informó un error: ${data.message || 'desconocido'}` });
         } else {
+          if (timeoutId) clearTimeout(timeoutId);
           conn.close();
           setSyncStatus('📡 Control: En línea y escuchando.');
           resolve({ success: false, message: 'Respuesta inválida del dispositivo.' });
@@ -498,7 +571,7 @@ export function useAutoSync(
       });
 
       conn.on('error', (err) => {
-        clearTimeout(timeoutId);
+        if (timeoutId) clearTimeout(timeoutId);
         conn.close();
         setSyncStatus('📡 Control: En línea y escuchando.');
         resolve({ success: false, message: `Error al conectar: ${err.message || 'desconocido'}` });
