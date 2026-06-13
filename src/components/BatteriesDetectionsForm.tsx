@@ -431,15 +431,15 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
                 </span>
               </div>
 
-              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.25rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.25rem' }}>
                 <button
                   type="button"
                   onClick={handleToggleFixTime}
                   className="btn-3d"
                   style={{
-                    flex: 2,
-                    padding: '10px',
-                    fontSize: '0.82rem',
+                    width: '100%',
+                    padding: '12px',
+                    fontSize: '0.85rem',
                     fontWeight: 900,
                     textTransform: 'uppercase',
                     display: 'flex',
@@ -450,7 +450,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
                     color: fixedTime !== null ? 'white' : 'black',
                     border: 'none',
                     borderRadius: '8px',
-                    boxShadow: fixedTime !== null ? '0 6px 18px rgba(255,23,68,0.15)' : '0 6px 18px rgba(16,185,129,0.15)'
+                    boxShadow: fixedTime !== null ? '0 4px 12px rgba(255,23,68,0.2)' : '0 4px 12px rgba(16,185,129,0.2)'
                   }}
                 >
                   {fixedTime !== null ? (
@@ -464,53 +464,171 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
                   )}
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => handleAdjustTime(-1)}
-                  className="btn-3d"
-                  style={{
-                    flex: 1,
-                    padding: '10px',
-                    fontSize: '0.9rem',
-                    fontWeight: 900,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.25rem',
-                    background: 'black',
-                    color: 'var(--primary)',
-                    border: '1px solid var(--primary)',
-                    borderRadius: '8px',
-                    boxShadow: 'none'
-                  }}
-                  title="Restar 1 segundo"
-                >
-                  <Minus size={16} /> 1s
-                </button>
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: 'repeat(3, 1fr)', 
+                  gap: '0.75rem',
+                  marginTop: '0.25rem'
+                }}>
+                  {/* Horas */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 'bold', letterSpacing: '0.5px' }}>HORAS</span>
+                    <div style={{ display: 'flex', width: '100%', gap: '0.35rem' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleAdjustTime(-3600)}
+                        className="btn-3d"
+                        style={{
+                          flex: 1,
+                          padding: '10px 5px',
+                          fontSize: '0.85rem',
+                          fontWeight: 900,
+                          background: 'black',
+                          color: 'var(--primary)',
+                          border: '1px solid var(--primary)',
+                          borderRadius: '6px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '2px',
+                          boxShadow: 'none'
+                        }}
+                        title="Restar 1 hora"
+                      >
+                        <Minus size={14} />1h
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleAdjustTime(3600)}
+                        className="btn-3d"
+                        style={{
+                          flex: 1,
+                          padding: '10px 5px',
+                          fontSize: '0.85rem',
+                          fontWeight: 900,
+                          background: 'black',
+                          color: 'var(--primary)',
+                          border: '1px solid var(--primary)',
+                          borderRadius: '6px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '2px',
+                          boxShadow: 'none'
+                        }}
+                        title="Sumar 1 hora"
+                      >
+                        <Plus size={14} />1h
+                      </button>
+                    </div>
+                  </div>
 
-                <button
-                  type="button"
-                  onClick={() => handleAdjustTime(1)}
-                  className="btn-3d"
-                  style={{
-                    flex: 1,
-                    padding: '10px',
-                    fontSize: '0.9rem',
-                    fontWeight: 900,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.25rem',
-                    background: 'black',
-                    color: 'var(--primary)',
-                    border: '1px solid var(--primary)',
-                    borderRadius: '8px',
-                    boxShadow: 'none'
-                  }}
-                  title="Sumar 1 segundo"
-                >
-                  <Plus size={16} /> 1s
-                </button>
+                  {/* Minutos */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 'bold', letterSpacing: '0.5px' }}>MINUTOS</span>
+                    <div style={{ display: 'flex', width: '100%', gap: '0.35rem' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleAdjustTime(-60)}
+                        className="btn-3d"
+                        style={{
+                          flex: 1,
+                          padding: '10px 5px',
+                          fontSize: '0.85rem',
+                          fontWeight: 900,
+                          background: 'black',
+                          color: 'var(--primary)',
+                          border: '1px solid var(--primary)',
+                          borderRadius: '6px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '2px',
+                          boxShadow: 'none'
+                        }}
+                        title="Restar 1 minuto"
+                      >
+                        <Minus size={14} />1m
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleAdjustTime(60)}
+                        className="btn-3d"
+                        style={{
+                          flex: 1,
+                          padding: '10px 5px',
+                          fontSize: '0.85rem',
+                          fontWeight: 900,
+                          background: 'black',
+                          color: 'var(--primary)',
+                          border: '1px solid var(--primary)',
+                          borderRadius: '6px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '2px',
+                          boxShadow: 'none'
+                        }}
+                        title="Sumar 1 minuto"
+                      >
+                        <Plus size={14} />1m
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Segundos */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 'bold', letterSpacing: '0.5px' }}>SEGUNDOS</span>
+                    <div style={{ display: 'flex', width: '100%', gap: '0.35rem' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleAdjustTime(-1)}
+                        className="btn-3d"
+                        style={{
+                          flex: 1,
+                          padding: '10px 5px',
+                          fontSize: '0.85rem',
+                          fontWeight: 900,
+                          background: 'black',
+                          color: 'var(--primary)',
+                          border: '1px solid var(--primary)',
+                          borderRadius: '6px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '2px',
+                          boxShadow: 'none'
+                        }}
+                        title="Restar 1 segundo"
+                      >
+                        <Minus size={14} />1s
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleAdjustTime(1)}
+                        className="btn-3d"
+                        style={{
+                          flex: 1,
+                          padding: '10px 5px',
+                          fontSize: '0.85rem',
+                          fontWeight: 900,
+                          background: 'black',
+                          color: 'var(--primary)',
+                          border: '1px solid var(--primary)',
+                          borderRadius: '6px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '2px',
+                          boxShadow: 'none'
+                        }}
+                        title="Sumar 1 segundo"
+                      >
+                        <Plus size={14} />1s
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
