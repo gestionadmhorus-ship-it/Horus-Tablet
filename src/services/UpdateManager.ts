@@ -26,7 +26,18 @@ export class UpdateManager {
     const currentVersion = this.getCurrentVersion();
 
     if (!Capacitor.isNativePlatform()) {
-      console.log(`[Modo Web] Versión actual: ${currentVersion}. OTA deshabilitado en navegador.`);
+      try {
+        const response = await fetch(`${GITHUB_REPO_URL}/version.json`, { cache: 'no-store' });
+        if (response.ok) {
+          const data = await response.json();
+          if (data && data.version) {
+            localStorage.setItem('horus_current_version', data.version);
+            return { hasUpdate: false, version: data.version, url: '' };
+          }
+        }
+      } catch (error) {
+        console.error('[Modo Web] Error al verificar versión desde GitHub:', error);
+      }
       return { hasUpdate: false, version: currentVersion, url: '' };
     }
 

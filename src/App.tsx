@@ -85,10 +85,24 @@ function App() {
     localStorage.setItem('theme_mode', themeMode);
   }, [themeMode]);
 
-  // Notifica al actualizador OTA que la app no crasheó
+  // Notifica al actualizador OTA en móvil, o sincroniza versión en modo Web (PC)
   useEffect(() => {
     if (Capacitor.isNativePlatform()) {
       CapacitorUpdater.notifyAppReady();
+    } else {
+      fetch('https://raw.githubusercontent.com/gestionadmhorus-ship-it/Horus-Tablet/ota-updates/version.json', { cache: 'no-store' })
+        .then(res => {
+          if (res.ok) return res.json();
+          throw new Error();
+        })
+        .then(data => {
+          if (data && data.version) {
+            localStorage.setItem('horus_current_version', data.version);
+          }
+        })
+        .catch(() => {
+          // Ignorar silenciosamente si no hay internet o falla
+        });
     }
   }, []);
 
