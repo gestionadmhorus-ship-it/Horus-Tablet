@@ -1180,7 +1180,14 @@ const Dashboard: React.FC<DashboardProps> = ({
                     return (
                       <div key={unit.deviceName} className={`unit-card ${isOnline ? 'unit-online' : 'unit-offline'}`} style={{ padding: '1.5rem', border: `1.5px solid ${isOnline ? 'rgba(0, 255, 136, 0.15)' : 'rgba(255, 255, 255, 0.05)'}`, background: isOnline ? 'rgba(0, 255, 136, 0.01)' : 'rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                         <div className="unit-card-header" style={{ marginBottom: '0.2rem' }}>
-                          <span className="unit-name" style={{ fontSize: '1.3rem' }}>{unit.deviceName}</span>
+                          <span className="unit-name" style={{ fontSize: '1.3rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            {unit.deviceName}
+                            {unit.appVersion && (
+                              <span style={{ fontSize: '0.75rem', opacity: 0.6, background: 'rgba(255,255,255,0.08)', padding: '2px 6px', borderRadius: '4px', fontFamily: 'monospace', fontWeight: 'normal' }}>
+                                {unit.appVersion}
+                              </span>
+                            )}
+                          </span>
                           <span className={`unit-status-badge ${isOnline ? 'online' : 'offline'}`} style={{ fontSize: '0.8rem', padding: '4px 10px' }}>
                             <span className={`unit-dot ${isOnline ? 'online' : 'offline'}`} style={{ width: '9px', height: '9px' }} />
                             {isOnline ? 'En línea' : 'Sin señal'}
@@ -1485,7 +1492,14 @@ const Dashboard: React.FC<DashboardProps> = ({
                       }}
                     >
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                        <span style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)' }}>{unit.deviceName}</span>
+                        <span style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          {unit.deviceName}
+                          {unit.appVersion && (
+                            <span style={{ fontSize: '0.75rem', opacity: 0.6, background: 'rgba(255,255,255,0.08)', padding: '2px 6px', borderRadius: '4px', fontFamily: 'monospace', fontWeight: 'normal' }}>
+                              {unit.appVersion}
+                            </span>
+                          )}
+                        </span>
                         <span style={{ fontSize: '0.8rem', color: isOnline ? '#00ff88' : 'var(--text-secondary)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                           <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: isOnline ? '#00ff88' : 'var(--text-secondary)', display: 'inline-block' }} />
                           {isOnline ? 'En línea' : 'Sin señal'}

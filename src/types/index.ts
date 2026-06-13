@@ -224,6 +224,7 @@ export interface UnitStatus {
   kmsCount: number;
   hsCount: number;
   detectionsCount: number;
+  appVersion?: string;
 }
 
 export const INSPECTION_CATEGORIES = [

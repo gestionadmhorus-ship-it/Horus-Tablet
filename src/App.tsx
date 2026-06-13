@@ -143,6 +143,7 @@ function App() {
       kmsCount,
       hsCount,
       detectionsCount,
+      appVersion: localStorage.getItem('horus_current_version') || 'v2.0.0',
     };
   }, [data]);
 
