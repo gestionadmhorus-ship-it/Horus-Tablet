@@ -83,11 +83,11 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
   /* ─── Time Sync logic ─── */
   useEffect(() => {
     if (activePanel !== 'detections' || fixedTime !== null) return;
-    
+
     const interval = setInterval(() => {
       setCurrentTime(new Date());
     }, 1000);
-    
+
     return () => clearInterval(interval);
   }, [activePanel, fixedTime]);
 
@@ -148,7 +148,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
     e.preventDefault();
     if (isSaving) return;
     setIsSaving(true);
-    
+
     try {
       const now = new Date();
       onSaveBattery({ id: generateId('BAT'), flightId: activeFlightId, timestamp: formatTimestamp(now), ...batteryData });
@@ -163,12 +163,12 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
   const handleSaveDetection = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSaving) return;
-    
+
     if (!criticality) {
       await window.customAlert('⚠️ Por favor selecciona un nivel de criticidad antes de guardar.');
       return;
     }
-    
+
     setIsSaving(true);
     try {
       const saveTime = fixedTime || new Date();
@@ -211,8 +211,8 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
       <div className="glass" style={{ borderTop: '4px solid #00ff88', padding: '0', overflow: 'visible', boxShadow: '0 -5px 20px rgba(0,255,136,0.1)' }}>
         {/* Tab Bar */}
         <div style={{ display: 'flex', borderBottom: '2px solid #333', background: '#000' }}>
-          <button 
-            onClick={() => setActivePanel('batteries')} 
+          <button
+            onClick={() => setActivePanel('batteries')}
             style={{
               flex: 1, padding: 'clamp(0.75rem, 3vw, 1.5rem)', border: 'none', cursor: 'pointer',
               fontWeight: 900, fontSize: 'clamp(0.75rem, 2vw, 1rem)', textTransform: 'uppercase', letterSpacing: '1px',
@@ -223,8 +223,8 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
           >
             <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}><Battery size={20} /> Baterías</span>
           </button>
-          <button 
-            onClick={() => setActivePanel('detections')} 
+          <button
+            onClick={() => setActivePanel('detections')}
             style={{
               flex: 1, padding: 'clamp(0.75rem, 3vw, 1.5rem)', border: 'none', cursor: 'pointer',
               fontWeight: 900, fontSize: 'clamp(0.75rem, 2vw, 1rem)', textTransform: 'uppercase', letterSpacing: '1px',
@@ -239,33 +239,14 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
 
         {/* ────── BATTERIES PANEL ────── */}
         {activePanel === 'batteries' && (
-          <form onSubmit={handleSaveBattery} className="form-scroll-container" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+          <form onSubmit={handleSaveBattery} className="form-scroll-container" style={{ padding: '1.2rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
               <div style={{ background: 'rgba(0,194,255,0.12)', padding: '0.6rem', borderRadius: '10px', color: '#00c2ff' }}><Battery size={24} /></div>
               <div style={{ textAlign: 'center' }}>
-                <h3 style={{ margin: 0, fontSize: '1.3rem', color: '#00c2ff' }}>Estado de Baterías</h3>
-                <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Registro de carga por vuelo</p>
+                <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#00c2ff' }}>Estado de Baterías</h3>
+                <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Registro de carga por vuelo</p>
               </div>
             </div>
-
-            {activeFlightName && (
-              <div style={{
-                background: 'linear-gradient(135deg, rgba(0,194,255,0.1) 0%, rgba(0,194,255,0.2) 100%)',
-                border: '1px solid rgba(0,194,255,0.5)', 
-                borderRadius: '12px',
-                padding: '1.2rem', 
-                display: 'flex', 
-                flexDirection: 'column',
-                alignItems: 'center', 
-                justifyContent: 'center',
-                boxShadow: '0 0 20px rgba(0,194,255,0.2)',
-              }}>
-                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '0.2rem' }}>📍 LÍNEA ACTIVA</span>
-                <span style={{ fontSize: '1.6rem', fontWeight: 900, color: '#00c2ff', textShadow: '0 0 10px rgba(0,194,255,0.4)', textTransform: 'uppercase' }}>
-                  {activeFlightName}
-                </span>
-              </div>
-            )}
 
             <SmartSelect
               label="Piloto"
@@ -300,17 +281,17 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
                 style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}>
                 Ir a Detecciones <ChevronRight size={16} />
               </button>
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 disabled={isSaving}
-                className="btn-3d" 
-                style={{ 
-                  width: '100%', 
-                  maxWidth: '350px', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center', 
-                  gap: '0.75rem', 
+                className="btn-3d"
+                style={{
+                  width: '100%',
+                  maxWidth: '350px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.75rem',
                   padding: '1.2rem',
                   opacity: isSaving ? 0.6 : 1,
                   cursor: isSaving ? 'not-allowed' : 'pointer'
@@ -324,33 +305,14 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
 
         {/* ────── DETECTIONS PANEL ────── */}
         {activePanel === 'detections' && (
-          <form onSubmit={handleSaveDetection} className="form-scroll-container" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+          <form onSubmit={handleSaveDetection} className="form-scroll-container" style={{ padding: '1.2rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
               <div style={{ background: 'rgba(0,255,136,0.1)', padding: '0.6rem', borderRadius: '10px', color: 'var(--accent)' }}><AlertTriangle size={24} /></div>
               <div style={{ textAlign: 'center' }}>
-                <h3 style={{ margin: 0, fontSize: '1.3rem', color: 'var(--accent)' }}>Registro de Detecciones</h3>
-                <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Elemento → Anomalía → Recomendación</p>
+                <h3 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--accent)' }}>Registro de Detecciones</h3>
+                <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Elemento → Anomalía → Recomendación</p>
               </div>
             </div>
-
-            {activeFlightName && (
-              <div style={{
-                background: 'linear-gradient(135deg, rgba(0,255,136,0.05) 0%, rgba(0,255,136,0.15) 100%)',
-                border: '1px solid rgba(0,255,136,0.4)', 
-                borderRadius: '12px',
-                padding: '1.2rem', 
-                display: 'flex', 
-                flexDirection: 'column',
-                alignItems: 'center', 
-                justifyContent: 'center',
-                boxShadow: '0 0 20px rgba(0,255,136,0.15)',
-              }}>
-                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '0.2rem' }}>📍 LÍNEA ACTIVA</span>
-                <span style={{ fontSize: '1.6rem', fontWeight: 900, color: 'var(--accent)', textShadow: '0 0 10px rgba(0,255,136,0.4)', textTransform: 'uppercase' }}>
-                  {activeFlightName}
-                </span>
-              </div>
-            )}
 
             {/* ─ Sincronización de Hora / Ajustes ─ */}
             <div style={{
@@ -464,9 +426,9 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
                   )}
                 </button>
 
-                <div style={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: 'repeat(3, 1fr)', 
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, 1fr)',
                   gap: '0.75rem',
                   marginTop: '0.25rem'
                 }}>
@@ -632,58 +594,61 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
               </div>
             </div>
 
-            {/* ─ Elemento ─ */}
-            <div>
-              {elementNames.length > 0 ? (
-                <SearchableSelect
-                  label="Elemento"
-                  options={elementNames}
-                  value={selectedElement}
-                  onChange={handleElementChange}
-                  required
-                  placeholder="-- Seleccionar Elemento --"
-                />
-              ) : (
-                <>
-                  <label>Elemento</label>
-                  <div style={{ background: 'rgba(255,200,0,0.06)', border: '1px solid rgba(255,200,0,0.2)', borderRadius: '12px', padding: '0.85rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <Info size={16} color="#ffcc00" />
-                    <span style={{ fontSize: '0.85rem', color: '#ffcc00' }}>
-                      Sin elementos cargados. Ve a <strong>⚙️ → Base de Conocimiento</strong> para importar desde Excel.
-                    </span>
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* ─ Anomalía (filtrada por elemento) ─ */}
-            <div>
-              {!selectedElement ? (
-                <>
-                  <label>Anomalía / Detección</label>
-                  <input
-                    type="text"
-                    disabled
-                    value=""
-                    placeholder="Selecciona un elemento primero..."
-                    style={{ opacity: 0.4, cursor: 'not-allowed' }}
+            {/* ─ Elemento y Anomalía (Lado a lado) ─ */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+              {/* ─ Elemento ─ */}
+              <div>
+                {elementNames.length > 0 ? (
+                  <SearchableSelect
+                    label="Elemento"
+                    options={elementNames}
+                    value={selectedElement}
+                    onChange={handleElementChange}
+                    required
+                    placeholder="-- Seleccionar Elemento --"
                   />
-                </>
-              ) : filteredAnomalies.length > 0 ? (
-                <SearchableSelect
-                  label="Anomalía / Detección"
-                  options={filteredAnomalies}
-                  value={selectedAnomaly}
-                  onChange={handleAnomalyChange}
-                  required
-                  placeholder="-- Seleccionar Anomalía --"
-                />
-              ) : (
-                <>
-                  <label>Anomalía / Detección</label>
-                  <input type="text" value={selectedAnomaly} onChange={e => { setSelectedAnomaly(e.target.value); setRecommendation(''); }} placeholder="No hay anomalías para este elemento" required />
-                </>
-              )}
+                ) : (
+                  <>
+                    <label>Elemento</label>
+                    <div style={{ background: 'rgba(255,200,0,0.06)', border: '1px solid rgba(255,200,0,0.2)', borderRadius: '12px', padding: '0.85rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <Info size={16} color="#ffcc00" />
+                      <span style={{ fontSize: '0.85rem', color: '#ffcc00' }}>
+                        Sin elementos cargados. Ve a <strong>⚙️ → Base de Conocimiento</strong> para importar desde Excel.
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* ─ Anomalía (filtrada por elemento) ─ */}
+              <div>
+                {!selectedElement ? (
+                  <>
+                    <label>Anomalía / Detección</label>
+                    <input
+                      type="text"
+                      disabled
+                      value=""
+                      placeholder="Selecciona un elemento primero..."
+                      style={{ opacity: 0.4, cursor: 'not-allowed' }}
+                    />
+                  </>
+                ) : filteredAnomalies.length > 0 ? (
+                  <SearchableSelect
+                    label="Anomalía / Detección"
+                    options={filteredAnomalies}
+                    value={selectedAnomaly}
+                    onChange={handleAnomalyChange}
+                    required
+                    placeholder="-- Seleccionar Anomalía --"
+                  />
+                ) : (
+                  <>
+                    <label>Anomalía / Detección</label>
+                    <input type="text" value={selectedAnomaly} onChange={e => { setSelectedAnomaly(e.target.value); setRecommendation(''); }} placeholder="No hay anomalías para este elemento" required />
+                  </>
+                )}
+              </div>
             </div>
 
             {/* ─ Recomendación (auto-populated, read-only) ─ */}
@@ -772,17 +737,17 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
                 style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}>
                 <ChevronLeft size={16} /> Ir a Baterías
               </button>
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 disabled={isSaving}
-                className="btn-3d" 
-                style={{ 
-                  width: '100%', 
-                  maxWidth: '350px', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center', 
-                  gap: '0.75rem', 
+                className="btn-3d"
+                style={{
+                  width: '100%',
+                  maxWidth: '350px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.75rem',
                   padding: '1.2rem',
                   opacity: isSaving ? 0.6 : 1,
                   cursor: isSaving ? 'not-allowed' : 'pointer'
