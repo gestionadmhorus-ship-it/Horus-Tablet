@@ -27,6 +27,7 @@ const FlightForm: React.FC<FlightFormProps> = ({
   const [formData, setFormData] = useState({
     pilot: editData?.pilot || '',
     lineName: editData?.lineName || '',
+    stage: editData?.stage || '',
     authCode: editData?.authCode || '',
     observations: editData?.observations || '',
     category: editData?.category || 'Otros',
@@ -205,7 +206,7 @@ const FlightForm: React.FC<FlightFormProps> = ({
                 </button>
                 {expandedSection === 'sec2' && (
                   <div className="form-accordion-content">
-                    <div className="grid-cols-2">
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
                       <div>
                         <label>Nombre de Línea</label>
                         <input
@@ -215,6 +216,16 @@ const FlightForm: React.FC<FlightFormProps> = ({
                           placeholder="Ej: Línea 132kV"
                           value={formData.lineName}
                           onChange={e => setFormData({ ...formData, lineName: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <label>Etapa (Opcional)</label>
+                        <input
+                          type="text"
+                          maxLength={20}
+                          placeholder="Ej: Etapa 1"
+                          value={formData.stage}
+                          onChange={e => setFormData({ ...formData, stage: e.target.value })}
                         />
                       </div>
                       <div>

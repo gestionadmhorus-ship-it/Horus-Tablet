@@ -57,6 +57,7 @@ export interface FlightData {
   isEdited?: boolean;
   editedTimestamp?: string;
   flightType?: 'KMS' | 'HS';
+  stage?: string;
   taskTypeAndLocation?: string;
   details?: string;
   requestedBy?: string;

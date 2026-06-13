@@ -1,4 +1,6 @@
 import ExcelJS from 'exceljs';
+// @ts-ignore
+import qrcode from 'qrcode-generator';
 import type { AppData } from '../types';
 import { parseLocalTimestampToDate, getChronologicalTime, formatDateDMY, formatTime24h } from './dateUtils';
 
@@ -100,21 +102,32 @@ export const exportToExcel = async (
                                    .sort((a, b) => getChronologicalTime(a.timestamp) - getChronologicalTime(b.timestamp));
 
     kmsFlights.forEach((flight) => {
+      // Row 3+: Detections (filter early to get count for QR payload)
+      const detections = data.detections.filter(d => d.flightId === flight.id)
+                                        .sort((a, b) => getChronologicalTime(a.timestamp) - getChronologicalTime(b.timestamp));
+
       // Row 1: Title block
       const { date: startDay } = splitTimestamp(flight.timestamp);
       const origenVal = flight.deviceName || shift.deviceName || 'Local';
       const lineVal = flight.lineName || '';
+      const stageText = flight.stage ? ` | Etapa: ${flight.stage}` : '';
+      const detCount = detections.length;
+
+      // Construct QR code text payload
+      const qrText = `Fecha: ${startDay} | Origen: ${origenVal} | Línea: ${lineVal}${stageText} | Total Anomalías: ${detCount}`;
 
       const titleRow = wsKMS.addRow([
         `Fecha: ${startDay}`,
         '',
         `Origen: ${origenVal}`,
         '',
-        `Línea: ${lineVal}`
+        `Línea: ${lineVal}${stageText}`,
+        '',
+        '' // Column G is left empty for the QR code image
       ]);
       
       // Styling Title Row
-      titleRow.height = 24;
+      titleRow.height = 42; // Taller row height to fit the QR code image nicely
       titleRow.eachCell((cell) => {
         cell.font = { name: 'Segoe UI', bold: true, size: 11, color: { argb: 'FF1B5E20' } };
         cell.fill = {
@@ -124,6 +137,26 @@ export const exportToExcel = async (
         };
         cell.alignment = { vertical: 'middle', horizontal: 'left' };
       });
+
+      // Generate and embed QR Code image
+      try {
+        const qr = qrcode(0, 'M');
+        qr.addData(qrText);
+        qr.make();
+        const qrDataUrl = qr.createDataURL(4, 1);
+        const base64Data = qrDataUrl.replace(/^data:image\/png;base64,/, '');
+        const imageId = workbook.addImage({
+          base64: base64Data,
+          extension: 'png',
+        });
+        wsKMS.addImage(imageId, {
+          tl: { col: 6, row: titleRow.number - 1, colOff: 10, rowOff: 2 } as any,
+          ext: { width: 38, height: 38 },
+          editAs: 'oneCell'
+        });
+      } catch (qrErr) {
+        console.error('Error generating QR code in Excel:', qrErr);
+      }
 
       // Row 2: Headers (separated Date and Time)
       const headerRow = wsKMS.addRow([
@@ -145,10 +178,6 @@ export const exportToExcel = async (
         };
         cell.alignment = { vertical: 'middle', horizontal: 'center' };
       });
-
-      // Row 3+: Detections
-      const detections = data.detections.filter(d => d.flightId === flight.id)
-                                        .sort((a, b) => getChronologicalTime(a.timestamp) - getChronologicalTime(b.timestamp));
 
       if (detections.length === 0) {
         const noDataRow = wsKMS.addRow(['Sin detecciones registradas', '', '', '', '', '', '']);
