@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Check, ShieldAlert, Wifi, Cpu, Play } from 'lucide-react';
 import type { DroneChecklistData, ListsData } from '../types';
 import { SearchableSelect } from './SearchableSelect';
+import { formatTimestamp } from '../utils/dateUtils';
 
 interface DroneChecklistFormProps {
   onSave: (data: DroneChecklistData) => void;
@@ -110,7 +111,7 @@ export const DroneChecklistForm: React.FC<DroneChecklistFormProps> = ({
 
     const payload: DroneChecklistData = {
       id: editData?.id || `D-${Date.now()}`,
-      timestamp: editData?.timestamp || new Date().toLocaleString('es-AR'),
+      timestamp: editData?.timestamp || formatTimestamp(new Date()),
       pilot,
       droneId,
       checks,

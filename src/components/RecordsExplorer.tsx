@@ -9,6 +9,7 @@ import type {
   ShiftData, FlightData, BatteryData, DetectionData, AppData, ListsData 
 } from '../types';
 import { exportToExcel } from '../utils/exportUtils';
+import { parseLocalTimestampToDate } from '../utils/dateUtils';
 
 interface RecordsExplorerProps {
   data: AppData;
@@ -53,35 +54,6 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
   const [editingRecord, setEditingRecord] = useState<{ type: RecordType, data: any } | null>(null);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
 
-  // Converts "19/5/2026 11:21:04" to Date object for robust comparisons
-  const parseLocalTimestampToDate = (timestamp: string): Date | null => {
-    if (!timestamp) return null;
-    const parts = timestamp.trim().split(/\s+/);
-    const datePart = parts[0];
-    if (!datePart) return null;
-    const dateParts = datePart.split('/');
-    if (dateParts.length !== 3) return null;
-    
-    const day = parseInt(dateParts[0], 10);
-    const month = parseInt(dateParts[1], 10) - 1; // 0-indexed month
-    const year = parseInt(dateParts[2], 10);
-    
-    const timePart = parts[1] || '00:00:00';
-    const timeParts = timePart.split(':');
-    let hours = parseInt(timeParts[0] || '0', 10);
-    const minutes = parseInt(timeParts[1] || '0', 10);
-    const seconds = parseInt(timeParts[2] || '0', 10);
-    
-    const ampm = ((parts[2] || '') + (timePart || '')).toLowerCase();
-    if (ampm.includes('p') && hours < 12) {
-      hours += 12;
-    } else if (ampm.includes('a') && hours === 12) {
-      hours = 0;
-    }
-    
-    const d = new Date(year, month, day, hours, minutes, seconds);
-    return isNaN(d.getTime()) ? null : d;
-  };
 
   // Helper maps for related entities lookup
   const flightMap = useMemo(() => new Map(props.data.flights.map(f => [f.id, f])), [props.data.flights]);

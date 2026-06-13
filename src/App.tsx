@@ -14,7 +14,7 @@ import type { AppRole, UnitStatus } from './types';
 import { useDatabase } from './hooks/useDatabase';
 import { useAutoSync } from './hooks/useAutoSync';
 import { exportToExcel, exportToJSON } from './utils/exportUtils';
-import { formatDateDMY, formatTimestamp } from './utils/dateUtils';
+import { formatDateDMY, formatTimestamp, getChronologicalTime } from './utils/dateUtils';
 import { FileJson, Table, X, CheckCircle, Power } from 'lucide-react';
 import { CapacitorUpdater } from '@capgo/capacitor-updater';
 import { Capacitor } from '@capacitor/core';
@@ -232,7 +232,7 @@ function App() {
             id: `Recuperacion_${targetDeviceName}_${timestamp}`,
             filename: filename,
             deviceName: targetDeviceName,
-            timestamp: new Date().toLocaleString('es-AR'),
+            timestamp: formatTimestamp(new Date()),
             payload: res.payload
           };
           
@@ -339,43 +339,7 @@ function App() {
 
   const totalRecords = data.shifts.length + data.flights.length + data.batteries.length + data.detections.length;
 
-  // Helper to chronologically parse locale timestamps like "20/5/2026 07:15:54" or ISO "2026-05-27T10:00:00.000Z"
-  const getChronologicalTime = (timestamp: string): number => {
-    if (!timestamp) return 0;
-    
-    // Check if it's already an ISO timestamp (e.g. from new data format)
-    if (timestamp.includes('T') && timestamp.includes('Z')) {
-      const parsed = new Date(timestamp).getTime();
-      if (!isNaN(parsed)) return parsed;
-    }
 
-    const [datePart, timePart, period] = timestamp.split(' ');
-    if (!datePart) return 0;
-    
-    const dateSplit = datePart.split(/[-/]/);
-    if (dateSplit.length === 3) {
-      // Legacy "DD/MM/YYYY" format heuristic
-      let d = parseInt(dateSplit[0], 10);
-      let m = parseInt(dateSplit[1], 10);
-      let y = parseInt(dateSplit[2], 10);
-      if (y < 100) y += 2000;
-      
-      // If it looks like American MM/DD/YYYY where month > 12 is impossible
-      if (d <= 12 && m > 12) {
-        // Swap them
-        const temp = d; d = m; m = temp;
-      }
-      
-      const timeStr = (timePart || '00:00:00') + (period ? ` ${period}` : '');
-      // Force ISO parsing via YYYY-MM-DD
-      const isoStr = `${y}-${m.toString().padStart(2, '0')}-${d.toString().padStart(2, '0')} ${timeStr}`;
-      const parsed = new Date(isoStr).getTime();
-      if (!isNaN(parsed)) return parsed;
-    }
-    // Final fallback
-    const fallback = new Date(timestamp).getTime();
-    return isNaN(fallback) ? 0 : fallback;
-  };
 
   // ─── Determine active shift by date + status ───
   const activeLists = { ...lists };

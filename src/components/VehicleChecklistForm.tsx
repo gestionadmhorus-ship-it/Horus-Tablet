@@ -3,7 +3,7 @@ import { Save, ArrowLeft, Printer, ShieldCheck } from 'lucide-react';
 import type { VehicleChecklistData, ListsData } from '../types';
 import { generateId } from '../utils/idGenerator';
 import { SearchableSelect } from './SearchableSelect';
-import { formatDateDMY, formatTimestamp } from '../utils/dateUtils';
+import { formatDateDMY, formatTimestamp, getChronologicalTime } from '../utils/dateUtils';
 
 interface VehicleChecklistFormProps {
   onSave: (data: VehicleChecklistData) => void;
@@ -65,24 +65,7 @@ const VehicleChecklistForm: React.FC<VehicleChecklistFormProps> = ({ onSave, onU
     if (formData.vehicleId) {
       // Assuming history is ordered chronologically or we can find the most recent
       // Because Dexie might return UUID sorted, we should do a chronological find
-      const getChronologicalTime = (ts: string) => {
-        if (!ts) return 0;
-        const [dPart, tPart] = ts.split(' ');
-        if (!dPart) return 0;
-        const dSplit = dPart.split(/[-/]/);
-        if (dSplit.length === 3) {
-          let d = parseInt(dSplit[0], 10);
-          let m = parseInt(dSplit[1], 10);
-          let y = parseInt(dSplit[2], 10);
-          if (y < 100) y += 2000;
-          if (d > 12 || m <= 12) {
-            const isoStr = `${y}-${m.toString().padStart(2, '0')}-${d.toString().padStart(2, '0')} ${tPart || '00:00:00'}`;
-            const parsed = new Date(isoStr).getTime();
-            if (!isNaN(parsed)) return parsed;
-          }
-        }
-        return new Date(ts).getTime() || 0;
-      };
+
 
       const vehicleHistory = history.filter(h => h.vehicleId === formData.vehicleId);
       const sorted = vehicleHistory.sort((a, b) => getChronologicalTime(a.timestamp) - getChronologicalTime(b.timestamp));

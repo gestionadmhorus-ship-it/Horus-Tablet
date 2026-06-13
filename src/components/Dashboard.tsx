@@ -990,41 +990,6 @@ const Dashboard: React.FC<DashboardProps> = ({
           )}
         </div>
 
-        {/* ─── Registro Vuelos HS ─── */}
-        <div style={{ position: 'relative' }} className="col-span-2">
-          <motion.div
-            className={`dashboard-card ${isHSActive ? 'card-vuelo-activo' : ''}`}
-            onClick={() => hasActiveShift ? (isHSActive ? setActionMenu('HS') : onNewFlight('HS')) : undefined}
-            style={{ 
-              width: '100%', 
-              cursor: hasActiveShift ? 'pointer' : 'default',
-              opacity: hasActiveShift ? 1 : 0.5
-            }}
-          >
-            {renderTelemetryWave(isHSActive ? 'var(--neon-green)' : 'var(--primary)', '4.5s')}
-            <div className="card-icon-wrapper" style={{ color: isHSActive ? 'var(--neon-green)' : 'var(--primary)' }}>
-              <Clock size={26} />
-            </div>
-            <div style={{ width: '100%' }}>
-              <h2 className="dashboard-card-title">Vuelos HS</h2>
-              <p className="dashboard-card-desc">Registro de tareas por horas.</p>
-              {hasActiveShift && (
-                <p className="dashboard-card-desc" style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {hsSubText}
-                </p>
-              )}
-            </div>
-
-            <div className="card-live-metric">
-              {hasActiveShift ? (isHSActive ? 'VUELO EN CURSO' : hsText) : 'Jornada Requerida'}
-            </div>
-          </motion.div>
-          
-          {!hasActiveShift && (
-            <div className="dashboard-req-badge">Requerido</div>
-          )}
-        </div>
-
         {/* ─── Baterías & Detecciones ─── */}
         <div style={{ position: 'relative' }} className="col-span-2">
           <motion.div
@@ -1065,27 +1030,41 @@ const Dashboard: React.FC<DashboardProps> = ({
           )}
         </div>
 
-        {/* ─── Explorar Historial ─── */}
-        <motion.div
-          whileTap={{ scale: 0.98 }}
-          onClick={() => onNavigate('explorer')}
-          className="dashboard-card col-span-2"
-          style={{ cursor: 'pointer' }}
-        >
-          {renderTelemetryWave('var(--neon-cyan)', '8s')}
-          <div className="card-icon-wrapper">
-            <Download size={26} />
-          </div>
-          <div style={{ width: '100%' }}>
-            <h2 className="dashboard-card-title">Explorar Historial</h2>
-            <p className="dashboard-card-desc">Auditoría, filtros y exportación.</p>
-          </div>
+        {/* ─── Registro Vuelos HS ─── */}
+        <div style={{ position: 'relative' }} className="col-span-2">
+          <motion.div
+            className={`dashboard-card ${isHSActive ? 'card-vuelo-activo' : ''}`}
+            onClick={() => hasActiveShift ? (isHSActive ? setActionMenu('HS') : onNewFlight('HS')) : undefined}
+            style={{ 
+              width: '100%', 
+              cursor: hasActiveShift ? 'pointer' : 'default',
+              opacity: hasActiveShift ? 1 : 0.5
+            }}
+          >
+            {renderTelemetryWave(isHSActive ? 'var(--neon-green)' : 'var(--primary)', '4.5s')}
+            <div className="card-icon-wrapper" style={{ color: isHSActive ? 'var(--neon-green)' : 'var(--primary)' }}>
+              <Clock size={26} />
+            </div>
+            <div style={{ width: '100%' }}>
+              <h2 className="dashboard-card-title">Vuelos HS</h2>
+              <p className="dashboard-card-desc">Registro de tareas por horas.</p>
+              {hasActiveShift && (
+                <p className="dashboard-card-desc" style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {hsSubText}
+                </p>
+              )}
+            </div>
+
+            <div className="card-live-metric">
+              {hasActiveShift ? (isHSActive ? 'VUELO EN CURSO' : hsText) : 'Jornada Requerida'}
+            </div>
+          </motion.div>
           
-          <div className="card-live-metric">
-            {historyText}
-          </div>
-        </motion.div>
- 
+          {!hasActiveShift && (
+            <div className="dashboard-req-badge">Requerido</div>
+          )}
+        </div>
+
         {/* ─── Checklist Diario ─── */}
         <motion.div
           whileTap={{ scale: 0.98 }}
@@ -1104,6 +1083,27 @@ const Dashboard: React.FC<DashboardProps> = ({
           
           <div className="card-live-metric" style={{ fontSize: '0.68rem' }}>
             {hasActiveShift ? `${checklistText} | ${checklistSubText}` : 'Jornada Requerida'}
+          </div>
+        </motion.div>
+
+        {/* ─── Explorar Historiales ─── */}
+        <motion.div
+          whileTap={{ scale: 0.98 }}
+          onClick={() => onNavigate('explorer')}
+          className="dashboard-card col-span-2"
+          style={{ cursor: 'pointer' }}
+        >
+          {renderTelemetryWave('var(--neon-cyan)', '8s')}
+          <div className="card-icon-wrapper">
+            <Download size={26} />
+          </div>
+          <div style={{ width: '100%' }}>
+            <h2 className="dashboard-card-title">Explorar Historiales</h2>
+            <p className="dashboard-card-desc">Auditoría, filtros y exportación.</p>
+          </div>
+          
+          <div className="card-live-metric">
+            {historyText}
           </div>
         </motion.div>
         </div>
@@ -1342,7 +1342,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', overflowY: 'auto', maxHeight: '160px', paddingRight: '4px' }}>
                     {syncHistory.map((s, idx) => {
-                      const timeStr = new Date(s.timestamp).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                      const timeStr = new Date(s.timestamp).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
                       const totalReceived = s.kmsCount + s.hsCount;
                       return (
                         <div key={idx} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '8px', padding: '0.8rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>

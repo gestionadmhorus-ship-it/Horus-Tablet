@@ -1,39 +1,18 @@
 import ExcelJS from 'exceljs';
 import type { AppData } from '../types';
-
-const parseLocalTimestampToDate = (timestamp: string): Date | null => {
-  if (!timestamp) return null;
-  const parts = timestamp.trim().split(/\s+/);
-  const datePart = parts[0];
-  if (!datePart) return null;
-  const dateParts = datePart.split('/');
-  if (dateParts.length !== 3) return null;
-  
-  const day = parseInt(dateParts[0], 10);
-  const month = parseInt(dateParts[1], 10) - 1; // 0-indexed month
-  const year = parseInt(dateParts[2], 10);
-  
-  const timePart = parts[1] || '00:00:00';
-  const timeParts = timePart.split(':');
-  const hours = parseInt(timeParts[0] || '0', 10);
-  const minutes = parseInt(timeParts[1] || '0', 10);
-  const seconds = parseInt(timeParts[2] || '0', 10);
-  
-  const d = new Date(year, month, day, hours, minutes, seconds);
-  return isNaN(d.getTime()) ? null : d;
-};
-
-const getChronologicalTime = (timestamp: string): number => {
-  const d = parseLocalTimestampToDate(timestamp);
-  return d ? d.getTime() : 0;
-};
+import { parseLocalTimestampToDate, getChronologicalTime, formatDateDMY, formatTime24h } from './dateUtils';
 
 const splitTimestamp = (timestamp: string): { date: string; time: string } => {
   if (!timestamp) return { date: '', time: '' };
-  const parts = timestamp.trim().split(/\s+/);
-  const datePart = parts[0] || '';
-  const timePart = parts[1] || '';
-  return { date: datePart, time: timePart };
+  const d = parseLocalTimestampToDate(timestamp);
+  if (!d) {
+    const parts = timestamp.trim().split(/\s+/);
+    return { date: parts[0] || '', time: parts[1] || '' };
+  }
+  return {
+    date: formatDateDMY(d),
+    time: formatTime24h(d)
+  };
 };
 
 const calculateFlightDuration = (startStr: string, endStr: string): number => {

@@ -26,7 +26,7 @@ export function useAutoSync(
 
   const recordSyncSuccess = () => {
     const now = new Date();
-    const ts = now.toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    const ts = now.toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
     localStorage.setItem('horus_last_sync_ts', ts);
     setLastSyncTimestamp(ts);
   };
