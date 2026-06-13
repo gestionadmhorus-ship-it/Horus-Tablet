@@ -346,9 +346,50 @@ export const exportToExcel = async (
     });
   }
 
+  // Convert ArrayBuffer to Base64 in chunks for safe native transfer
+  const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
+    let binary = '';
+    const bytes = new Uint8Array(buffer);
+    const len = bytes.byteLength;
+    const chunk = 8192;
+    for (let i = 0; i < len; i += chunk) {
+      const subArray = bytes.subarray(i, i + chunk);
+      binary += String.fromCharCode.apply(null, subArray as any);
+    }
+    return window.btoa(binary);
+  };
+
   // Write and trigger download
   const dateStr = new Date().toISOString().split('T')[0];
   const buffer = await workbook.xlsx.writeBuffer();
+
+  // Mobile / Capacitor native saving
+  if (typeof window !== 'undefined' && !!(window as any).Capacitor?.isNativePlatform?.()) {
+    try {
+      const { Filesystem, Directory } = await import('@capacitor/filesystem');
+      const base64Data = arrayBufferToBase64(buffer);
+      const fileName = `Reporte_Jornada_${dateStr}.xlsx`;
+      
+      const writeResult = await Filesystem.writeFile({
+        path: `Horus_Datos/${fileName}`,
+        data: base64Data,
+        directory: Directory.Documents,
+        recursive: true
+      });
+
+      await window.customAlert(
+        `📊 REPORTE EXCEL GENERADO\n\n` +
+        `El archivo se ha guardado con éxito en tu dispositivo.\n\n` +
+        `📁 Ubicación: Documentos/Horus_Datos/${fileName}\n\n` +
+        `Ruta técnica:\n${writeResult.uri}`
+      );
+    } catch (err: any) {
+      await window.customAlert(`❌ Error al guardar el reporte Excel: ${err.message || err}`);
+    }
+    return;
+  }
+
+  // Browser / Electron saving
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const url = window.URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -358,12 +399,39 @@ export const exportToExcel = async (
   window.URL.revokeObjectURL(url);
 };
 
-export const exportToJSON = (data: AppData) => {
+export const exportToJSON = async (data: AppData) => {
   const dataStr = JSON.stringify(data, null, 2);
+  const dateStr = new Date().toISOString().split('T')[0];
+  const fileName = `Data_Campo_${dateStr}.json`;
+
+  // Mobile / Capacitor native saving
+  if (typeof window !== 'undefined' && !!(window as any).Capacitor?.isNativePlatform?.()) {
+    try {
+      const { Filesystem, Directory } = await import('@capacitor/filesystem');
+      const writeResult = await Filesystem.writeFile({
+        path: `Horus_Datos/${fileName}`,
+        data: dataStr,
+        directory: Directory.Documents,
+        recursive: true,
+        encoding: (await import('@capacitor/filesystem')).Encoding.UTF8
+      });
+
+      await window.customAlert(
+        `💾 COPIA DE RESPALDO JSON GENERADA\n\n` +
+        `El archivo se ha guardado con éxito en tu dispositivo.\n\n` +
+        `📁 Ubicación: Documentos/Horus_Datos/${fileName}\n\n` +
+        `Ruta técnica:\n${writeResult.uri}`
+      );
+    } catch (err: any) {
+      await window.customAlert(`❌ Error al guardar copia JSON: ${err.message || err}`);
+    }
+    return;
+  }
+
+  // Browser / Electron saving
   const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
-  const exportFileDefaultName = `Data_Campo_${new Date().toISOString().split('T')[0]}.json`;
   const linkElement = document.createElement('a');
   linkElement.setAttribute('href', dataUri);
-  linkElement.setAttribute('download', exportFileDefaultName);
+  linkElement.setAttribute('download', fileName);
   linkElement.click();
 };
