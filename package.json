@@ -17,6 +17,7 @@
   "dependencies": {
     "@capacitor/core": "^8.3.4",
     "@capacitor/filesystem": "^8.1.2",
+    "@capacitor/share": "^8.0.1",
     "@capgo/capacitor-updater": "^8.47.3",
     "dexie": "^4.4.2",
     "dexie-react-hooks": "^4.4.0",

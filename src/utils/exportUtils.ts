@@ -409,9 +409,20 @@ export const exportToExcel = async (
       await window.customAlert(
         `📊 REPORTE EXCEL GENERADO\n\n` +
         `El archivo se ha guardado con éxito en tu dispositivo.\n\n` +
-        `📁 Ubicación: Documentos/Horus_Datos/${fileName}\n\n` +
-        `Ruta técnica:\n${writeResult.uri}`
+        `📁 Ubicación: Documentos/Horus_Datos/${fileName}`
       );
+
+      try {
+        const { Share } = await import('@capacitor/share');
+        await Share.share({
+          title: 'Compartir Reporte Excel',
+          text: `Reporte de Jornada - ${dateStr}`,
+          files: [writeResult.uri],
+          dialogTitle: 'Compartir o guardar reporte Excel'
+        });
+      } catch (shareErr) {
+        console.log('Compartir cancelado o no disponible:', shareErr);
+      }
     } catch (err: any) {
       await window.customAlert(`❌ Error al guardar el reporte Excel: ${err.message || err}`);
     }
@@ -448,9 +459,20 @@ export const exportToJSON = async (data: AppData) => {
       await window.customAlert(
         `💾 COPIA DE RESPALDO JSON GENERADA\n\n` +
         `El archivo se ha guardado con éxito en tu dispositivo.\n\n` +
-        `📁 Ubicación: Documentos/Horus_Datos/${fileName}\n\n` +
-        `Ruta técnica:\n${writeResult.uri}`
+        `📁 Ubicación: Documentos/Horus_Datos/${fileName}`
       );
+
+      try {
+        const { Share } = await import('@capacitor/share');
+        await Share.share({
+          title: 'Compartir Copia JSON',
+          text: `Copia de Respaldo - ${dateStr}`,
+          files: [writeResult.uri],
+          dialogTitle: 'Compartir o guardar copia de respaldo JSON'
+        });
+      } catch (shareErr) {
+        console.log('Compartir cancelado o no disponible:', shareErr);
+      }
     } catch (err: any) {
       await window.customAlert(`❌ Error al guardar copia JSON: ${err.message || err}`);
     }
