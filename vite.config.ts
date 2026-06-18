@@ -6,9 +6,9 @@ const isElectronBuild = process.env['BUILD_TARGET'] === 'electron';
 
 // https://vite.dev/config/
 export default defineConfig({
-  // CRITICAL for Electron: relative paths so file:// protocol resolves assets.
-  // For web/Android builds, base '/' is correct for HTTP servers.
-  base: isElectronBuild ? './' : '/',
+  // CRITICAL: relative paths so local assets resolve correctly under both
+  // file:// (Electron/Android WebView) and standard dev server.
+  base: './',
   plugins: [
     react(),
     // Only activates when BUILD_TARGET=electron — zero impact on APK builds
