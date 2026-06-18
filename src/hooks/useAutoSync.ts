@@ -1,6 +1,25 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { Peer } from 'peerjs';
-import type { AppData, AppRole, UnitStatus } from '../types';
+import type { AppData, AppRole, UnitStatus, KnownClient } from '../types';
+
+export function getKnownClients(): KnownClient[] {
+  try {
+    const raw = localStorage.getItem('horus_known_clients') || '[]';
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((item: any) => {
+      if (typeof item === 'string') {
+        return { deviceId: `legacy-${item}`, deviceName: item };
+      }
+      if (item && typeof item === 'object' && item.deviceId && item.deviceName) {
+        return item as KnownClient;
+      }
+      return null;
+    }).filter(Boolean) as KnownClient[];
+  } catch {
+    return [];
+  }
+}
 
 const RECONNECT_INTERVAL = 10000;        // 10 seconds
 const STATUS_BROADCAST_INTERVAL = 15000; // 15 seconds
@@ -11,7 +30,7 @@ export function useAutoSync(
   getUnsyncedData: () => Promise<AppData>,
   markDataAsSynced: (data: AppData) => Promise<void>,
   onDataReceived: (data: AppData) => Promise<void>,
-  getStatusSnapshot?: () => Omit<UnitStatus, 'deviceName' | 'connected' | 'lastSeen'>,
+  getStatusSnapshot?: () => Omit<UnitStatus, 'deviceId' | 'deviceName' | 'connected' | 'lastSeen'>,
   onStatusUpdate?: (status: UnitStatus) => void,
   getAllData?: () => Promise<AppData>,
   deviceName?: string
@@ -70,9 +89,13 @@ export function useAutoSync(
 
   // ── Handle incoming STATUS_UPDATE on the server ──
   const handleStatusUpdate = useCallback((data: any) => {
-    const { deviceName, peerId, status } = data;
+    const { deviceId, deviceName, peerId, status } = data;
     if (!deviceName || !status) return;
+
+    const finalDeviceId = deviceId || `legacy-${deviceName}`;
+
     const unitStatus: UnitStatus = {
+      deviceId: finalDeviceId,
       deviceName,
       peerId,
       connected: true,
@@ -81,17 +104,31 @@ export function useAutoSync(
     };
     setUnitsStatus(prev => {
       const next = new Map(prev);
-      next.set(deviceName, unitStatus);
+      next.set(finalDeviceId, unitStatus);
       return next;
     });
     // Also register as known client
-    const knownStr = localStorage.getItem('horus_known_clients') || '[]';
-    let known: string[] = JSON.parse(knownStr);
-    if (!known.includes(deviceName)) {
-      known.push(deviceName);
-      localStorage.setItem('horus_known_clients', JSON.stringify(known));
-      window.dispatchEvent(new Event('horus_known_clients_updated'));
+    const known = getKnownClients();
+    const existingIdx = known.findIndex(c => c.deviceId === finalDeviceId);
+    const nameClash = known.find(c => c.deviceName.toLowerCase() === deviceName.toLowerCase() && c.deviceId !== finalDeviceId);
+
+    if (!nameClash) {
+      let changed = false;
+      if (existingIdx >= 0) {
+        if (known[existingIdx].deviceName !== deviceName) {
+          known[existingIdx].deviceName = deviceName;
+          changed = true;
+        }
+      } else {
+        known.push({ deviceId: finalDeviceId, deviceName });
+        changed = true;
+      }
+      if (changed) {
+        localStorage.setItem('horus_known_clients', JSON.stringify(known));
+        window.dispatchEvent(new Event('horus_known_clients_updated'));
+      }
     }
+
     if (onStatusUpdateRef.current) {
       onStatusUpdateRef.current(unitStatus);
     }
@@ -142,22 +179,41 @@ export function useAutoSync(
             // ── STATUS_UPDATE from a field unit ──
             if (data.type === 'STATUS_UPDATE') {
               handleStatusUpdate(data);
+              
+              const blockedListStr = localStorage.getItem('horus_blocked_clients') || '[]';
+              const blockedClients: string[] = JSON.parse(blockedListStr);
+              const senderDeviceName = data.deviceName || 'Unknown';
+              const senderDeviceId = data.deviceId || `legacy-${senderDeviceName}`;
+              
+              const isBlocked = blockedClients.includes(senderDeviceId) || blockedClients.includes(senderDeviceName);
+              
+              try {
+                conn.send({
+                  type: 'STATUS_ACK',
+                  serverVersion: localStorage.getItem('horus_current_version') || 'v2.0.0',
+                  isLinked: !isBlocked
+                });
+              } catch (err) {
+                console.error('Error sending STATUS_ACK:', err);
+              }
               return;
             }
 
             // ── Explorador notifica desvinculación ──
             if (data.type === 'DISCONNECT') {
               const name = data.deviceName as string | undefined;
+              const deviceId = data.deviceId as string | undefined;
               if (name) {
-                const known: string[] = JSON.parse(localStorage.getItem('horus_known_clients') || '[]');
-                const updated = known.filter(c => c !== name);
+                const finalDeviceId = deviceId || `legacy-${name}`;
+                const known = getKnownClients();
+                const updated = known.filter(c => c.deviceId !== finalDeviceId);
                 localStorage.setItem('horus_known_clients', JSON.stringify(updated));
                 window.dispatchEvent(new Event('horus_known_clients_updated'));
                 // Mark unit as disconnected in state
                 setUnitsStatus(prev => {
                   const next = new Map(prev);
-                  const existing = next.get(name);
-                  if (existing) next.set(name, { ...existing, connected: false });
+                  const existing = next.get(finalDeviceId);
+                  if (existing) next.set(finalDeviceId, { ...existing, connected: false });
                   return next;
                 });
                 setSyncStatus(`🔌 "${name}" se ha desvinculado.`);
@@ -171,26 +227,43 @@ export function useAutoSync(
               const blockedListStr = localStorage.getItem('horus_blocked_clients') || '[]';
               const blockedClients: string[] = JSON.parse(blockedListStr);
               
-              let senderDeviceName = 'Unknown';
-              const p = data.payload;
-              if (p.shifts?.[0]) senderDeviceName = p.shifts[0].deviceName;
-              else if (p.flights?.[0]) senderDeviceName = p.flights[0].deviceName;
-              else if (p.batteries?.[0]) senderDeviceName = p.batteries[0].deviceName;
-              else if (p.detections?.[0]) senderDeviceName = p.detections[0].deviceName;
+              const senderDeviceName = data.deviceName || 'Unknown';
+              const senderDeviceId = data.deviceId || `legacy-${senderDeviceName}`;
 
-              if (blockedClients.includes(senderDeviceName)) {
+              if (blockedClients.includes(senderDeviceId) || blockedClients.includes(senderDeviceName)) {
                 conn.send({ type: 'SYNC_ERROR', code: 'REMOVED_BY_SERVER', message: 'Fuiste eliminado de la red por Control.' });
                 conn.close();
-                const updatedBlocked = blockedClients.filter(c => c !== senderDeviceName);
+                const updatedBlocked = blockedClients.filter(c => c !== senderDeviceId && c !== senderDeviceName);
                 localStorage.setItem('horus_blocked_clients', JSON.stringify(updatedBlocked));
                 return;
               }
 
+              // Prevención de nombres repetidos
+              const known = getKnownClients();
+              const nameClash = known.find(c => c.deviceName.toLowerCase() === senderDeviceName.toLowerCase() && c.deviceId !== senderDeviceId);
+              if (nameClash) {
+                conn.send({ 
+                  type: 'SYNC_ERROR', 
+                  code: 'NAME_CLASH', 
+                  message: 'El nombre de este dispositivo ya está registrado por otra tablet en el Panel de Control. Por favor cambia el nombre de esta tablet en Configuración.' 
+                });
+                conn.close();
+                return;
+              }
+
               if (senderDeviceName !== 'Unknown') {
-                const knownStr = localStorage.getItem('horus_known_clients') || '[]';
-                let known = JSON.parse(knownStr);
-                if (!known.includes(senderDeviceName)) {
-                  known.push(senderDeviceName);
+                const existingIdx = known.findIndex(c => c.deviceId === senderDeviceId);
+                let changed = false;
+                if (existingIdx >= 0) {
+                  if (known[existingIdx].deviceName !== senderDeviceName) {
+                    known[existingIdx].deviceName = senderDeviceName;
+                    changed = true;
+                  }
+                } else {
+                  known.push({ deviceId: senderDeviceId, deviceName: senderDeviceName });
+                  changed = true;
+                }
+                if (changed) {
                   localStorage.setItem('horus_known_clients', JSON.stringify(known));
                   window.dispatchEvent(new Event('horus_known_clients_updated'));
                 }
@@ -288,17 +361,52 @@ export function useAutoSync(
 
           try {
             const conn = peerRef.current.connect(targetServerId);
+            
+            let closeTimeout = setTimeout(() => {
+              try { conn.close(); } catch {}
+            }, 4000);
+
             conn.on('open', () => {
               conn.send({ 
                 type: 'STATUS_UPDATE', 
+                deviceId: localStorage.getItem('horus_device_id') || 'dev-unknown',
                 deviceName, 
                 peerId: peerRef.current ? peerRef.current.id : undefined, 
                 status: snapshot 
               });
-              // Close quickly after sending
-              setTimeout(() => { try { conn.close(); } catch {} }, 500);
             });
-            conn.on('error', () => { /* silent — status is best-effort */ });
+
+            conn.on('data', (resp: any) => {
+              if (resp && resp.type === 'STATUS_ACK') {
+                clearTimeout(closeTimeout);
+                
+                // 1. Verificar si fue desvinculado por el servidor
+                if (!resp.isLinked) {
+                  setSyncStatus('⚠️ Control te ha desvinculado.');
+                  localStorage.removeItem('horus_target_server_id');
+                  localStorage.removeItem('horus_sync_role');
+                  isActive = false;
+                  setTimeout(() => {
+                    window.location.reload();
+                  }, 2500);
+                  try { conn.close(); } catch {}
+                  return;
+                }
+
+                // 2. Verificar versión
+                const serverVer = resp.serverVersion;
+                const clientVer = localStorage.getItem('horus_current_version') || 'v2.0.0';
+                if (serverVer && serverVer !== clientVer) {
+                  setSyncStatus(`⚠️ Versión Central distinta (${serverVer}). Por favor actualiza.`);
+                }
+                
+                try { conn.close(); } catch {}
+              }
+            });
+
+            conn.on('error', () => {
+              clearTimeout(closeTimeout);
+            });
           } catch { /* silent */ }
         };
 
@@ -333,7 +441,12 @@ export function useAutoSync(
           
           conn.on('open', () => {
             setSyncStatus('📤 Conectado. Enviando datos...');
-            conn.send({ type: 'SYNC_PAYLOAD', payload: unsynced });
+            conn.send({ 
+              type: 'SYNC_PAYLOAD', 
+              payload: unsynced,
+              deviceId: localStorage.getItem('horus_device_id') || 'dev-unknown',
+              deviceName: localStorage.getItem('horus_device_name') || 'Unknown'
+            });
           });
 
           conn.on('data', async (data: any) => {
@@ -346,6 +459,11 @@ export function useAutoSync(
               }, 3000);
               setIsSyncing(false);
               conn.close();
+            } else if (data.type === 'SYNC_ERROR' && data.code === 'NAME_CLASH') {
+              setSyncStatus('⚠️ Nombre duplicado en la red.');
+              setIsSyncing(false);
+              conn.close();
+              window.customAlert('El nombre de esta tablet ya está siendo usado por otra unidad en el Panel de Control. Por favor, cámbialo en la pantalla de Configuración.');
             } else if (data.type === 'SYNC_ERROR' && data.code === 'REMOVED_BY_SERVER') {
               setSyncStatus('⚠️ Control te ha eliminado de la red. Vuelve a escanear el QR.');
               setIsSyncing(false);
@@ -448,7 +566,12 @@ export function useAutoSync(
       conn.on('open', () => {
         if (hasData) {
           setSyncStatus('📤 Enviando datos pendientes...');
-          conn.send({ type: 'SYNC_PAYLOAD', payload: unsynced });
+          conn.send({ 
+            type: 'SYNC_PAYLOAD', 
+            payload: unsynced,
+            deviceId: localStorage.getItem('horus_device_id') || 'dev-unknown',
+            deviceName: localStorage.getItem('horus_device_name') || 'Unknown'
+          });
         } else {
           setSyncStatus('📤 Verificando conexión con Central...');
           conn.send({ type: 'PING' });
@@ -481,7 +604,13 @@ export function useAutoSync(
         } else if (data.type === 'SYNC_ERROR') {
           setIsSyncing(false);
           conn.close();
-          resolve({ success: false, message: `El servidor rechazó la sincronización: ${data.message || 'Error desconocido'}` });
+          if (data.code === 'NAME_CLASH') {
+            setSyncStatus('⚠️ Nombre duplicado en la red.');
+            window.customAlert('El nombre de esta tablet ya está siendo usado por otra unidad en el Panel de Control. Por favor, cámbialo en la pantalla de Configuración.');
+            resolve({ success: false, message: 'Rechazado por nombre duplicado. Modifique el nombre en Configuración.' });
+          } else {
+            resolve({ success: false, message: `El servidor rechazó la sincronización: ${data.message || 'Error desconocido'}` });
+          }
         }
       });
 

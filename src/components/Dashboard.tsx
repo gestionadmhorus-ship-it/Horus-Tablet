@@ -1178,7 +1178,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                         : `HS: ${unit.activeFlightName || '—'}`
                       : null;
                     return (
-                      <div key={unit.deviceName} className={`unit-card ${isOnline ? 'unit-online' : 'unit-offline'}`} style={{ padding: '1.5rem', border: `1.5px solid ${isOnline ? 'rgba(0, 255, 136, 0.15)' : 'rgba(255, 255, 255, 0.05)'}`, background: isOnline ? 'rgba(0, 255, 136, 0.01)' : 'rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                      <div key={unit.deviceId || unit.deviceName} className={`unit-card ${isOnline ? 'unit-online' : 'unit-offline'}`} style={{ padding: '1.5rem', border: `1.5px solid ${isOnline ? 'rgba(0, 255, 136, 0.15)' : 'rgba(255, 255, 255, 0.05)'}`, background: isOnline ? 'rgba(0, 255, 136, 0.01)' : 'rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                         <div className="unit-card-header" style={{ marginBottom: '0.2rem' }}>
                           <span className="unit-name" style={{ fontSize: '1.3rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                             {unit.deviceName}
@@ -1480,7 +1480,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                   const isCurrentLoading = loadingBackup === unit.deviceName;
                   return (
                     <div 
-                      key={unit.deviceName} 
+                      key={unit.deviceId || unit.deviceName} 
                       style={{ 
                         display: 'flex', 
                         alignItems: 'center', 

@@ -3,10 +3,12 @@ Set oFSO = CreateObject("Scripting.FileSystemObject")
 
 ' Path to the project
 Dim projectPath
-projectPath = "C:\Users\Adelio\TABLET_CAMPO"
+projectPath = oFSO.GetParentFolderName(WScript.ScriptFullName)
 
-' ── 1. Kill any existing Node processes to guarantee a clean start on port 5173 ──
-oShell.Run "taskkill /F /IM node.exe", 0, True
+' ── 1. Kill any existing Node processes owned by the current user to guarantee a clean start on port 5173 ──
+Dim currentUser
+currentUser = oShell.ExpandEnvironmentStrings("%USERNAME%")
+oShell.Run "taskkill /F /IM node.exe /FI ""USERNAME eq " & currentUser & """", 0, True
 
 ' ── 2. Pre-set the role to SERVER so the app opens directly as Control Panel ──
 ' This writes to Chrome's localStorage via a startup URL parameter
@@ -38,6 +40,9 @@ If serverReady Then
     Dim opened
     opened = False
     
+    Dim profileDir
+    profileDir = projectPath & "\chrome_profile"
+    
     ' Try Chrome first
     Dim chromePaths(2)
     chromePaths(0) = "C:\Program Files\Google\Chrome\Application\chrome.exe"
@@ -47,7 +52,7 @@ If serverReady Then
     Dim j
     For j = 0 To 2
         If oFSO.FileExists(chromePaths(j)) Then
-            oShell.Run """" & chromePaths(j) & """ --app=" & startURL, 1, False
+            oShell.Run """" & chromePaths(j) & """ --user-data-dir=""" & profileDir & """ --app=" & startURL, 1, False
             opened = True
             Exit For
         End If
@@ -58,7 +63,7 @@ If serverReady Then
         Dim edgePath
         edgePath = "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
         If oFSO.FileExists(edgePath) Then
-            oShell.Run """" & edgePath & """ --app=" & startURL, 1, False
+            oShell.Run """" & edgePath & """ --user-data-dir=""" & profileDir & """ --app=" & startURL, 1, False
             opened = True
         End If
     End If

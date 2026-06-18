@@ -199,6 +199,11 @@ export interface AppData {
 /* ─── Sync Configuration ─── */
 export type AppRole = 'server' | 'client' | 'unassigned';
 
+export interface KnownClient {
+  deviceId: string;
+  deviceName: string;
+}
+
 export interface SyncConfig {
   role: AppRole;
   deviceId: string; // Used to identify the sender (e.g. "Dron-Alfa")
@@ -209,6 +214,7 @@ export interface SyncConfig {
 
 /* ─── Real-time Unit Telemetry ─── */
 export interface UnitStatus {
+  deviceId: string;
   deviceName: string;
   peerId?: string;            // Temporary peer ID for Control recovery connections
   connected: boolean;

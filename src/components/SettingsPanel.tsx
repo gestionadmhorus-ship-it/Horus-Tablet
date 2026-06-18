@@ -6,10 +6,11 @@ import {
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Peer } from 'peerjs';
-import type { ListsData, ElementEntry, AnomalyEntry } from '../types';
+import type { ListsData, ElementEntry, AnomalyEntry, KnownClient } from '../types';
 import { INSPECTION_CATEGORIES } from '../types';
 import { HorusSyncManager } from '../utils/legacySync';
 import { UpdateManager } from '../services/UpdateManager';
+import { getKnownClients } from '../hooks/useAutoSync';
 
 interface SettingsPanelProps {
   lists: ListsData;
@@ -159,29 +160,29 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
   /* ─── Connection state ─── */
   const appRole = localStorage.getItem('horus_sync_role');
   const myServerId = localStorage.getItem('horus_my_server_id');
-  const [knownClients, setKnownClients] = useState<string[]>(() => {
-    return JSON.parse(localStorage.getItem('horus_known_clients') || '[]');
+  const [knownClients, setKnownClients] = useState<KnownClient[]>(() => {
+    return getKnownClients();
   });
 
   React.useEffect(() => {
     const handleUpdate = () => {
-      setKnownClients(JSON.parse(localStorage.getItem('horus_known_clients') || '[]'));
+      setKnownClients(getKnownClients());
     };
     window.addEventListener('horus_known_clients_updated', handleUpdate);
     return () => window.removeEventListener('horus_known_clients_updated', handleUpdate);
   }, []);
 
-  const removeKnownClient = async (client: string) => {
-    const ok = await window.customConfirm(`¿Eliminar a la unidad "${client}" de la red?\nNo podrá sincronizar hasta que sea retirada del bloqueo.`);
+  const removeKnownClient = async (client: KnownClient) => {
+    const ok = await window.customConfirm(`¿Eliminar a la unidad "${client.deviceName}" de la red?\nNo podrá sincronizar hasta que sea retirada del bloqueo.`);
     if (!ok) return;
     // 1. Remove from known list (UI)
-    const updatedKnown = knownClients.filter(c => c !== client);
+    const updatedKnown = knownClients.filter(c => c.deviceId !== client.deviceId);
     localStorage.setItem('horus_known_clients', JSON.stringify(updatedKnown));
     setKnownClients(updatedKnown);
     // 2. Add to blocked list so useAutoSync rejects future reconnections
     const currentBlocked: string[] = JSON.parse(localStorage.getItem('horus_blocked_clients') || '[]');
-    if (!currentBlocked.includes(client)) {
-      currentBlocked.push(client);
+    if (!currentBlocked.includes(client.deviceId)) {
+      currentBlocked.push(client.deviceId);
       localStorage.setItem('horus_blocked_clients', JSON.stringify(currentBlocked));
     }
   };
@@ -756,10 +757,10 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                         {knownClients.map(client => (
-                          <div key={client} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(0,255,136,0.05)', padding: '0.75rem', borderRadius: '8px', border: '1px solid rgba(0,255,136,0.15)' }}>
+                          <div key={client.deviceId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(0,255,136,0.05)', padding: '0.75rem', borderRadius: '8px', border: '1px solid rgba(0,255,136,0.15)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                               <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#00ff88', boxShadow: '0 0 6px #00ff88' }} />
-                              <span style={{ color: 'white', fontWeight: 'bold' }}>{client}</span>
+                              <span style={{ color: 'white', fontWeight: 'bold' }}>{client.deviceName}</span>
                             </div>
                             <button 
                               onClick={() => removeKnownClient(client)}

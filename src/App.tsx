@@ -58,6 +58,11 @@ function App() {
       localStorage.setItem('horus_device_name', generated);
       name = generated;
     }
+    // Guarantee deviceId exists
+    if (!localStorage.getItem('horus_device_id')) {
+      const devId = 'dev-' + Math.random().toString(36).substring(2, 11) + '-' + Date.now().toString(36);
+      localStorage.setItem('horus_device_id', devId);
+    }
     return name;
   });
   
@@ -115,6 +120,19 @@ function App() {
     if (forcedRole === 'server' || forcedRole === 'client') {
       localStorage.setItem('horus_sync_role', forcedRole);
       setAppRole(forcedRole);
+      
+      if (forcedRole === 'server') {
+        if (!localStorage.getItem('horus_my_server_id')) {
+          const generatedId = 'horus-server-' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+          localStorage.setItem('horus_my_server_id', generatedId);
+        }
+        const currentName = localStorage.getItem('horus_device_name');
+        if (!currentName || !currentName.trim() || currentName.startsWith('Tablet-')) {
+          localStorage.setItem('horus_device_name', 'Control-Central');
+          setDeviceName('Control-Central');
+        }
+      }
+
       // Clean the URL param without triggering a page reload
       const cleanUrl = window.location.pathname;
       window.history.replaceState({}, '', cleanUrl);
@@ -123,7 +141,7 @@ function App() {
 
   // ── STATUS snapshot for broadcasting to the server ──
   // Built with useCallback so the reference is stable and won't re-trigger useAutoSync.
-  const getStatusSnapshot = useCallback((): Omit<UnitStatus, 'deviceName' | 'connected' | 'lastSeen'> => {
+  const getStatusSnapshot = useCallback((): Omit<UnitStatus, 'deviceId' | 'deviceName' | 'connected' | 'lastSeen'> => {
     // Compute derived values inline from the current closure
     const todayStr = formatDateDMY(new Date());
     const sortedShiftsSnap = [...data.shifts].sort((a, b) => {

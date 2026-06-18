@@ -80,6 +80,10 @@ export function useDatabase() {
       localStorage.setItem('horus_device_name', generated);
       name = generated;
     }
+    if (!localStorage.getItem('horus_device_id')) {
+      const devId = 'dev-' + Math.random().toString(36).substring(2, 11) + '-' + Date.now().toString(36);
+      localStorage.setItem('horus_device_id', devId);
+    }
     return name;
   };
 
