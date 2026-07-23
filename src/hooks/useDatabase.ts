@@ -10,7 +10,10 @@ export function useDatabase() {
   const shifts = useLiveQuery(() => db.shifts.filter(i => !i.isDeleted).toArray()) || [];
   const flights = useLiveQuery(() => db.flights.filter(i => !i.isDeleted).toArray()) || [];
   const batteries = useLiveQuery(() => db.batteries.filter(i => !i.isDeleted).toArray()) || [];
-  const detections = useLiveQuery(() => db.detections.filter(i => !i.isDeleted).toArray()) || [];
+  const detections = useLiveQuery(async () => {
+    const list = await db.detections.filter(i => !i.isDeleted).toArray();
+    return list.map(d => ({ ...d, accessStatus: d.accessStatus || 'Buena' }));
+  }) || [];
   const checklists = useLiveQuery(() => db.vehicleChecklists.filter(i => !i.isDeleted).toArray()) || [];
   const droneChecklists = useLiveQuery(() => db.droneChecklists.filter(i => !i.isDeleted).toArray()) || [];
   
@@ -135,8 +138,8 @@ export function useDatabase() {
   const updateBattery = (item: BatteryData) => db.batteries.put({ ...item, ...getEditMetadata(), isSynced: false, deviceName: item.deviceName || getDeviceName() });
   const deleteBattery = (id: string) => db.batteries.update(id, { isDeleted: true, isSynced: false, lastModified: Date.now() });
 
-  const saveDetection = (item: DetectionData) => db.detections.add({ ...item, isSynced: false, lastModified: Date.now(), deviceName: item.deviceName || getDeviceName() });
-  const updateDetection = (item: DetectionData) => db.detections.put({ ...item, ...getEditMetadata(), isSynced: false, deviceName: item.deviceName || getDeviceName() });
+  const saveDetection = (item: DetectionData) => db.detections.add({ ...item, accessStatus: item.accessStatus || 'Buena', isSynced: false, lastModified: Date.now(), deviceName: item.deviceName || getDeviceName() });
+  const updateDetection = (item: DetectionData) => db.detections.put({ ...item, accessStatus: item.accessStatus || 'Buena', ...getEditMetadata(), isSynced: false, deviceName: item.deviceName || getDeviceName() });
   const deleteDetection = (id: string) => db.detections.update(id, { isDeleted: true, isSynced: false, lastModified: Date.now() });
   
   const saveChecklist = (item: any) => db.vehicleChecklists.add({ ...item, isSynced: false, lastModified: Date.now(), deviceName: item.deviceName || getDeviceName() });
@@ -168,7 +171,7 @@ export function useDatabase() {
       await syncTable(db.shifts, incoming.shifts);
       await syncTable(db.flights, incoming.flights);
       await syncTable(db.batteries, incoming.batteries);
-      await syncTable(db.detections, incoming.detections);
+      await syncTable(db.detections, incoming.detections?.map(d => ({ ...d, accessStatus: d.accessStatus || 'Buena' })));
       await syncTable(db.vehicleChecklists, incoming.checklists || (incoming as any).vehicleChecklists);
       await syncTable(db.droneChecklists, incoming.droneChecklists);
     });
@@ -189,9 +192,10 @@ export function useDatabase() {
     const f = await db.flights.filter((i) => !i.isDeleted).toArray();
     const b = await db.batteries.filter((i) => !i.isDeleted).toArray();
     const d = await db.detections.filter((i) => !i.isDeleted).toArray();
+    const mappedDetections = d.map(i => ({ ...i, accessStatus: i.accessStatus || 'Buena' }));
     const c = await db.vehicleChecklists.filter((i) => !i.isDeleted).toArray();
     const dc = await db.droneChecklists.filter((i) => !i.isDeleted).toArray();
-    return { shifts: s, flights: f, batteries: b, detections: d, checklists: c, droneChecklists: dc };
+    return { shifts: s, flights: f, batteries: b, detections: mappedDetections, checklists: c, droneChecklists: dc };
   };
 
   const markDataAsSynced = async (data: AppData) => {
