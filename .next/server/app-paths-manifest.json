@@ -1,0 +1,9 @@
+{
+  "/page": "app/page.js",
+  "/pre-flight-checklist/page": "app/pre-flight-checklist/page.js",
+  "/detections/page": "app/detections/page.js",
+  "/cliente/page": "app/cliente/page.js",
+  "/admin/page": "app/admin/page.js",
+  "/login/page": "app/login/page.js",
+  "/manual/page": "app/manual/page.js"
+}

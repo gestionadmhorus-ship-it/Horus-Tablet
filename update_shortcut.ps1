@@ -14,7 +14,7 @@ foreach ($Old in $OldShortcuts) {
 # Create the fresh shortcut pointing to the latest version in C:\Users\Adelio\TABLET_CAMPO
 $ShortcutPath = Join-Path $DesktopPath "Hermes II - CONTROL.lnk"
 $Shortcut = $WshShell.CreateShortcut($ShortcutPath)
-$Shortcut.TargetPath = "C:\Users\Adelio\TABLET_CAMPO\launch_control.vbs"
+$Shortcut.TargetPath = "C:\Users\Adelio\TABLET_CAMPO\Lanzar_Horus.vbs"
 $Shortcut.IconLocation = "C:\Users\Adelio\TABLET_CAMPO\horus_icon.ico"
 $Shortcut.WorkingDirectory = "C:\Users\Adelio\TABLET_CAMPO"
 $Shortcut.Description = "Hermes II - CONTROL (Latest Version)"

@@ -1,0 +1,42 @@
+{
+  "node": {
+    "ddbdebc9c86d71c79b619e327a06d436d0020a9b": {
+      "workers": {
+        "app/page": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22C%3A%5C%5CUsers%5C%5CAdelio%5C%5CHermes_2.0%5C%5Csrc%5C%5Capp%5C%5Cactions%5C%5Cauth.ts%22%2C%5B%22setAuthCookies%22%2C%22clearAuthCookies%22%5D%5D%5D&__client_imported__=true!",
+        "app/login/page": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22C%3A%5C%5CUsers%5C%5CAdelio%5C%5CHermes_2.0%5C%5Csrc%5C%5Capp%5C%5Cactions%5C%5Cauth.ts%22%2C%5B%22setAuthCookies%22%2C%22clearAuthCookies%22%5D%5D%5D&__client_imported__=true!"
+      },
+      "layer": {
+        "app/page": "action-browser",
+        "app/login/page": "action-browser"
+      }
+    },
+    "e6e47ae4d26c6b8e7296608068ed83e619fa5481": {
+      "workers": {
+        "app/page": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22C%3A%5C%5CUsers%5C%5CAdelio%5C%5CHermes_2.0%5C%5Csrc%5C%5Capp%5C%5Cactions%5C%5Cauth.ts%22%2C%5B%22setAuthCookies%22%2C%22clearAuthCookies%22%5D%5D%5D&__client_imported__=true!",
+        "app/login/page": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22C%3A%5C%5CUsers%5C%5CAdelio%5C%5CHermes_2.0%5C%5Csrc%5C%5Capp%5C%5Cactions%5C%5Cauth.ts%22%2C%5B%22setAuthCookies%22%2C%22clearAuthCookies%22%5D%5D%5D&__client_imported__=true!"
+      },
+      "layer": {
+        "app/page": "action-browser",
+        "app/login/page": "action-browser"
+      }
+    },
+    "977b042b0968b41faa727539790138ce6f33fdf6": {
+      "workers": {
+        "app/settings/users/page": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22C%3A%5C%5CUsers%5C%5CAdelio%5C%5CHermes_2.0%5C%5Csrc%5C%5Capp%5C%5Cactions%5C%5Cadmin-provisioning.ts%22%2C%5B%22deleteUserAndAuth%22%2C%22provisionUser%22%5D%5D%5D&__client_imported__=true!"
+      },
+      "layer": {
+        "app/settings/users/page": "action-browser"
+      }
+    },
+    "dde2845bbcc687bfb6c321a6aa2e9725d7318d6f": {
+      "workers": {
+        "app/settings/users/page": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22C%3A%5C%5CUsers%5C%5CAdelio%5C%5CHermes_2.0%5C%5Csrc%5C%5Capp%5C%5Cactions%5C%5Cadmin-provisioning.ts%22%2C%5B%22deleteUserAndAuth%22%2C%22provisionUser%22%5D%5D%5D&__client_imported__=true!"
+      },
+      "layer": {
+        "app/settings/users/page": "action-browser"
+      }
+    }
+  },
+  "edge": {},
+  "encryptionKey": "EiKXfrRjvNL2/yulbyZSh/scLDjJ8N69Lm6wV1gLVbw="
+}

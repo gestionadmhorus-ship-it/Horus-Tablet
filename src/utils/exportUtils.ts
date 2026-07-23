@@ -56,20 +56,34 @@ export const exportToExcel = async (
     const start = startDate ? new Date(startDate + 'T00:00:00') : null;
     const end = endDate ? new Date(endDate + 'T23:59:59') : null;
 
-    shiftsToExport = shiftsToExport.filter(shift => {
-      const shiftDate = parseLocalTimestampToDate(shift.timestamp);
-      if (!shiftDate) return false;
-
-      if (dateMode === 'specific') {
-        if (!specDateObj) return false;
+    if (dateMode === 'specific' && specDateObj) {
+      shiftsToExport = shiftsToExport.filter(shift => {
+        const shiftDate = parseLocalTimestampToDate(shift.timestamp);
+        if (!shiftDate) return false;
         return shiftDate.getFullYear() === specDateObj.getFullYear() &&
                shiftDate.getMonth() === specDateObj.getMonth() &&
                shiftDate.getDate() === specDateObj.getDate();
-      } else {
-        if (!start || !end) return false;
+      });
+    } else if (dateMode === 'range' && start && end) {
+      shiftsToExport = shiftsToExport.filter(shift => {
+        const shiftDate = parseLocalTimestampToDate(shift.timestamp);
+        if (!shiftDate) return false;
         return shiftDate >= start && shiftDate <= end;
-      }
-    });
+      });
+    }
+  }
+
+  // Fallback: If no shifts match or shifts array is empty, but flights exist, export all flights under virtual shift
+  if (shiftsToExport.length === 0 && data.flights.length > 0) {
+    shiftsToExport = [{
+      id: 'fallback-shift',
+      timestamp: data.flights[0]?.timestamp || data.detections[0]?.timestamp || '',
+      coordinator: 'Sistema',
+      assistants: [],
+      vehicle: '',
+      drone: '',
+      status: 'closed'
+    } as any];
   }
 
   // 2. Create sheets
@@ -96,205 +110,260 @@ export const exportToExcel = async (
     { width: 50 }, // Observaciones de cierre
   ];
 
-  let totalHSDuration = 0;
+  // Helper function to render a flight block in the KMS sheet
+  const renderKMSFlightBlock = (
+    sheet: ExcelJS.Worksheet,
+    wb: ExcelJS.Workbook,
+    flight: any,
+    shift: any,
+    detectionsList: any[]
+  ) => {
+    const { date: startDay } = splitTimestamp(flight.timestamp || shift.timestamp || '');
+    const origenVal = flight.deviceName || shift.deviceName || 'Local';
+    const lineVal = flight.lineName || 'Detecciones Tácticas';
+    const stageText = flight.stage ? ` | Etapa: ${flight.stage}` : '';
+    const detCount = detectionsList.length;
 
-  // 3. Populate KMS Sheet
+    // Extract unique access statuses for QR payload
+    const accessSummary = Array.from(new Set(detectionsList.map(d => d.accessStatus || 'Buena'))).join('/') || 'Buena';
+
+    // Construct QR code text payload including Acceso a Traza
+    const qrText = `Fecha: ${startDay} | Origen: ${origenVal} | Línea: ${lineVal}${stageText} | Total Anomalías: ${detCount} | Acceso: ${accessSummary}`;
+
+    const titleRow = sheet.addRow([
+      `Fecha: ${startDay}`,
+      '',
+      `Origen: ${origenVal}`,
+      '',
+      `Línea: ${lineVal}${stageText}`,
+      '',
+      '',
+      '',
+      '' // Column I (index 8) left empty for QR
+    ]);
+    
+    // Styling Title Row
+    titleRow.height = 42;
+    titleRow.eachCell((cell) => {
+      cell.font = { name: 'Segoe UI', bold: true, size: 11, color: { argb: 'FF1B5E20' } };
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE8F5E9' }
+      };
+      cell.alignment = { vertical: 'middle', horizontal: 'left' };
+    });
+
+    // Generate and embed QR Code image
+    try {
+      const qr = qrcode(0, 'M');
+      qr.addData(qrText);
+      qr.make();
+      const qrDataUrl = qr.createDataURL(4, 1);
+      const base64Data = qrDataUrl.replace(/^data:image\/png;base64,/, '');
+      const imageId = wb.addImage({
+        base64: base64Data,
+        extension: 'png',
+      });
+      sheet.addImage(imageId, {
+        tl: { col: 8, row: titleRow.number - 1, colOff: 10, rowOff: 2 } as any,
+        ext: { width: 38, height: 38 },
+        editAs: 'oneCell'
+      });
+    } catch (qrErr) {
+      console.error('Error generating QR code in Excel:', qrErr);
+    }
+
+    // Row 2: Headers (9 columns)
+    const headerRow = sheet.addRow([
+      'Fecha',
+      'Hora',
+      'Elemento',
+      'Anomalía',
+      'Recomendación',
+      'Criticidad',
+      'Nombre de archivo',
+      'Acceso a Traza',
+      'Observaciones'
+    ]);
+    headerRow.height = 24;
+    headerRow.eachCell((cell) => {
+      cell.font = { name: 'Segoe UI', bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF217346' }
+      };
+      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    });
+
+    if (detectionsList.length === 0) {
+      const noDataRow = sheet.addRow(['Sin detecciones registradas', '', '', '', '', '', '', '', '']);
+      noDataRow.eachCell((cell) => {
+        cell.font = { name: 'Segoe UI', italic: true, color: { argb: 'FF757575' } };
+        cell.alignment = { vertical: 'middle', horizontal: 'left' };
+      });
+    } else {
+      detectionsList.forEach((det) => {
+        const { date: detDate, time: detTime } = splitTimestamp(det.timestamp);
+        const row = sheet.addRow([
+          detDate,
+          detTime,
+          det.element || '',
+          det.anomaly || '',
+          det.recommendation || '',
+          det.criticality || '',
+          det.fileName || '',
+          det.accessStatus || 'Buena',
+          det.observations || ''
+        ]);
+
+        row.eachCell((cell, colNum) => {
+          cell.font = { name: 'Segoe UI', size: 10 };
+          cell.alignment = { 
+            vertical: 'middle', 
+            horizontal: (colNum === 1 || colNum === 2 || colNum === 6 || colNum === 8) ? 'center' : 'left' 
+          };
+        });
+
+        // Style Criticality cell (column index 6)
+        const cellCrit = row.getCell(6);
+        const valor = (det.criticality || '').toLowerCase();
+        let colorHex = '';
+        let fontColor = 'FF000000';
+
+        if (valor === 'muy baja') {
+          colorHex = 'FF00F2D1';
+        } else if (valor === 'baja') {
+          colorHex = 'FF00E676';
+        } else if (valor === 'media') {
+          colorHex = 'FFFFD600';
+        } else if (valor === 'alta') {
+          colorHex = 'FFFF9100';
+        } else if (valor === 'urgente') {
+          colorHex = 'FFFF1744';
+          fontColor = 'FFFFFFFF';
+        }
+
+        if (colorHex) {
+          cellCrit.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: colorHex }
+          };
+          cellCrit.font = { name: 'Segoe UI', bold: true, size: 10, color: { argb: fontColor } };
+        }
+
+        // Style Access Status cell (column index 8)
+        const cellAcc = row.getCell(8);
+        const accVal = (det.accessStatus || 'Buena').toLowerCase();
+        let accBg = 'FFE8F5E9';
+        let accFont = 'FF1B5E20';
+
+        if (accVal === 'regular') {
+          accBg = 'FFFFF8E1';
+          accFont = 'FFE65100';
+        } else if (accVal === 'mala') {
+          accBg = 'FFFFEBEE';
+          accFont = 'FFC62828';
+        }
+
+        cellAcc.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: accBg }
+        };
+        cellAcc.font = { name: 'Segoe UI', bold: true, size: 10, color: { argb: accFont } };
+      });
+    }
+
+    // Row Final: Closing timestamp
+    const { date: closeDate, time: closeTime } = splitTimestamp(flight.closedTimestamp || '');
+    const closingRow = sheet.addRow([
+      'Fecha finalizada:',
+      closeDate || 'No finalizado',
+      'Hora finalizada:',
+      closeTime || 'No finalizado',
+      '', '', '', '', ''
+    ]);
+    closingRow.height = 20;
+    closingRow.eachCell((cell) => {
+      cell.font = { name: 'Segoe UI', italic: true, size: 10, color: { argb: 'FF424242' } };
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFF5F5F5' }
+      };
+      cell.alignment = { vertical: 'middle', horizontal: 'left' };
+    });
+
+    sheet.addRow([]);
+    sheet.addRow([]);
+  };
+
+  // Filter detections based on date mode
+  const isDateInFilter = (timestampStr: string): boolean => {
+    if (!options?.dateMode) return true;
+    const { dateMode, specificDate, startDate, endDate } = options;
+    const specDateObj = specificDate ? new Date(specificDate + 'T00:00:00') : null;
+    const start = startDate ? new Date(startDate + 'T00:00:00') : null;
+    const end = endDate ? new Date(endDate + 'T23:59:59') : null;
+
+    if (dateMode === 'specific' && specDateObj) {
+      const d = parseLocalTimestampToDate(timestampStr);
+      if (!d) return true;
+      return d.getFullYear() === specDateObj.getFullYear() &&
+             d.getMonth() === specDateObj.getMonth() &&
+             d.getDate() === specDateObj.getDate();
+    }
+    if (dateMode === 'range' && start && end) {
+      const d = parseLocalTimestampToDate(timestampStr);
+      if (!d) return true;
+      return d >= start && d <= end;
+    }
+    return true;
+  };
+
+  const allDetectionsToExport = data.detections.filter(d => !d.isDeleted && isDateInFilter(d.timestamp));
+  const processedDetectionIds = new Set<string>();
+
+  // 3. Populate KMS Sheet by iterating shifts & flights
   shiftsToExport.forEach((shift) => {
-    const kmsFlights = data.flights.filter(f => f.shiftId === shift.id && (f.flightType === 'KMS' || !f.flightType))
+    const kmsFlights = data.flights.filter(f => (shift.id === 'fallback-shift' || f.shiftId === shift.id) && (f.flightType === 'KMS' || !f.flightType))
                                    .sort((a, b) => getChronologicalTime(a.timestamp) - getChronologicalTime(b.timestamp));
 
     kmsFlights.forEach((flight) => {
-      // Row 3+: Detections (filter early to get count for QR payload)
-      const detections = data.detections.filter(d => d.flightId === flight.id)
-                                        .sort((a, b) => getChronologicalTime(a.timestamp) - getChronologicalTime(b.timestamp));
-
-      // Row 1: Title block
-      const { date: startDay } = splitTimestamp(flight.timestamp);
-      const origenVal = flight.deviceName || shift.deviceName || 'Local';
-      const lineVal = flight.lineName || '';
-      const stageText = flight.stage ? ` | Etapa: ${flight.stage}` : '';
-      const detCount = detections.length;
-
-      // Extract unique access statuses for QR payload
-      const accessSummary = Array.from(new Set(detections.map(d => d.accessStatus || 'Buena'))).join('/') || 'Buena';
-
-      // Construct QR code text payload including Acceso a Traza
-      const qrText = `Fecha: ${startDay} | Origen: ${origenVal} | Línea: ${lineVal}${stageText} | Total Anomalías: ${detCount} | Acceso: ${accessSummary}`;
-
-      const titleRow = wsKMS.addRow([
-        `Fecha: ${startDay}`,
-        '',
-        `Origen: ${origenVal}`,
-        '',
-        `Línea: ${lineVal}${stageText}`,
-        '',
-        '',
-        '',
-        '' // Column I (index 8) left empty for QR
-      ]);
-      
-      // Styling Title Row
-      titleRow.height = 42; // Taller row height to fit the QR code image nicely
-      titleRow.eachCell((cell) => {
-        cell.font = { name: 'Segoe UI', bold: true, size: 11, color: { argb: 'FF1B5E20' } };
-        cell.fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: 'FFE8F5E9' } // Light green tint
-        };
-        cell.alignment = { vertical: 'middle', horizontal: 'left' };
-      });
-
-      // Generate and embed QR Code image
-      try {
-        const qr = qrcode(0, 'M');
-        qr.addData(qrText);
-        qr.make();
-        const qrDataUrl = qr.createDataURL(4, 1);
-        const base64Data = qrDataUrl.replace(/^data:image\/png;base64,/, '');
-        const imageId = workbook.addImage({
-          base64: base64Data,
-          extension: 'png',
-        });
-        wsKMS.addImage(imageId, {
-          tl: { col: 8, row: titleRow.number - 1, colOff: 10, rowOff: 2 } as any,
-          ext: { width: 38, height: 38 },
-          editAs: 'oneCell'
-        });
-      } catch (qrErr) {
-        console.error('Error generating QR code in Excel:', qrErr);
-      }
-
-      // Row 2: Headers (separated Date and Time)
-      const headerRow = wsKMS.addRow([
-        'Fecha',
-        'Hora',
-        'Elemento',
-        'Anomalía',
-        'Recomendación',
-        'Criticidad',
-        'Nombre de archivo',
-        'Acceso a Traza',
-        'Observaciones'
-      ]);
-      headerRow.height = 24;
-      headerRow.eachCell((cell) => {
-        cell.font = { name: 'Segoe UI', bold: true, color: { argb: 'FFFFFFFF' } };
-        cell.fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: 'FF217346' } // Classic Excel Green
-        };
-        cell.alignment = { vertical: 'middle', horizontal: 'center' };
-      });
-
-      if (detections.length === 0) {
-        const noDataRow = wsKMS.addRow(['Sin detecciones registradas', '', '', '', '', '', '', '', '']);
-        noDataRow.eachCell((cell) => {
-          cell.font = { name: 'Segoe UI', italic: true, color: { argb: 'FF757575' } };
-          cell.alignment = { vertical: 'middle', horizontal: 'left' };
-        });
-      } else {
-        detections.forEach((det) => {
-          const { date: detDate, time: detTime } = splitTimestamp(det.timestamp);
-          const row = wsKMS.addRow([
-            detDate,
-            detTime,
-            det.element || '',
-            det.anomaly || '',
-            det.recommendation || '',
-            det.criticality || '',
-            det.fileName || '',
-            det.accessStatus || 'Buena',
-            det.observations || ''
-          ]);
-
-          row.eachCell((cell, colNum) => {
-            cell.font = { name: 'Segoe UI', size: 10 };
-            cell.alignment = { 
-              vertical: 'middle', 
-              horizontal: (colNum === 1 || colNum === 2 || colNum === 6 || colNum === 8) ? 'center' : 'left' 
-            };
-          });
-
-          // Style Criticality cell (column index 6)
-          const cellCrit = row.getCell(6);
-          const valor = (det.criticality || '').toLowerCase();
-          let colorHex = '';
-          let fontColor = 'FF000000';
-
-          if (valor === 'muy baja') {
-            colorHex = 'FF00F2D1';
-          } else if (valor === 'baja') {
-            colorHex = 'FF00E676';
-          } else if (valor === 'media') {
-            colorHex = 'FFFFD600';
-          } else if (valor === 'alta') {
-            colorHex = 'FFFF9100';
-          } else if (valor === 'urgente') {
-            colorHex = 'FFFF1744';
-            fontColor = 'FFFFFFFF';
-          }
-
-          if (colorHex) {
-            cellCrit.fill = {
-              type: 'pattern',
-              pattern: 'solid',
-              fgColor: { argb: colorHex }
-            };
-            cellCrit.font = { name: 'Segoe UI', bold: true, size: 10, color: { argb: fontColor } };
-          }
-
-          // Style Access Status cell (column index 8 - next to Nombre de archivo)
-          const cellAcc = row.getCell(8);
-          const accVal = (det.accessStatus || 'Buena').toLowerCase();
-          let accBg = 'FFE8F5E9';
-          let accFont = 'FF1B5E20';
-
-          if (accVal === 'regular') {
-            accBg = 'FFFFF8E1';
-            accFont = 'FFE65100';
-          } else if (accVal === 'mala') {
-            accBg = 'FFFFEBEE';
-            accFont = 'FFC62828';
-          }
-
-          cellAcc.fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: accBg }
-          };
-          cellAcc.font = { name: 'Segoe UI', bold: true, size: 10, color: { argb: accFont } };
-        });
-      }
-
-      // Row Final: Closing timestamp (separated Date and Time)
-      const { date: closeDate, time: closeTime } = splitTimestamp(flight.closedTimestamp || '');
-      const closingRow = wsKMS.addRow([
-        'Fecha finalizada:',
-        closeDate || 'No finalizado',
-        'Hora finalizada:',
-        closeTime || 'No finalizado',
-        '', '', '', '', ''
-      ]);
-      closingRow.height = 20;
-      closingRow.eachCell((cell) => {
-        cell.font = { name: 'Segoe UI', italic: true, size: 10, color: { argb: 'FF424242' } };
-        cell.fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: 'FFF5F5F5' }
-        };
-        cell.alignment = { vertical: 'middle', horizontal: 'left' };
-      });
-
-      // Spacing rows
-      wsKMS.addRow([]);
-      wsKMS.addRow([]);
+      const detections = allDetectionsToExport.filter(d => d.flightId === flight.id)
+                                              .sort((a, b) => getChronologicalTime(a.timestamp) - getChronologicalTime(b.timestamp));
+      detections.forEach(d => processedDetectionIds.add(d.id));
+      renderKMSFlightBlock(wsKMS, workbook, flight, shift, detections);
     });
   });
 
+  // Catch any remaining detections that were not linked to a flight or shift (Fail-safe)
+  const remainingDetections = allDetectionsToExport.filter(d => !processedDetectionIds.has(d.id));
+  if (remainingDetections.length > 0) {
+    const firstDet = remainingDetections[0];
+    const virtualFlight = {
+      id: 'virtual-flight',
+      timestamp: firstDet.timestamp,
+      deviceName: firstDet.deviceName || 'Local',
+      lineName: 'Detecciones Generales',
+      flightType: 'KMS',
+      status: 'closed'
+    };
+    const virtualShift = {
+      id: 'virtual-shift',
+      timestamp: firstDet.timestamp,
+      deviceName: firstDet.deviceName || 'Local',
+      coordinator: 'Sistema',
+      status: 'closed'
+    };
+    renderKMSFlightBlock(wsKMS, workbook, virtualFlight, virtualShift, remainingDetections);
+  }
+
   // 4. Populate HS Sheet
+  let totalHSDuration = 0;
   shiftsToExport.forEach((shift) => {
     const hsFlights = data.flights.filter(f => f.shiftId === shift.id && f.flightType === 'HS')
                                   .sort((a, b) => getChronologicalTime(a.timestamp) - getChronologicalTime(b.timestamp));
