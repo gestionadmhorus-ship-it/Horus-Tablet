@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#0A0F1A" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Hermes II" />
+    <meta name="description" content="Hermes II — Sistema de inspección de campo para Horus Dron" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <link rel="manifest" href="./manifest.json" />
+    <title>Hermes II — Horus Dron</title>
+    <script type="module" crossorigin src="./assets/index-D7xVXm9U.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-DhlFPWYz.css">
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      // Register Service Worker for offline capability (Skip on localhost to prevent stale caching during dev)
+      if ('serviceWorker' in navigator) {
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+          // Dev cleanup: Unregister service workers and clear cache storage to force fresh loads
+          navigator.serviceWorker.getRegistrations().then((registrations) => {
+            for (const registration of registrations) {
+              registration.unregister().then((success) => {
+                if (success) console.log('🧹 Cleaned up Dev Service Worker from localhost');
+              });
+            }
+          });
+          if ('caches' in window) {
+            caches.keys().then((keys) => {
+              keys.forEach((key) => {
+                caches.delete(key).then(() => {
+                  console.log('🧹 Cleaned Cache Storage:', key);
+                });
+              });
+            });
+          }
+        } else {
+          window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js')
+              .then(() => console.log('✅ Horus SW registered — Offline mode enabled'))
+              .catch((err) => console.log('SW registration failed:', err));
+          });
+        }
+      }
+    </script>
+  </body>
+</html>
+
