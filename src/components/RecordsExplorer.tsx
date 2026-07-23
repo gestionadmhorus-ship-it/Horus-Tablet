@@ -924,6 +924,12 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
                         </span>
                       </div>
                       <div className="history-card-item">
+                        <span className="history-card-label">Acceso a Traza:</span>
+                        <span className="history-card-value" style={{ fontWeight: 'bold', color: item.accessStatus === 'Mala' ? '#EF4444' : item.accessStatus === 'Regular' ? '#F59E0B' : '#10B981' }}>
+                          {item.accessStatus || 'Buena'}
+                        </span>
+                      </div>
+                      <div className="history-card-item">
                         <span className="history-card-label">Recomendación:</span>
                         <span className="history-card-value">{item.recommendation}</span>
                       </div>
@@ -1211,9 +1217,17 @@ const EditModal: React.FC<{
                   </select>
                 </div>
                 <div>
-                  <label>Nombre de Archivo</label>
-                  <input type="text" value={formData.fileName} onChange={e => setFormData({ ...formData, fileName: e.target.value })} />
+                  <label>Estado de Acceso a Traza</label>
+                  <select value={formData.accessStatus || 'Buena'} onChange={e => setFormData({ ...formData, accessStatus: e.target.value })}>
+                    <option value="Buena">Buena</option>
+                    <option value="Regular">Regular</option>
+                    <option value="Mala">Mala</option>
+                  </select>
                 </div>
+              </div>
+              <div>
+                <label>Nombre de Archivo</label>
+                <input type="text" value={formData.fileName} onChange={e => setFormData({ ...formData, fileName: e.target.value })} />
               </div>
               <div>
                 <label>Observaciones</label>
