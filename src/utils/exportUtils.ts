@@ -85,7 +85,8 @@ export const exportToExcel = async (
     { width: 35 }, // Recomendación
     { width: 16 }, // Criticidad
     { width: 26 }, // Nombre de archivo
-    { width: 18 }, // Acceso a Traza (Siguiente al nombre de archivo)
+    { width: 18 }, // Acceso a Traza
+    { width: 40 }, // Observaciones (Siguiente a Acceso a Traza)
   ];
 
   wsHS.columns = [
@@ -128,7 +129,8 @@ export const exportToExcel = async (
         `Línea: ${lineVal}${stageText}`,
         '',
         '',
-        '' // Column H (index 7) left empty for QR
+        '',
+        '' // Column I (index 8) left empty for QR
       ]);
       
       // Styling Title Row
@@ -155,7 +157,7 @@ export const exportToExcel = async (
           extension: 'png',
         });
         wsKMS.addImage(imageId, {
-          tl: { col: 7, row: titleRow.number - 1, colOff: 10, rowOff: 2 } as any,
+          tl: { col: 8, row: titleRow.number - 1, colOff: 10, rowOff: 2 } as any,
           ext: { width: 38, height: 38 },
           editAs: 'oneCell'
         });
@@ -172,7 +174,8 @@ export const exportToExcel = async (
         'Recomendación',
         'Criticidad',
         'Nombre de archivo',
-        'Acceso a Traza'
+        'Acceso a Traza',
+        'Observaciones'
       ]);
       headerRow.height = 24;
       headerRow.eachCell((cell) => {
@@ -186,7 +189,7 @@ export const exportToExcel = async (
       });
 
       if (detections.length === 0) {
-        const noDataRow = wsKMS.addRow(['Sin detecciones registradas', '', '', '', '', '', '', '']);
+        const noDataRow = wsKMS.addRow(['Sin detecciones registradas', '', '', '', '', '', '', '', '']);
         noDataRow.eachCell((cell) => {
           cell.font = { name: 'Segoe UI', italic: true, color: { argb: 'FF757575' } };
           cell.alignment = { vertical: 'middle', horizontal: 'left' };
@@ -202,7 +205,8 @@ export const exportToExcel = async (
             det.recommendation || '',
             det.criticality || '',
             det.fileName || '',
-            det.accessStatus || 'Buena'
+            det.accessStatus || 'Buena',
+            det.observations || ''
           ]);
 
           row.eachCell((cell, colNum) => {
@@ -271,7 +275,7 @@ export const exportToExcel = async (
         closeDate || 'No finalizado',
         'Hora finalizada:',
         closeTime || 'No finalizado',
-        '', '', '', ''
+        '', '', '', '', ''
       ]);
       closingRow.height = 20;
       closingRow.eachCell((cell) => {
