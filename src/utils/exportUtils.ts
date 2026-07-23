@@ -84,8 +84,8 @@ export const exportToExcel = async (
     { width: 28 }, // Anomalía
     { width: 35 }, // Recomendación
     { width: 16 }, // Criticidad
-    { width: 18 }, // Acceso a Traza
     { width: 26 }, // Nombre de archivo
+    { width: 18 }, // Acceso a Traza (Siguiente al nombre de archivo)
   ];
 
   wsHS.columns = [
@@ -114,8 +114,11 @@ export const exportToExcel = async (
       const stageText = flight.stage ? ` | Etapa: ${flight.stage}` : '';
       const detCount = detections.length;
 
-      // Construct QR code text payload
-      const qrText = `Fecha: ${startDay} | Origen: ${origenVal} | Línea: ${lineVal}${stageText} | Total Anomalías: ${detCount}`;
+      // Extract unique access statuses for QR payload
+      const accessSummary = Array.from(new Set(detections.map(d => d.accessStatus || 'Buena'))).join('/') || 'Buena';
+
+      // Construct QR code text payload including Acceso a Traza
+      const qrText = `Fecha: ${startDay} | Origen: ${origenVal} | Línea: ${lineVal}${stageText} | Total Anomalías: ${detCount} | Acceso: ${accessSummary}`;
 
       const titleRow = wsKMS.addRow([
         `Fecha: ${startDay}`,
@@ -124,7 +127,8 @@ export const exportToExcel = async (
         '',
         `Línea: ${lineVal}${stageText}`,
         '',
-        '' // Column G is left empty for the QR code image
+        '',
+        '' // Column H (index 7) left empty for QR
       ]);
       
       // Styling Title Row
@@ -151,7 +155,7 @@ export const exportToExcel = async (
           extension: 'png',
         });
         wsKMS.addImage(imageId, {
-          tl: { col: 6, row: titleRow.number - 1, colOff: 10, rowOff: 2 } as any,
+          tl: { col: 7, row: titleRow.number - 1, colOff: 10, rowOff: 2 } as any,
           ext: { width: 38, height: 38 },
           editAs: 'oneCell'
         });
@@ -167,8 +171,8 @@ export const exportToExcel = async (
         'Anomalía',
         'Recomendación',
         'Criticidad',
-        'Acceso a Traza',
-        'Nombre de archivo'
+        'Nombre de archivo',
+        'Acceso a Traza'
       ]);
       headerRow.height = 24;
       headerRow.eachCell((cell) => {
@@ -182,7 +186,7 @@ export const exportToExcel = async (
       });
 
       if (detections.length === 0) {
-        const noDataRow = wsKMS.addRow(['Sin detecciones registradas', '', '', '', '', '', '']);
+        const noDataRow = wsKMS.addRow(['Sin detecciones registradas', '', '', '', '', '', '', '']);
         noDataRow.eachCell((cell) => {
           cell.font = { name: 'Segoe UI', italic: true, color: { argb: 'FF757575' } };
           cell.alignment = { vertical: 'middle', horizontal: 'left' };
@@ -197,19 +201,19 @@ export const exportToExcel = async (
             det.anomaly || '',
             det.recommendation || '',
             det.criticality || '',
-            det.accessStatus || 'Buena',
-            det.fileName || ''
+            det.fileName || '',
+            det.accessStatus || 'Buena'
           ]);
 
           row.eachCell((cell, colNum) => {
             cell.font = { name: 'Segoe UI', size: 10 };
             cell.alignment = { 
               vertical: 'middle', 
-              horizontal: (colNum === 1 || colNum === 2 || colNum === 6) ? 'center' : 'left' 
+              horizontal: (colNum === 1 || colNum === 2 || colNum === 6 || colNum === 8) ? 'center' : 'left' 
             };
           });
 
-          // Style Criticality cell (now at column index 6)
+          // Style Criticality cell (column index 6)
           const cellCrit = row.getCell(6);
           const valor = (det.criticality || '').toLowerCase();
           let colorHex = '';
@@ -237,8 +241,8 @@ export const exportToExcel = async (
             cellCrit.font = { name: 'Segoe UI', bold: true, size: 10, color: { argb: fontColor } };
           }
 
-          // Style Access Status cell (column index 7)
-          const cellAcc = row.getCell(7);
+          // Style Access Status cell (column index 8 - next to Nombre de archivo)
+          const cellAcc = row.getCell(8);
           const accVal = (det.accessStatus || 'Buena').toLowerCase();
           let accBg = 'FFE8F5E9';
           let accFont = 'FF1B5E20';
