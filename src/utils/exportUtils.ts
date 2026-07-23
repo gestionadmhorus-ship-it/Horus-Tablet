@@ -84,6 +84,7 @@ export const exportToExcel = async (
     { width: 28 }, // Anomalía
     { width: 35 }, // Recomendación
     { width: 16 }, // Criticidad
+    { width: 18 }, // Acceso a Traza
     { width: 26 }, // Nombre de archivo
   ];
 
@@ -166,6 +167,7 @@ export const exportToExcel = async (
         'Anomalía',
         'Recomendación',
         'Criticidad',
+        'Acceso a Traza',
         'Nombre de archivo'
       ]);
       headerRow.height = 24;
@@ -195,6 +197,7 @@ export const exportToExcel = async (
             det.anomaly || '',
             det.recommendation || '',
             det.criticality || '',
+            det.accessStatus || 'Buena',
             det.fileName || ''
           ]);
 

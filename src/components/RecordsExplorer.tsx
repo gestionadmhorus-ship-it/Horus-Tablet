@@ -600,7 +600,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
                 {activeTable === 'shifts' && <><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Coordinador</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Asistentes</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Vehículo</th></>}
                 {activeTable === 'flights' && <><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Piloto</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Línea</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Obs.</th></>}
                 {activeTable === 'batteries' && <><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Piloto</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>ID Dron</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>ID RC</th></>}
-                {activeTable === 'detections' && <><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Elemento</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Anomalía</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Criticidad</th></>}
+                {activeTable === 'detections' && <><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Elemento</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Anomalía</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Criticidad</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Acceso Traza</th></>}
                 {activeTable === 'checklists' && (
                   checklistSubtype === 'drone' ? (
                     <>
@@ -675,6 +675,22 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
                           return (
                             <span style={{ padding: '4px 12px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 900, background: bg, color: fc, border: `1px solid ${bg}` }}>
                               {item.criticality}
+                            </span>
+                          );
+                        })()}
+                      </td>
+                      <td style={{ padding: '1.2rem' }}>
+                        {(() => {
+                          const accColors: Record<string, { color: string; bg: string }> = {
+                            'Buena': { color: '#10B981', bg: 'rgba(16, 185, 129, 0.15)' },
+                            'Regular': { color: '#F59E0B', bg: 'rgba(245, 158, 11, 0.15)' },
+                            'Mala': { color: '#EF4444', bg: 'rgba(239, 68, 68, 0.15)' }
+                          };
+                          const status = item.accessStatus || 'Buena';
+                          const styleInfo = accColors[status] || { color: '#94A3B8', bg: 'rgba(148, 163, 184, 0.15)' };
+                          return (
+                            <span style={{ padding: '4px 10px', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 800, background: styleInfo.bg, color: styleInfo.color, border: `1px solid ${styleInfo.color}40` }}>
+                              {status}
                             </span>
                           );
                         })()}

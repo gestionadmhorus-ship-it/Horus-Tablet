@@ -78,6 +78,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
   const [selectedAnomaly, setSelectedAnomaly] = useState('');
   const [recommendation, setRecommendation] = useState('');
   const [criticality, setCriticality] = useState('');
+  const [accessStatus, setAccessStatus] = useState('Buena');
   const [observations, setObservations] = useState('');
 
   /* ─── Time Sync logic ─── */
@@ -181,12 +182,13 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
         anomaly: selectedAnomaly,
         recommendation,
         criticality,
+        accessStatus: accessStatus || 'Buena',
         fileName: generatedFileName,
         observations
       });
       await window.customAlert('✅ Detección guardada con éxito');
       setSelectedElement(''); setSelectedAnomaly(''); setRecommendation('');
-      setCriticality(''); setObservations('');
+      setCriticality(''); setAccessStatus('Buena'); setObservations('');
       setFixedTime(null); // Reset fixed time back to real-time clock
     } finally {
       setIsSaving(false);
@@ -670,58 +672,104 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
               </div>
             )}
 
-            {/* ─ Criticidad (Botones directos táctiles) ─ */}
-            <div>
-              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Criticidad</label>
-              {lists.criticalities.length === 0 ? (
-                <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-                  Sin criticidades — agrega en ⚙️ → Listas
-                </div>
-              ) : (
-                <div style={{
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  gap: '0.75rem',
-                  marginTop: '0.5rem',
-                  width: '100%'
-                }}>
-                  {lists.criticalities.map(crit => {
-                    const isSelected = criticality === crit;
-                    const baseColor = critColors[crit] || '#94A3B8';
+            {/* ─ Criticidad & Estado de Acceso (En la misma fila / distintas columnas) ─ */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.25rem', width: '100%' }}>
+              {/* ─ Columna 1: Criticidad (Falla de Equipo) ─ */}
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#E2E8F0', fontSize: '0.85rem' }}>
+                  Criticidad (Falla de Equipo)
+                </label>
+                {lists.criticalities.length === 0 ? (
+                  <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                    Sin criticidades — agrega en ⚙️ → Listas
+                  </div>
+                ) : (
+                  <div style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '0.5rem',
+                    width: '100%'
+                  }}>
+                    {lists.criticalities.map(crit => {
+                      const isSelected = criticality === crit;
+                      const baseColor = critColors[crit] || '#94A3B8';
+                      return (
+                        <button
+                          key={crit}
+                          type="button"
+                          onClick={() => setCriticality(crit)}
+                          style={{
+                            flex: '1 1 calc(33.33% - 0.5rem)',
+                            minWidth: '70px',
+                            padding: '10px 6px',
+                            borderRadius: '8px',
+                            border: `2px solid ${baseColor}`,
+                            background: isSelected ? baseColor : 'rgba(0,0,0,0.85)',
+                            color: isSelected ? '#000000' : baseColor,
+                            fontWeight: 900,
+                            fontSize: '0.8rem',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.5px',
+                            cursor: 'pointer',
+                            textAlign: 'center',
+                            boxShadow: isSelected ? `0 0 12px ${baseColor}` : 'none',
+                            transition: 'all 0.2s ease',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                        >
+                          {crit}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* ─ Columna 2: Estado de Acceso a Traza (Camino/Terreno) ─ */}
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#38BDF8', fontSize: '0.85rem' }}>
+                  🗺️ Estado de Acceso a Traza
+                </label>
+                <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
+                  {[
+                    { value: 'Buena', label: 'Buena', color: '#10B981', bg: 'rgba(16, 185, 129, 0.2)' },
+                    { value: 'Regular', label: 'Regular', color: '#F59E0B', bg: 'rgba(245, 158, 11, 0.2)' },
+                    { value: 'Mala', label: 'Mala', color: '#EF4444', bg: 'rgba(239, 68, 68, 0.2)' }
+                  ].map(status => {
+                    const isSelected = accessStatus === status.value;
                     return (
                       <button
-                        key={crit}
+                        key={status.value}
                         type="button"
-                        onClick={() => setCriticality(crit)}
+                        onClick={() => setAccessStatus(status.value)}
                         style={{
-                          flex: '1 1 calc(20% - 0.75rem)',
-                          minWidth: '90px',
-                          padding: '12px 10px',
+                          flex: 1,
+                          padding: '10px 6px',
                           borderRadius: '8px',
-                          border: `2px solid ${baseColor}`,
-                          background: isSelected ? baseColor : 'rgba(0,0,0,0.85)',
-                          color: isSelected ? '#000000' : baseColor,
+                          border: `2px solid ${isSelected ? status.color : '#334155'}`,
+                          background: isSelected ? status.bg : 'rgba(15, 23, 42, 0.85)',
+                          color: isSelected ? status.color : '#94A3B8',
                           fontWeight: 900,
-                          fontSize: '0.85rem',
+                          fontSize: '0.82rem',
                           textTransform: 'uppercase',
                           letterSpacing: '0.5px',
                           cursor: 'pointer',
                           textAlign: 'center',
-                          boxShadow: isSelected
-                            ? `0 0 15px ${baseColor}`
-                            : 'none',
+                          boxShadow: isSelected ? `0 0 10px ${status.color}40` : 'none',
                           transition: 'all 0.2s ease',
                           display: 'inline-flex',
                           alignItems: 'center',
                           justifyContent: 'center'
                         }}
                       >
-                        {crit}
+                        {status.label}
                       </button>
                     );
                   })}
                 </div>
-              )}
+              </div>
             </div>
 
 

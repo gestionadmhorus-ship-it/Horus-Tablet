@@ -91,6 +91,7 @@ export interface DetectionData {
   anomaly: string;
   recommendation: string;   // Auto-populated from knowledge base
   criticality: string;
+  accessStatus?: string;
   fileName: string;
   observations: string;
   deviceName?: string;
