@@ -236,6 +236,27 @@ export const exportToExcel = async (
             };
             cellCrit.font = { name: 'Segoe UI', bold: true, size: 10, color: { argb: fontColor } };
           }
+
+          // Style Access Status cell (column index 7)
+          const cellAcc = row.getCell(7);
+          const accVal = (det.accessStatus || 'Buena').toLowerCase();
+          let accBg = 'FFE8F5E9';
+          let accFont = 'FF1B5E20';
+
+          if (accVal === 'regular') {
+            accBg = 'FFFFF8E1';
+            accFont = 'FFE65100';
+          } else if (accVal === 'mala') {
+            accBg = 'FFFFEBEE';
+            accFont = 'FFC62828';
+          }
+
+          cellAcc.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: accBg }
+          };
+          cellAcc.font = { name: 'Segoe UI', bold: true, size: 10, color: { argb: accFont } };
         });
       }
 
@@ -246,7 +267,7 @@ export const exportToExcel = async (
         closeDate || 'No finalizado',
         'Hora finalizada:',
         closeTime || 'No finalizado',
-        '', '', ''
+        '', '', '', ''
       ]);
       closingRow.height = 20;
       closingRow.eachCell((cell) => {
