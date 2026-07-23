@@ -48,6 +48,14 @@ jobs:
         publish_dir: ./ota-dist
         commit_message: "Actualización OTA $VERSION_TAG"
 
+    - name: Deploy Web App to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v4
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_branch: gh-pages
+        publish_dir: ./dist
+        commit_message: "Actualización Web App $VERSION_TAG"
+
     - name: Prepare Cordova Plugins Directory
       run: |
         mkdir -p android/capacitor-cordova-android-plugins/src/main/libs
