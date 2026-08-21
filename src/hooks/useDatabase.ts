@@ -27,6 +27,7 @@ export function useDatabase() {
   //    from "row does not exist"), which would overwrite user-customized
   //    settings with DEFAULT_LISTS on every reload.
   const hasSeeded = useRef(false);
+  const settingsInitializationRef = useRef<Promise<void>>(Promise.resolve());
   useEffect(() => {
     if (hasSeeded.current) return;
     hasSeeded.current = true;
@@ -73,7 +74,7 @@ export function useDatabase() {
         } catch (e) { console.error('Migration error (data):', e); }
       }
     };
-    migrate();
+    settingsInitializationRef.current = migrate();
   }, []); // Empty deps: run exactly once on mount
 
   const getDeviceName = () => {
@@ -90,8 +91,53 @@ export function useDatabase() {
     return name;
   };
 
+  const getDeviceId = () => {
+    let deviceId = localStorage.getItem('horus_device_id');
+    if (!deviceId) {
+      deviceId = 'dev-' + Math.random().toString(36).substring(2, 11) + '-' + Date.now().toString(36);
+      localStorage.setItem('horus_device_id', deviceId);
+    }
+    return deviceId;
+  };
+
   // 4. Save/Update/Delete functions
-  const saveShift = (item: ShiftData) => db.shifts.add({ ...item, isSynced: false, lastModified: Date.now(), deviceName: item.deviceName || getDeviceName() });
+  const saveShift = async (item: ShiftData) => {
+    const originDeviceId = getDeviceId();
+    const now = new Date();
+    const lastModified = now.getTime();
+    const closedTimestamp = formatTimestamp(now);
+
+    await db.transaction('rw', [db.shifts, db.flights], async () => {
+      const previousOwnShifts = await db.shifts
+        .filter(shift => !shift.isDeleted && shift.status === 'active' && shift.originDeviceId === originDeviceId)
+        .toArray();
+
+      for (const shift of previousOwnShifts) {
+        await db.flights
+          .filter(flight => !flight.isDeleted && flight.shiftId === shift.id && flight.status !== 'closed')
+          .modify({
+            status: 'closed',
+            closedTimestamp,
+            lastModified,
+            isSynced: false
+          });
+
+        await db.shifts.update(shift.id, {
+          status: 'closed',
+          lastModified,
+          isSynced: false
+        });
+      }
+
+      await db.shifts.add({
+        ...item,
+        originDeviceId,
+        isSynced: false,
+        lastModified,
+        deviceName: item.deviceName || getDeviceName()
+      });
+    });
+  };
   const getEditMetadata = () => {
     const now = new Date();
     return {
@@ -102,6 +148,8 @@ export function useDatabase() {
   };
 
   const updateShift = (item: ShiftData) => db.shifts.put({ ...item, ...getEditMetadata(), isSynced: false, deviceName: item.deviceName || getDeviceName() });
+  const closeShift = (id: string) => db.shifts.update(id, { status: 'closed', lastModified: Date.now(), isSynced: false });
+  const reopenShift = (id: string) => db.shifts.update(id, { status: 'active', lastModified: Date.now(), isSynced: false });
   const deleteShift = async (id: string) => {
     await db.transaction('rw', [db.shifts, db.flights, db.batteries, db.detections], async () => {
       // 1. Find all flights belonging to the shift
@@ -126,6 +174,13 @@ export function useDatabase() {
 
   const saveFlight = (item: FlightData) => db.flights.add({ ...item, isSynced: false, lastModified: Date.now(), deviceName: item.deviceName || getDeviceName() });
   const updateFlight = (item: FlightData) => db.flights.put({ ...item, ...getEditMetadata(), isSynced: false, deviceName: item.deviceName || getDeviceName() });
+  const closeFlight = (id: string, closedTimestamp: string, closingObservations: string) => db.flights.update(id, {
+    status: 'closed',
+    closedTimestamp,
+    closingObservations,
+    lastModified: Date.now(),
+    isSynced: false
+  });
   const deleteFlight = async (id: string) => {
     await db.transaction('rw', [db.flights, db.batteries, db.detections], async () => {
       await db.batteries.where('flightId').equals(id).modify({ isDeleted: true, isSynced: false, lastModified: Date.now() });
@@ -150,7 +205,33 @@ export function useDatabase() {
   const updateDroneChecklist = (item: DroneChecklistData) => db.droneChecklists.put({ ...item, ...getEditMetadata(), isSynced: false, deviceName: item.deviceName || getDeviceName() });
   const deleteDroneChecklist = (id: string) => db.droneChecklists.update(id, { isDeleted: true, isSynced: false, lastModified: Date.now() });
   
-  const updateLists = (newList: ListsData) => db.settings.put({ id: 'current', data: newList });
+  const updateLists = async (newList: ListsData) => {
+    const isLinkedTablet = localStorage.getItem('horus_sync_role') === 'client'
+      && !!localStorage.getItem('horus_target_server_id')?.trim();
+
+    await db.transaction('rw', db.settings, async () => {
+      const currentSettings = await db.settings.get('current');
+      await db.settings.put({
+        id: 'current',
+        data: isLinkedTablet
+          ? { ...newList, elements: (currentSettings?.data || DEFAULT_LISTS).elements }
+          : newList
+      });
+    });
+  };
+
+  const replaceKnowledgeBase = async (elements: ListsData['elements']) => {
+    await db.transaction('rw', db.settings, async () => {
+      const currentSettings = await db.settings.get('current');
+      await db.settings.put({
+        id: 'current',
+        data: {
+          ...(currentSettings?.data || DEFAULT_LISTS),
+          elements
+        }
+      });
+    });
+  };
  
   // ─── Transactional merger for incoming P2P data payload ───
   const syncIncomingData = async (incoming: AppData) => {
@@ -223,6 +304,7 @@ export function useDatabase() {
 
   // 5. Aggregate object for export
   const fullData: AppData = { shifts, flights, batteries, detections, checklists, droneChecklists };
+  const physicalBackupData: AppData = { ...fullData, knowledgeBase: lists.elements };
 
   // 6. Auto-persist to physical disk on every data change
   //    - In Electron (.exe): writes to Mis Documentos/Horus_Datos/
@@ -230,27 +312,54 @@ export function useDatabase() {
   //    - In browser (dev): no-op, Dexie handles everything
   const isFirstRender = useRef(true);
   const persistTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const backupFailureReportedRef = useRef(false);
+  const previousKnowledgeBaseRef = useRef(lists.elements);
   
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false;
+      previousKnowledgeBaseRef.current = lists.elements;
       return;
     }
-    if (shifts.length > 0 || flights.length > 0 || batteries.length > 0 || detections.length > 0 || checklists.length > 0 || droneChecklists.length > 0) {
+    const knowledgeBaseChanged = previousKnowledgeBaseRef.current !== lists.elements;
+    previousKnowledgeBaseRef.current = lists.elements;
+
+    if (shifts.length > 0 || flights.length > 0 || batteries.length > 0 || detections.length > 0 || checklists.length > 0 || droneChecklists.length > 0 || knowledgeBaseChanged) {
       if (persistTimeoutRef.current) clearTimeout(persistTimeoutRef.current);
       persistTimeoutRef.current = setTimeout(() => {
-        persistToDisk(fullData).catch(e => console.error('[DB] persist error:', e));
+        persistToDisk(physicalBackupData)
+          .then(result => {
+            if (result.status === 'not-applicable') return;
+
+            if (result.status === 'failure') {
+              if (!backupFailureReportedRef.current) {
+                backupFailureReportedRef.current = true;
+                void window.customAlert(
+                  '⚠️ No se pudo actualizar la copia de respaldo física.\n\n' +
+                  'Tus datos siguen guardados dentro de Hermes, pero conviene revisar el espacio de almacenamiento y los permisos del dispositivo.'
+                );
+              }
+              return;
+            }
+
+            if (backupFailureReportedRef.current) {
+              backupFailureReportedRef.current = false;
+              void window.customAlert('✅ El respaldo físico volvió a funcionar correctamente.');
+            }
+          })
+          .catch(e => console.error('[DB] persist error:', e));
       }, 2000);
     }
     
     return () => {
       if (persistTimeoutRef.current) clearTimeout(persistTimeoutRef.current);
     };
-  }, [shifts, flights, batteries, detections, checklists, droneChecklists]);
+  }, [shifts, flights, batteries, detections, checklists, droneChecklists, lists.elements]);
 
   // 7. Load from physical disk on first boot and seed Dexie if DB is empty
   useEffect(() => {
     const seedFromDisk = async () => {
+      await settingsInitializationRef.current;
       const diskData = await loadFromDisk();
       if (!diskData) return;
       const count = await db.shifts.count();
@@ -266,6 +375,20 @@ export function useDatabase() {
         });
         console.log('[NativeStorage] ✅ Restored from physical disk.');
       }
+
+      const restoredKnowledgeBase = diskData.knowledgeBase;
+      if (restoredKnowledgeBase) {
+        await db.transaction('rw', db.settings, async () => {
+          const currentSettings = await db.settings.get('current');
+          await db.settings.put({
+            id: 'current',
+            data: {
+              ...(currentSettings?.data || DEFAULT_LISTS),
+              elements: restoredKnowledgeBase
+            }
+          });
+        });
+      }
     };
     seedFromDisk();
   }, []);
@@ -273,13 +396,14 @@ export function useDatabase() {
   return {
     fullData,
     lists,
-    saveShift, updateShift, deleteShift,
-    saveFlight, updateFlight, deleteFlight,
+    saveShift, updateShift, closeShift, reopenShift, deleteShift,
+    saveFlight, updateFlight, closeFlight, deleteFlight,
     saveBattery, updateBattery, deleteBattery,
     saveDetection, updateDetection, deleteDetection,
     saveChecklist, updateChecklist, deleteChecklist,
     saveDroneChecklist, updateDroneChecklist, deleteDroneChecklist,
     updateLists,
+    replaceKnowledgeBase,
     syncIncomingData,
     getUnsyncedData,
     markDataAsSynced,

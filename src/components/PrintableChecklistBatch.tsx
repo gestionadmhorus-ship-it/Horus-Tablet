@@ -102,10 +102,10 @@ const PrintableChecklistBatch: React.FC<PrintableChecklistBatchProps> = ({ data 
         const currentGroups = isDrone ? droneGroups : vehicleGroups;
 
         return (
-          <div key={record.id} className="batch-page" style={{ pageBreakAfter: 'always', width: '100%', padding: '0.5cm', boxSizing: 'border-box' }}>
+          <div key={record.id} className="batch-page" style={{ width: '100%', padding: '0.5cm', boxSizing: 'border-box' }}>
             
             {/* Header Section */}
-            <div style={{ textAlign: 'center', marginBottom: '10px' }}>
+            <div className="batch-header" style={{ textAlign: 'center', marginBottom: '10px' }}>
               <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.5rem' }}>
                 <img src="/logo_horus_nuevo.png" alt="Horus Logo" style={{ height: '40px' }} />
               </div>
@@ -123,7 +123,7 @@ const PrintableChecklistBatch: React.FC<PrintableChecklistBatchProps> = ({ data 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
               
               {/* Section 1: General Info */}
-              <div className="batch-section">
+              <div className="batch-section batch-general-section">
                 <h3 style={{ fontSize: '12px', color: 'black', margin: '0 0 5px 0', fontWeight: 800 }}>
                   {isDrone ? 'Información del Sistema Aéreo' : 'Información General de la Unidad'}
                 </h3>
@@ -163,11 +163,11 @@ const PrintableChecklistBatch: React.FC<PrintableChecklistBatchProps> = ({ data 
               </div>
 
               {/* Section 2: Verification Items */}
-              <div className="batch-section">
+              <div className="batch-section batch-verification-section">
                 <h3 style={{ fontSize: '12px', color: 'black', margin: '0 0 5px 0', fontWeight: 800 }}>Ítems de Verificación</h3>
                 <div className="batch-grid-4">
                   {currentGroups.map((group) => (
-                    <div key={group.title}>
+                    <div key={group.title} className="batch-verification-group">
                       <h4 style={{ color: 'black', borderBottom: '1px solid #CCC', paddingBottom: '2px', margin: '0 0 5px 0', fontSize: '10px', textTransform: 'uppercase', fontWeight: 800 }}>
                         {group.title}
                       </h4>
@@ -175,7 +175,7 @@ const PrintableChecklistBatch: React.FC<PrintableChecklistBatchProps> = ({ data 
                         {group.items.map((item) => {
                           const isChecked = record.checks[item.key as keyof typeof record.checks];
                           return (
-                            <div key={item.key} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                            <div key={item.key} className="batch-verification-item" style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                               <div style={{
                                 width: '12px', height: '12px', borderRadius: '50%',
                                 border: '1px solid black',
@@ -196,10 +196,10 @@ const PrintableChecklistBatch: React.FC<PrintableChecklistBatchProps> = ({ data 
               </div>
 
               {/* Section 3: Expirations and Observations */}
-              <div className="batch-section">
+              <div className="batch-section batch-observations-section">
                 <h3 style={{ fontSize: '12px', color: 'black', margin: '0 0 5px 0', fontWeight: 800 }}>Observaciones y Seguridad</h3>
                 {!isDrone && record.expirations && (
-                  <div className="batch-grid-3" style={{ marginBottom: '5px' }}>
+                  <div className="batch-grid-3 batch-expirations" style={{ marginBottom: '5px' }}>
                     <div>
                       <label className="batch-label">Vencimiento Matafuego</label>
                       <div className="batch-value">{record.expirations.fireExtinguisher || '-'}</div>
@@ -215,7 +215,7 @@ const PrintableChecklistBatch: React.FC<PrintableChecklistBatchProps> = ({ data 
                   </div>
                 )}
 
-                <div>
+                <div className="batch-observations-field">
                   <label className="batch-label">Observaciones</label>
                   <div className="batch-value" style={{ minHeight: '30px', fontSize: '9px' }}>
                     {record.observations || 'Sin observaciones.'}
@@ -223,14 +223,14 @@ const PrintableChecklistBatch: React.FC<PrintableChecklistBatchProps> = ({ data 
                 </div>
                 
                 {/* Signature Lines */}
-                <div style={{ display: 'flex', marginTop: '20px', justifyContent: 'space-around' }}>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ width: '250px', borderBottom: '1px solid black', marginBottom: '5px' }}></div>
+                <div className="batch-signatures" style={{ display: 'flex', marginTop: '20px', justifyContent: 'space-around' }}>
+                  <div className="batch-signature" style={{ textAlign: 'center' }}>
+                    <div className="batch-signature-line" style={{ borderBottom: '1px solid black', marginBottom: '5px' }}></div>
                     <p style={{ margin: 0, fontSize: '10px' }}>Firma del Responsable</p>
                     <p style={{ margin: '2px 0 0 0', fontSize: '10px' }}><strong>{isDrone ? record.pilot : record.driver}</strong></p>
                   </div>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ width: '250px', borderBottom: '1px solid black', marginBottom: '5px' }}></div>
+                  <div className="batch-signature" style={{ textAlign: 'center' }}>
+                    <div className="batch-signature-line" style={{ borderBottom: '1px solid black', marginBottom: '5px' }}></div>
                     <p style={{ margin: 0, fontSize: '10px' }}>Sello de Recepción / Aprobación</p>
                   </div>
                 </div>
@@ -260,27 +260,100 @@ const PrintableChecklistBatch: React.FC<PrintableChecklistBatchProps> = ({ data 
           .batch-print-wrapper {
             display: block !important;
             width: 100% !important;
+            min-width: 0 !important;
+            max-width: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: visible !important;
+            box-sizing: border-box !important;
+          }
+          .batch-print-wrapper,
+          .batch-print-wrapper * {
+            box-sizing: border-box !important;
           }
           .batch-page {
+            width: 100% !important;
+            min-width: 0 !important;
+            max-width: 100% !important;
+            overflow: visible !important;
             page-break-after: always;
+            break-after: page;
           }
           .batch-page:last-child {
             page-break-after: auto;
+            break-after: auto;
+          }
+          .batch-header,
+          .batch-general-section,
+          .batch-expirations,
+          .batch-verification-group,
+          .batch-signatures {
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+          .batch-verification-section,
+          .batch-observations-section,
+          .batch-observations-field {
+            page-break-inside: auto;
+            break-inside: auto;
+          }
+          .batch-header h1 {
+            font-size: 18px !important;
+            line-height: 1.2 !important;
+            white-space: normal !important;
+            overflow-wrap: anywhere !important;
+          }
+          .batch-print-wrapper h3 {
+            font-size: 12px !important;
+            line-height: 1.2 !important;
+            white-space: normal !important;
+            overflow-wrap: anywhere !important;
+            page-break-after: avoid;
+            break-after: avoid;
+          }
+          .batch-print-wrapper h4 {
+            font-size: 10px !important;
+            line-height: 1.2 !important;
+            white-space: normal !important;
+            overflow-wrap: anywhere !important;
           }
           .batch-section {
+            min-width: 0 !important;
+            max-width: 100% !important;
             padding: 5px !important;
             margin-bottom: 5px !important;
             border: 1px solid #CCC !important;
+            overflow: visible !important;
           }
           .batch-grid-3 {
             display: grid !important;
-            grid-template-columns: repeat(3, 1fr) !important;
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
             gap: 5px !important;
+            min-width: 0 !important;
+            max-width: 100% !important;
           }
           .batch-grid-4 {
             display: grid !important;
-            grid-template-columns: repeat(4, 1fr) !important;
+            grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
             gap: 5px !important;
+            min-width: 0 !important;
+            max-width: 100% !important;
+          }
+          .batch-grid-3 > *,
+          .batch-grid-4 > *,
+          .batch-verification-group,
+          .batch-verification-item,
+          .batch-verification-item > span,
+          .batch-observations-field {
+            min-width: 0 !important;
+            max-width: 100% !important;
+          }
+          .batch-verification-item > div {
+            flex: 0 0 12px !important;
+          }
+          .batch-verification-item > span {
+            white-space: normal !important;
+            overflow-wrap: anywhere !important;
           }
           .batch-label {
             color: black !important;
@@ -288,6 +361,16 @@ const PrintableChecklistBatch: React.FC<PrintableChecklistBatchProps> = ({ data 
             font-weight: bold;
             margin-bottom: 2px !important;
             display: block;
+            min-width: 0 !important;
+            max-width: 100% !important;
+            white-space: normal !important;
+            overflow-wrap: anywhere !important;
+            text-transform: none !important;
+            letter-spacing: normal !important;
+          }
+          .batch-observations-field .batch-label {
+            page-break-after: avoid;
+            break-after: avoid;
           }
           .batch-value {
             border: 1px solid #CCC !important;
@@ -296,6 +379,37 @@ const PrintableChecklistBatch: React.FC<PrintableChecklistBatchProps> = ({ data 
             border-radius: 4px !important;
             background: white !important;
             color: black !important;
+            min-width: 0 !important;
+            max-width: 100% !important;
+            height: auto !important;
+            white-space: normal !important;
+            overflow-wrap: anywhere !important;
+            word-break: break-word !important;
+            overflow: visible !important;
+          }
+          .batch-signatures {
+            display: flex !important;
+            flex-wrap: wrap !important;
+            gap: 16px !important;
+            align-items: flex-start !important;
+            justify-content: space-between !important;
+            min-width: 0 !important;
+            max-width: 100% !important;
+          }
+          .batch-signature {
+            flex: 1 1 240px !important;
+            min-width: 0 !important;
+            max-width: 100% !important;
+          }
+          .batch-signature-line {
+            width: 100% !important;
+            min-width: 0 !important;
+            max-width: 100% !important;
+          }
+          .batch-signature p,
+          .batch-signature strong {
+            white-space: normal !important;
+            overflow-wrap: anywhere !important;
           }
         }
       `}} />

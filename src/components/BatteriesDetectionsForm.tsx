@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import {
   Save, ArrowLeft,
   Battery, AlertTriangle, ChevronRight, ChevronLeft, Info,
-  Clock, Lock, Unlock, Plus, Minus
+  Clock, Lock, Unlock
 } from 'lucide-react';
 import type { BatteryData, DetectionData, ListsData } from '../types';
 import { generateId } from '../utils/idGenerator';
@@ -57,6 +57,153 @@ const SmartSelect: React.FC<{
   </div>
 );
 
+const TIME_WHEEL_ITEM_HEIGHT = 48;
+const TIME_WHEEL_REPETITIONS = 5;
+const TIME_WHEEL_CENTER_COPY = Math.floor(TIME_WHEEL_REPETITIONS / 2);
+
+interface TimeWheelProps {
+  label: string;
+  value: number;
+  range: number;
+  onDelta: (steps: number) => void;
+  onInteractionStart: () => void;
+}
+
+const TimeWheel: React.FC<TimeWheelProps> = ({
+  label,
+  value,
+  range,
+  onDelta,
+  onInteractionStart
+}) => {
+  const wheelRef = useRef<HTMLDivElement>(null);
+  const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const committedIndexRef = useRef(TIME_WHEEL_CENTER_COPY * range + value);
+  const isInteractingRef = useRef(false);
+  const isRecenteringRef = useRef(false);
+  const latestValueRef = useRef(value);
+  const needsPostInteractionSyncRef = useRef(false);
+  const postInteractionFrameRef = useRef<number | null>(null);
+
+  latestValueRef.current = value;
+
+  const setScrollIndex = (index: number) => {
+    const wheel = wheelRef.current;
+    if (!wheel) return;
+
+    isRecenteringRef.current = true;
+    wheel.scrollTop = index * TIME_WHEEL_ITEM_HEIGHT;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        isRecenteringRef.current = false;
+      });
+    });
+  };
+
+  const syncToLatestValue = () => {
+    const centeredIndex = TIME_WHEEL_CENTER_COPY * range + latestValueRef.current;
+    committedIndexRef.current = centeredIndex;
+    setScrollIndex(centeredIndex);
+  };
+
+  useLayoutEffect(() => {
+    if (isInteractingRef.current) return;
+    const centeredIndex = TIME_WHEEL_CENTER_COPY * range + value;
+    committedIndexRef.current = centeredIndex;
+    setScrollIndex(centeredIndex);
+    needsPostInteractionSyncRef.current = false;
+  }, [range, value]);
+
+  useEffect(() => () => {
+    if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
+    if (postInteractionFrameRef.current !== null) cancelAnimationFrame(postInteractionFrameRef.current);
+  }, []);
+
+  const beginInteraction = () => {
+    if (isRecenteringRef.current || isInteractingRef.current) return;
+    isInteractingRef.current = true;
+    onInteractionStart();
+  };
+
+  const settleSelection = () => {
+    const wheel = wheelRef.current;
+    if (!wheel || isRecenteringRef.current) return;
+
+    const rawIndex = Math.round(wheel.scrollTop / TIME_WHEEL_ITEM_HEIGHT);
+    const boundedIndex = Math.max(0, Math.min(range * TIME_WHEEL_REPETITIONS - 1, rawIndex));
+    const delta = boundedIndex - committedIndexRef.current;
+
+    isInteractingRef.current = false;
+    needsPostInteractionSyncRef.current = true;
+    if (delta !== 0) onDelta(delta);
+    if (postInteractionFrameRef.current !== null) cancelAnimationFrame(postInteractionFrameRef.current);
+    postInteractionFrameRef.current = requestAnimationFrame(() => {
+      postInteractionFrameRef.current = null;
+      if (!needsPostInteractionSyncRef.current) return;
+      needsPostInteractionSyncRef.current = false;
+      syncToLatestValue();
+    });
+  };
+
+  const scheduleSettle = () => {
+    if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
+    settleTimerRef.current = setTimeout(settleSelection, 120);
+  };
+
+  const handleScroll = () => {
+    if (isRecenteringRef.current) return;
+    beginInteraction();
+    scheduleSettle();
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+    event.preventDefault();
+    beginInteraction();
+    wheelRef.current?.scrollBy({
+      top: event.key === 'ArrowDown' ? TIME_WHEEL_ITEM_HEIGHT : -TIME_WHEEL_ITEM_HEIGHT,
+      behavior: 'smooth'
+    });
+    scheduleSettle();
+  };
+
+  const values = Array.from(
+    { length: range * TIME_WHEEL_REPETITIONS },
+    (_, index) => index % range
+  );
+
+  return (
+    <div className="time-wheel-column">
+      <span className="time-wheel-label">{label}</span>
+      <div className="time-wheel-frame">
+        <div
+          ref={wheelRef}
+          className="time-wheel"
+          role="spinbutton"
+          tabIndex={0}
+          aria-label={label}
+          aria-valuemin={0}
+          aria-valuemax={range - 1}
+          aria-valuenow={value}
+          onPointerDown={beginInteraction}
+          onPointerUp={scheduleSettle}
+          onPointerCancel={scheduleSettle}
+          onWheel={beginInteraction}
+          onScroll={handleScroll}
+          onKeyDown={handleKeyDown}
+        >
+          {values.map((option, index) => (
+            <div className="time-wheel-option" aria-hidden="true" key={`${label}-${index}`}>
+              {String(option).padStart(2, '0')}
+            </div>
+          ))}
+        </div>
+        <div className="time-wheel-selection" aria-hidden="true" />
+      </div>
+    </div>
+  );
+};
+
 
 
 /* ═══════════════ COMPONENT ═══════════════ */
@@ -65,6 +212,8 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
 }) => {
   const [activePanel, setActivePanel] = useState<ActivePanel>('batteries');
   const [isSaving, setIsSaving] = useState(false);
+  const isLinkedTablet = localStorage.getItem('horus_sync_role') === 'client'
+    && !!localStorage.getItem('horus_target_server_id')?.trim();
 
   /* ─── Detection Time Sync state ─── */
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
@@ -102,12 +251,14 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
   };
 
   const handleAdjustTime = (seconds: number) => {
-    let baseTime = fixedTime;
-    if (baseTime === null) {
-      baseTime = new Date();
-    }
-    const newTime = new Date(baseTime.getTime() + seconds * 1000);
-    setFixedTime(newTime);
+    setFixedTime(previousTime => {
+      const baseTime = previousTime ?? new Date();
+      return new Date(baseTime.getTime() + seconds * 1000);
+    });
+  };
+
+  const handleTimeWheelInteractionStart = () => {
+    setFixedTime(previousTime => previousTime ?? new Date());
   };
 
 
@@ -205,44 +356,46 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
       </button>
 
       {activeFlightName && (
-        <div style={{ background: 'rgba(0,255,136,0.1)', border: '1px solid #00ff88', color: '#00ff88', padding: '0.8rem 1.5rem', borderRadius: '8px', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', fontWeight: 'bold', boxShadow: '0 0 10px rgba(0,255,136,0.2)' }}>
-          🚁 VUELO ACTIVO: {activeFlightName}
+        <div className="battery-flight-banner" style={{ background: 'rgba(0,255,136,0.1)', border: '1px solid #00ff88', color: '#00ff88', padding: '0.8rem 1.5rem', borderRadius: '8px', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', fontWeight: 'bold', boxShadow: '0 0 10px rgba(0,255,136,0.2)' }}>
+          <span>🚁 VUELO ACTIVO: {activeFlightName}</span>
         </div>
       )}
 
       <div className="glass" style={{ borderTop: '4px solid #00ff88', padding: '0', overflow: 'visible', boxShadow: '0 -5px 20px rgba(0,255,136,0.1)' }}>
         {/* Tab Bar */}
-        <div style={{ display: 'flex', borderBottom: '2px solid #333', background: '#000' }}>
+        <div className="battery-detections-tabs" style={{ display: 'flex', borderBottom: '2px solid #333', background: '#000' }}>
           <button
+            className="battery-detections-tab"
             onClick={() => setActivePanel('batteries')}
             style={{
-              flex: 1, padding: 'clamp(0.75rem, 3vw, 1.5rem)', border: 'none', cursor: 'pointer',
-              fontWeight: 900, fontSize: 'clamp(0.75rem, 2vw, 1rem)', textTransform: 'uppercase', letterSpacing: '1px',
+              flex: 1, padding: '1rem 1.5rem', border: 'none', cursor: 'pointer',
+              fontWeight: 900, fontSize: '1rem', textTransform: 'uppercase', letterSpacing: '1px',
               transition: 'all 0.2s ease',
               background: activePanel === 'batteries' ? 'var(--primary)' : 'transparent',
               color: activePanel === 'batteries' ? 'black' : '#666',
             }}
           >
-            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}><Battery size={20} /> Baterías</span>
+            <span className="battery-detections-tab-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}><Battery size={20} /> Baterías</span>
           </button>
           <button
+            className="battery-detections-tab"
             onClick={() => setActivePanel('detections')}
             style={{
-              flex: 1, padding: 'clamp(0.75rem, 3vw, 1.5rem)', border: 'none', cursor: 'pointer',
-              fontWeight: 900, fontSize: 'clamp(0.75rem, 2vw, 1rem)', textTransform: 'uppercase', letterSpacing: '1px',
+              flex: 1, padding: '1rem 1.5rem', border: 'none', cursor: 'pointer',
+              fontWeight: 900, fontSize: '1rem', textTransform: 'uppercase', letterSpacing: '1px',
               transition: 'all 0.2s ease',
               background: activePanel === 'detections' ? 'var(--primary)' : 'transparent',
               color: activePanel === 'detections' ? 'black' : '#666',
             }}
           >
-            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}><AlertTriangle size={20} /> Detecciones</span>
+            <span className="battery-detections-tab-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}><AlertTriangle size={20} /> Detecciones</span>
           </button>
         </div>
 
         {/* ────── BATTERIES PANEL ────── */}
         {activePanel === 'batteries' && (
-          <form onSubmit={handleSaveBattery} className="form-scroll-container" style={{ padding: '1.2rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
+          <form onSubmit={handleSaveBattery} className="form-scroll-container battery-form" style={{ padding: '1.2rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div className="battery-heading" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
               <div style={{ background: 'rgba(0,194,255,0.12)', padding: '0.6rem', borderRadius: '10px', color: '#00c2ff' }}><Battery size={24} /></div>
               <div style={{ textAlign: 'center' }}>
                 <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#00c2ff' }}>Estado de Baterías</h3>
@@ -250,16 +403,18 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
               </div>
             </div>
 
-            <SmartSelect
-              label="Piloto"
-              options={lists.pilots}
-              value={batteryData.pilot}
-              onChange={v => setBatteryData({ ...batteryData, pilot: v })}
-              required
-              emptyMsg="Sin pilotos — agrega en ⚙️ → Listas → Pilotos"
-            />
+            <div className="battery-pilot">
+              <SmartSelect
+                label="Piloto"
+                options={lists.pilots}
+                value={batteryData.pilot}
+                onChange={v => setBatteryData({ ...batteryData, pilot: v })}
+                required
+                emptyMsg="Sin pilotos — agrega en ⚙️ → Listas → Pilotos"
+              />
+            </div>
 
-            <div className="grid-cols-2">
+            <div className="grid-cols-2 battery-id-grid">
               <div>
                 <label>ID Batería Dron</label>
                 <input type="text" required maxLength={3} placeholder="Ej: B01"
@@ -278,15 +433,15 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
               </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <button type="button" onClick={() => setActivePanel('detections')}
+            <div className="battery-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <button className="battery-footer-navigation" type="button" onClick={() => setActivePanel('detections')}
                 style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}>
                 Ir a Detecciones <ChevronRight size={16} />
               </button>
               <button
                 type="submit"
                 disabled={isSaving}
-                className="btn-3d"
+                className="btn-3d battery-save"
                 style={{
                   width: '100%',
                   maxWidth: '350px',
@@ -307,8 +462,8 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
 
         {/* ────── DETECTIONS PANEL ────── */}
         {activePanel === 'detections' && (
-          <form onSubmit={handleSaveDetection} className="form-scroll-container" style={{ padding: '1.2rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
+          <form onSubmit={handleSaveDetection} className="form-scroll-container detections-form" style={{ padding: '1.2rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div className="detections-heading" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
               <div style={{ background: 'rgba(0,255,136,0.1)', padding: '0.6rem', borderRadius: '10px', color: 'var(--accent)' }}><AlertTriangle size={24} /></div>
               <div style={{ textAlign: 'center' }}>
                 <h3 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--accent)' }}>Registro de Detecciones</h3>
@@ -317,7 +472,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
             </div>
 
             {/* ─ Sincronización de Hora / Ajustes ─ */}
-            <div style={{
+            <div className="detections-clock" style={{
               background: 'var(--card-bg)',
               border: '1px solid var(--glass-border)',
               borderRadius: '12px',
@@ -327,13 +482,13 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
               gap: '0.75rem',
               boxShadow: 'var(--shadow-glow)'
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <div className="detections-clock-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div className="detections-clock-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <Clock size={18} color="var(--text-secondary)" />
                   <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', fontWeight: 800, letterSpacing: '1px' }}>HORA REGISTRO DETECCIÓN</span>
                 </div>
                 {fixedTime !== null ? (
-                  <span style={{
+                  <span className="detections-clock-status" style={{
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '0.25rem',
@@ -348,7 +503,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
                     <Lock size={12} /> HORA FIJADA
                   </span>
                 ) : (
-                  <span style={{
+                  <span className="detections-clock-status" style={{
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '0.25rem',
@@ -372,7 +527,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
                 )}
               </div>
 
-              <div style={{
+              <div className="detections-clock-value" style={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
@@ -399,7 +554,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
                 <button
                   type="button"
                   onClick={handleToggleFixTime}
-                  className="btn-3d"
+                  className="btn-3d detections-clock-toggle"
                   style={{
                     width: '100%',
                     padding: '12px',
@@ -428,176 +583,39 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
                   )}
                 </button>
 
-                <div style={{
+                <div className="detections-time-adjustments" style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
                   gap: '0.75rem',
                   marginTop: '0.25rem'
                 }}>
-                  {/* Horas */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 'bold', letterSpacing: '0.5px' }}>HORAS</span>
-                    <div style={{ display: 'flex', width: '100%', gap: '0.35rem' }}>
-                      <button
-                        type="button"
-                        onClick={() => handleAdjustTime(-3600)}
-                        className="btn-3d"
-                        style={{
-                          flex: 1,
-                          padding: '10px 5px',
-                          fontSize: '0.85rem',
-                          fontWeight: 900,
-                          background: 'black',
-                          color: 'var(--primary)',
-                          border: '1px solid var(--primary)',
-                          borderRadius: '6px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '2px',
-                          boxShadow: 'none'
-                        }}
-                        title="Restar 1 hora"
-                      >
-                        <Minus size={14} />1h
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleAdjustTime(3600)}
-                        className="btn-3d"
-                        style={{
-                          flex: 1,
-                          padding: '10px 5px',
-                          fontSize: '0.85rem',
-                          fontWeight: 900,
-                          background: 'black',
-                          color: 'var(--primary)',
-                          border: '1px solid var(--primary)',
-                          borderRadius: '6px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '2px',
-                          boxShadow: 'none'
-                        }}
-                        title="Sumar 1 hora"
-                      >
-                        <Plus size={14} />1h
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Minutos */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 'bold', letterSpacing: '0.5px' }}>MINUTOS</span>
-                    <div style={{ display: 'flex', width: '100%', gap: '0.35rem' }}>
-                      <button
-                        type="button"
-                        onClick={() => handleAdjustTime(-60)}
-                        className="btn-3d"
-                        style={{
-                          flex: 1,
-                          padding: '10px 5px',
-                          fontSize: '0.85rem',
-                          fontWeight: 900,
-                          background: 'black',
-                          color: 'var(--primary)',
-                          border: '1px solid var(--primary)',
-                          borderRadius: '6px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '2px',
-                          boxShadow: 'none'
-                        }}
-                        title="Restar 1 minuto"
-                      >
-                        <Minus size={14} />1m
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleAdjustTime(60)}
-                        className="btn-3d"
-                        style={{
-                          flex: 1,
-                          padding: '10px 5px',
-                          fontSize: '0.85rem',
-                          fontWeight: 900,
-                          background: 'black',
-                          color: 'var(--primary)',
-                          border: '1px solid var(--primary)',
-                          borderRadius: '6px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '2px',
-                          boxShadow: 'none'
-                        }}
-                        title="Sumar 1 minuto"
-                      >
-                        <Plus size={14} />1m
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Segundos */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 'bold', letterSpacing: '0.5px' }}>SEGUNDOS</span>
-                    <div style={{ display: 'flex', width: '100%', gap: '0.35rem' }}>
-                      <button
-                        type="button"
-                        onClick={() => handleAdjustTime(-1)}
-                        className="btn-3d"
-                        style={{
-                          flex: 1,
-                          padding: '10px 5px',
-                          fontSize: '0.85rem',
-                          fontWeight: 900,
-                          background: 'black',
-                          color: 'var(--primary)',
-                          border: '1px solid var(--primary)',
-                          borderRadius: '6px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '2px',
-                          boxShadow: 'none'
-                        }}
-                        title="Restar 1 segundo"
-                      >
-                        <Minus size={14} />1s
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleAdjustTime(1)}
-                        className="btn-3d"
-                        style={{
-                          flex: 1,
-                          padding: '10px 5px',
-                          fontSize: '0.85rem',
-                          fontWeight: 900,
-                          background: 'black',
-                          color: 'var(--primary)',
-                          border: '1px solid var(--primary)',
-                          borderRadius: '6px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '2px',
-                          boxShadow: 'none'
-                        }}
-                        title="Sumar 1 segundo"
-                      >
-                        <Plus size={14} />1s
-                      </button>
-                    </div>
-                  </div>
+                  <TimeWheel
+                    label="HORAS"
+                    value={(fixedTime || currentTime).getHours()}
+                    range={24}
+                    onInteractionStart={handleTimeWheelInteractionStart}
+                    onDelta={steps => handleAdjustTime(steps * 3600)}
+                  />
+                  <TimeWheel
+                    label="MINUTOS"
+                    value={(fixedTime || currentTime).getMinutes()}
+                    range={60}
+                    onInteractionStart={handleTimeWheelInteractionStart}
+                    onDelta={steps => handleAdjustTime(steps * 60)}
+                  />
+                  <TimeWheel
+                    label="SEGUNDOS"
+                    value={(fixedTime || currentTime).getSeconds()}
+                    range={60}
+                    onInteractionStart={handleTimeWheelInteractionStart}
+                    onDelta={steps => handleAdjustTime(steps)}
+                  />
                 </div>
               </div>
             </div>
 
             {/* ─ Elemento y Anomalía (Lado a lado) ─ */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+            <div className="detections-knowledge-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
               {/* ─ Elemento ─ */}
               <div>
                 {elementNames.length > 0 ? (
@@ -612,10 +630,12 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
                 ) : (
                   <>
                     <label>Elemento</label>
-                    <div style={{ background: 'rgba(255,200,0,0.06)', border: '1px solid rgba(255,200,0,0.2)', borderRadius: '12px', padding: '0.85rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <Info size={16} color="#ffcc00" />
-                      <span style={{ fontSize: '0.85rem', color: '#ffcc00' }}>
-                        Sin elementos cargados. Ve a <strong>⚙️ → Base de Conocimiento</strong> para importar desde Excel.
+                    <div className="detections-empty-knowledge" style={{ background: 'rgba(255,200,0,0.06)', border: '1px solid rgba(255,200,0,0.2)', borderRadius: '12px', padding: '0.85rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <Info className="detections-nonshrinking-icon" size={16} color="#ffcc00" />
+                      <span className="detections-wrapping-text" style={{ fontSize: '0.85rem', color: '#ffcc00' }}>
+                        {isLinkedTablet
+                          ? 'La Base de Conocimiento está vacía. Debe ser actualizada desde Control Central.'
+                          : <>Sin elementos cargados. Ve a <strong>⚙️ → Base de Conocimiento</strong> para importar desde Excel.</>}
                       </span>
                     </div>
                   </>
@@ -655,17 +675,17 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
 
             {/* ─ Recomendación (auto-populated, read-only) ─ */}
             {recommendation && (
-              <div style={{
+              <div className="detections-recommendation" style={{
                 background: 'rgba(0,242,255,0.05)', border: '1px solid rgba(0,242,255,0.2)',
                 borderRadius: '12px', padding: '0.85rem 1rem',
                 display: 'flex', alignItems: 'flex-start', gap: '0.6rem'
               }}>
-                <Info size={16} color="var(--primary)" style={{ flexShrink: 0, marginTop: 2 }} />
-                <div>
+                <Info className="detections-nonshrinking-icon" size={16} color="var(--primary)" style={{ flexShrink: 0, marginTop: 2 }} />
+                <div className="detections-recommendation-copy">
                   <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600, marginBottom: '2px' }}>
                     Recomendación
                   </p>
-                  <p style={{ margin: 0, fontSize: '0.92rem', color: 'var(--primary)', fontWeight: 500 }}>
+                  <p className="detections-wrapping-text" style={{ margin: 0, fontSize: '0.92rem', color: 'var(--primary)', fontWeight: 500 }}>
                     {recommendation}
                   </p>
                 </div>
@@ -673,7 +693,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
             )}
 
             {/* ─ Criticidad & Estado de Acceso (En la misma fila / distintas columnas) ─ */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.25rem', width: '100%' }}>
+            <div className="detections-options-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.25rem', width: '100%' }}>
               {/* ─ Columna 1: Criticidad (Falla de Equipo) ─ */}
               <div>
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#E2E8F0', fontSize: '0.85rem' }}>
@@ -684,7 +704,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
                     Sin criticidades — agrega en ⚙️ → Listas
                   </div>
                 ) : (
-                  <div style={{
+                  <div className="detections-criticality-options" style={{
                     display: 'flex',
                     flexWrap: 'wrap',
                     gap: '0.5rem',
@@ -698,6 +718,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
                           key={crit}
                           type="button"
                           onClick={() => setCriticality(crit)}
+                          className="detections-option-button"
                           style={{
                             flex: '1 1 calc(33.33% - 0.5rem)',
                             minWidth: '70px',
@@ -732,7 +753,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#38BDF8', fontSize: '0.85rem' }}>
                   🗺️ Estado de Acceso a Traza
                 </label>
-                <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
+                <div className="detections-access-options" style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
                   {[
                     { value: 'Buena', label: 'Buena', color: '#10B981', bg: 'rgba(16, 185, 129, 0.2)' },
                     { value: 'Regular', label: 'Regular', color: '#F59E0B', bg: 'rgba(245, 158, 11, 0.2)' },
@@ -744,6 +765,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
                         key={status.value}
                         type="button"
                         onClick={() => setAccessStatus(status.value)}
+                        className="detections-option-button"
                         style={{
                           flex: 1,
                           padding: '10px 6px',
@@ -777,18 +799,18 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
             {/* ─ Observaciones ─ */}
             <div>
               <label>Observaciones</label>
-              <textarea rows={3} placeholder="Detalles adicionales..." value={observations} onChange={e => setObservations(e.target.value)} />
+              <textarea className="detections-observations" rows={3} placeholder="Detalles adicionales..." value={observations} onChange={e => setObservations(e.target.value)} />
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <button type="button" onClick={() => setActivePanel('batteries')}
+            <div className="detections-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <button className="detections-footer-navigation" type="button" onClick={() => setActivePanel('batteries')}
                 style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}>
                 <ChevronLeft size={16} /> Ir a Baterías
               </button>
               <button
                 type="submit"
                 disabled={isSaving}
-                className="btn-3d"
+                className="btn-3d detections-save"
                 style={{
                   width: '100%',
                   maxWidth: '350px',
@@ -807,6 +829,329 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
           </form>
         )}
       </div>
+      <style>{`
+        .battery-flight-banner,
+        .battery-flight-banner span,
+        .battery-form,
+        .battery-form * {
+          min-width: 0;
+          box-sizing: border-box;
+        }
+        .battery-flight-banner {
+          max-width: 100%;
+          flex-wrap: wrap;
+        }
+        .battery-flight-banner span {
+          white-space: normal;
+          overflow-wrap: anywhere;
+        }
+        .battery-detections-tabs {
+          display: grid !important;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          width: 100%;
+        }
+        .battery-detections-tab {
+          width: 100%;
+          min-width: 0;
+          min-height: 48px;
+          font-size: 1rem !important;
+          padding: 1rem 1.5rem !important;
+          white-space: normal;
+          overflow-wrap: anywhere;
+        }
+        .battery-detections-tab-label {
+          min-width: 0;
+          flex-wrap: wrap;
+          white-space: normal;
+          overflow-wrap: anywhere;
+        }
+        .battery-detections-tab-label svg,
+        .battery-heading > div:first-child {
+          flex-shrink: 0;
+        }
+        .battery-form {
+          width: 100%;
+          max-width: 100%;
+          overflow-x: hidden;
+        }
+        .battery-heading {
+          min-width: 0;
+          flex-wrap: wrap;
+        }
+        .battery-heading > div:last-child {
+          min-width: 0;
+        }
+        .battery-pilot {
+          min-width: 0;
+          width: 100%;
+          max-width: 100%;
+        }
+        .battery-heading h3 {
+          font-size: 1.2rem !important;
+        }
+        .battery-heading h3,
+        .battery-heading p,
+        .battery-form label,
+        .battery-footer-navigation,
+        .battery-save span {
+          white-space: normal;
+          overflow-wrap: anywhere;
+        }
+        .battery-pilot input,
+        .battery-id-grid input {
+          width: 100%;
+          max-width: 100%;
+          min-width: 0;
+          box-sizing: border-box;
+        }
+        .battery-id-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        }
+        .battery-id-grid > * {
+          min-width: 0;
+          max-width: 100%;
+        }
+        .battery-footer {
+          min-width: 0;
+          flex-wrap: wrap;
+          gap: 0.75rem;
+        }
+        .battery-footer-navigation {
+          min-height: 48px;
+          justify-content: center;
+        }
+        .battery-save.btn-3d {
+          width: 100% !important;
+          max-width: 350px !important;
+          min-height: 48px;
+          padding: 1.2rem !important;
+        }
+        @media (max-width: 600px) {
+          .battery-detections-tabs,
+          .battery-id-grid {
+            grid-template-columns: minmax(0, 1fr) !important;
+          }
+          .battery-footer {
+            flex-direction: column;
+            align-items: stretch !important;
+          }
+          .battery-footer-navigation,
+          .battery-save.btn-3d {
+            width: 100% !important;
+            max-width: 100% !important;
+          }
+        }
+        .detections-form,
+        .detections-form * {
+          min-width: 0;
+          box-sizing: border-box;
+        }
+        .detections-form {
+          width: 100%;
+          max-width: 100%;
+          overflow-x: hidden;
+        }
+        .detections-heading,
+        .detections-clock-header,
+        .detections-clock-title,
+        .detections-clock-value,
+        .detections-footer {
+          flex-wrap: wrap;
+        }
+        .detections-heading > div:last-child,
+        .detections-clock-title,
+        .detections-recommendation-copy {
+          min-width: 0;
+        }
+        .detections-heading h3,
+        .detections-heading p,
+        .detections-clock-title span,
+        .detections-clock-status,
+        .detections-wrapping-text {
+          white-space: normal;
+          overflow-wrap: anywhere;
+        }
+        .detections-clock-header,
+        .detections-clock-value,
+        .detections-footer {
+          gap: 0.75rem;
+        }
+        .detections-clock-status {
+          flex-wrap: wrap;
+        }
+        .detections-clock-toggle.btn-3d {
+          min-height: 48px;
+          padding: 12px !important;
+        }
+        .detections-time-adjustments {
+          grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+          width: 100%;
+          max-width: 480px;
+          min-width: 0;
+          margin-inline: auto;
+        }
+        .time-wheel-column,
+        .time-wheel-frame,
+        .time-wheel {
+          width: 100%;
+          min-width: 0;
+          max-width: 100%;
+          box-sizing: border-box;
+        }
+        .time-wheel-column {
+          display: flex;
+          flex-direction: column;
+          align-items: stretch;
+          gap: 0.4rem;
+        }
+        .time-wheel-label {
+          min-width: 0;
+          max-width: 100%;
+          color: var(--text-secondary);
+          font-size: 0.75rem;
+          font-weight: 800;
+          letter-spacing: 0.5px;
+          text-align: center;
+          white-space: normal;
+          overflow-wrap: anywhere;
+        }
+        .time-wheel-frame {
+          position: relative;
+          height: 144px;
+          overflow: hidden;
+          border: 1px solid var(--glass-border);
+          border-radius: 10px;
+          background: rgba(0, 0, 0, 0.45);
+        }
+        .time-wheel {
+          height: 144px;
+          padding-block: 48px;
+          overflow-x: hidden;
+          overflow-y: auto;
+          overscroll-behavior-y: contain;
+          touch-action: pan-y;
+          scroll-snap-type: y mandatory;
+          scrollbar-width: none;
+          outline: none;
+        }
+        .time-wheel::-webkit-scrollbar {
+          display: none;
+        }
+        .time-wheel:focus-visible {
+          outline: 2px solid var(--primary);
+          outline-offset: -2px;
+          border-radius: 10px;
+        }
+        .time-wheel-option {
+          height: 48px;
+          min-height: 48px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: var(--text-secondary);
+          font-family: monospace;
+          font-size: 1.15rem;
+          font-weight: 800;
+          line-height: 1;
+          scroll-snap-align: center;
+          user-select: none;
+        }
+        .time-wheel-selection {
+          position: absolute;
+          z-index: 2;
+          top: 48px;
+          left: 4px;
+          right: 4px;
+          height: 48px;
+          border-block: 1px solid var(--primary);
+          border-radius: 6px;
+          background: rgba(16, 185, 129, 0.1);
+          box-shadow: 0 0 12px rgba(16, 185, 129, 0.12);
+          pointer-events: none;
+        }
+        .detections-knowledge-grid,
+        .detections-options-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        }
+        .detections-knowledge-grid > *,
+        .detections-options-grid > * {
+          min-width: 0;
+          max-width: 100%;
+        }
+        .detections-empty-knowledge,
+        .detections-recommendation {
+          min-width: 0;
+          max-width: 100%;
+        }
+        .detections-nonshrinking-icon {
+          flex-shrink: 0;
+        }
+        .detections-criticality-options {
+          display: grid !important;
+          grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+        }
+        .detections-access-options {
+          display: grid !important;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+        .detections-option-button {
+          width: 100%;
+          min-width: 0 !important;
+          min-height: 48px;
+          white-space: normal;
+          overflow-wrap: anywhere;
+        }
+        .detections-observations {
+          width: 100%;
+          max-width: 100%;
+          min-width: 0;
+          box-sizing: border-box;
+          resize: vertical;
+          overflow-x: hidden;
+        }
+        .detections-footer-navigation {
+          min-height: 48px;
+          justify-content: center;
+          white-space: normal;
+          overflow-wrap: anywhere;
+        }
+        .detections-save.btn-3d {
+          width: 100% !important;
+          max-width: 350px !important;
+          min-height: 48px;
+          padding: 1.2rem !important;
+        }
+        @media (max-width: 600px) {
+          .detections-clock-header,
+          .detections-clock-value,
+          .detections-footer {
+            flex-direction: column;
+            align-items: stretch !important;
+          }
+          .detections-clock-status {
+            align-self: flex-start;
+          }
+          .detections-knowledge-grid,
+          .detections-options-grid {
+            grid-template-columns: minmax(0, 1fr) !important;
+          }
+          .detections-time-adjustments {
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+            gap: 0.4rem !important;
+          }
+          .detections-access-options {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+          .detections-access-options > :last-child {
+            grid-column: 1 / -1;
+          }
+          .detections-footer-navigation,
+          .detections-save.btn-3d {
+            width: 100% !important;
+            max-width: 100% !important;
+          }
+        }
+      `}</style>
     </div>
   );
 };

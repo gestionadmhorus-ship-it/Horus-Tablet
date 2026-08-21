@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { Peer } from 'peerjs';
-import type { AppData, AppRole, UnitStatus, KnownClient } from '../types';
+import type { AppData, AppRole, UnitStatus, KnownClient, ElementEntry } from '../types';
 
 export function getKnownClients(): KnownClient[] {
   try {
@@ -25,6 +25,54 @@ const RECONNECT_INTERVAL = 10000;        // 10 seconds
 const STATUS_BROADCAST_INTERVAL = 15000; // 15 seconds
 const STALE_THRESHOLD = 35000;           // 35 seconds → mark as "no signal"
 
+const canonicalizeKnowledgeBase = (elements: ElementEntry[]) => JSON.stringify(
+  elements.map(element => ({
+    name: element.name,
+    category: element.category ?? '',
+    anomalies: element.anomalies.map(anomaly => ({
+      name: anomaly.name,
+      recommendation: anomaly.recommendation
+    }))
+  }))
+);
+
+const getKnowledgeBaseFingerprint = async (elements: ElementEntry[]) => {
+  const bytes = new TextEncoder().encode(canonicalizeKnowledgeBase(elements));
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+};
+
+const isValidKnowledgeBase = (value: unknown): value is ElementEntry[] => {
+  if (!Array.isArray(value)) return false;
+
+  const elementNames = new Set<string>();
+  for (const element of value) {
+    if (!element || typeof element !== 'object') return false;
+    const candidate = element as Record<string, unknown>;
+    if (typeof candidate.name !== 'string' || !candidate.name.trim()) return false;
+    if (candidate.category !== undefined && typeof candidate.category !== 'string') return false;
+    if (!Array.isArray(candidate.anomalies)) return false;
+
+    const normalizedElementName = candidate.name.trim().toLowerCase();
+    if (elementNames.has(normalizedElementName)) return false;
+    elementNames.add(normalizedElementName);
+
+    const anomalyNames = new Set<string>();
+    for (const anomaly of candidate.anomalies) {
+      if (!anomaly || typeof anomaly !== 'object') return false;
+      const anomalyCandidate = anomaly as Record<string, unknown>;
+      if (typeof anomalyCandidate.name !== 'string' || !anomalyCandidate.name.trim()) return false;
+      if (typeof anomalyCandidate.recommendation !== 'string') return false;
+
+      const normalizedAnomalyName = anomalyCandidate.name.trim().toLowerCase();
+      if (anomalyNames.has(normalizedAnomalyName)) return false;
+      anomalyNames.add(normalizedAnomalyName);
+    }
+  }
+
+  return true;
+};
+
 export function useAutoSync(
   role: AppRole | null,
   getUnsyncedData: () => Promise<AppData>,
@@ -33,7 +81,9 @@ export function useAutoSync(
   getStatusSnapshot?: () => Omit<UnitStatus, 'deviceId' | 'deviceName' | 'connected' | 'lastSeen'>,
   onStatusUpdate?: (status: UnitStatus) => void,
   getAllData?: () => Promise<AppData>,
-  deviceName?: string
+  deviceName?: string,
+  getKnowledgeBase?: () => ElementEntry[],
+  replaceKnowledgeBase?: (elements: ElementEntry[]) => Promise<void>
 ) {
   const [syncStatus, setSyncStatus] = useState<string>('Inicializando red...');
   const [isSyncing, setIsSyncing] = useState(false);
@@ -57,6 +107,8 @@ export function useAutoSync(
   const getStatusSnapshotRef = useRef(getStatusSnapshot);
   const onStatusUpdateRef = useRef(onStatusUpdate);
   const getAllDataRef = useRef(getAllData);
+  const getKnowledgeBaseRef = useRef(getKnowledgeBase);
+  const replaceKnowledgeBaseRef = useRef(replaceKnowledgeBase);
 
   useEffect(() => {
     getUnsyncedDataRef.current = getUnsyncedData;
@@ -65,7 +117,9 @@ export function useAutoSync(
     getStatusSnapshotRef.current = getStatusSnapshot;
     onStatusUpdateRef.current = onStatusUpdate;
     getAllDataRef.current = getAllData;
-  }, [getUnsyncedData, markDataAsSynced, onDataReceived, getStatusSnapshot, onStatusUpdate, getAllData]);
+    getKnowledgeBaseRef.current = getKnowledgeBase;
+    replaceKnowledgeBaseRef.current = replaceKnowledgeBase;
+  }, [getUnsyncedData, markDataAsSynced, onDataReceived, getStatusSnapshot, onStatusUpdate, getAllData, getKnowledgeBase, replaceKnowledgeBase]);
 
   // ── Ticker that marks stale units as disconnected (server-side) ──
   useEffect(() => {
@@ -199,7 +253,31 @@ export function useAutoSync(
               return;
             }
 
-            // ── Explorador notifica desvinculación ──
+            // Knowledge Base request from a linked field unit
+            if (data.type === 'KNOWLEDGE_BASE_REQUEST') {
+              const blockedListStr = localStorage.getItem('horus_blocked_clients') || '[]';
+              const blockedClients: string[] = JSON.parse(blockedListStr);
+              const senderDeviceName = typeof data.deviceName === 'string' ? data.deviceName : 'Unknown';
+              const senderDeviceId = typeof data.deviceId === 'string' ? data.deviceId : `legacy-${senderDeviceName}`;
+              const isBlocked = blockedClients.includes(senderDeviceId) || blockedClients.includes(senderDeviceName);
+
+              if (isBlocked || !getKnowledgeBaseRef.current || typeof data.fingerprint !== 'string') return;
+
+              try {
+                const elements = getKnowledgeBaseRef.current();
+                const fingerprint = await getKnowledgeBaseFingerprint(elements);
+                conn.send(
+                  fingerprint === data.fingerprint
+                    ? { type: 'KNOWLEDGE_BASE_PAYLOAD', fingerprint, unchanged: true }
+                    : { type: 'KNOWLEDGE_BASE_PAYLOAD', fingerprint, elements }
+                );
+              } catch (error) {
+                console.error('Error preparing Knowledge Base payload:', error);
+              }
+              return;
+            }
+
+            // Explorador notifica desvinculacion
             if (data.type === 'DISCONNECT') {
               const name = data.deviceName as string | undefined;
               const deviceId = data.deviceId as string | undefined;
@@ -300,7 +378,7 @@ export function useAutoSync(
         });
 
       } else if (role === 'client') {
-        setSyncStatus('🔍 Cliente: Buscando red...');
+        setSyncStatus('🔄 Conectando con Central...');
         const name = deviceName || localStorage.getItem('horus_device_name') || 'Unknown';
         const sanitizedName = name.replace(/[^a-zA-Z0-9-_]/g, '');
         const clientPeerId = `horus-tablet-peer-${sanitizedName}`;
@@ -376,7 +454,7 @@ export function useAutoSync(
               });
             });
 
-            conn.on('data', (resp: any) => {
+            conn.on('data', async (resp: any) => {
               if (resp && resp.type === 'STATUS_ACK') {
                 clearTimeout(closeTimeout);
                 
@@ -400,7 +478,55 @@ export function useAutoSync(
                   setSyncStatus(`⚠️ Versión Central distinta (${serverVer}). Por favor actualiza.`);
                 }
                 
-                try { conn.close(); } catch {}
+                if (!getKnowledgeBaseRef.current || !replaceKnowledgeBaseRef.current) {
+                  try { conn.close(); } catch {}
+                  return;
+                }
+
+                try {
+                  const fingerprint = await getKnowledgeBaseFingerprint(getKnowledgeBaseRef.current());
+                  closeTimeout = setTimeout(() => {
+                    try { conn.close(); } catch {}
+                  }, 4000);
+                  conn.send({
+                    type: 'KNOWLEDGE_BASE_REQUEST',
+                    deviceId: localStorage.getItem('horus_device_id') || 'dev-unknown',
+                    deviceName,
+                    fingerprint
+                  });
+                } catch (error) {
+                  console.error('Error requesting Knowledge Base:', error);
+                  setSyncStatus('Error al actualizar Base de Conocimiento');
+                  try { conn.close(); } catch {}
+                }
+              } else if (resp && resp.type === 'KNOWLEDGE_BASE_PAYLOAD') {
+                clearTimeout(closeTimeout);
+
+                try {
+                  if (resp.unchanged === true) {
+                    try { conn.close(); } catch {}
+                    return;
+                  }
+
+                  if (!isValidKnowledgeBase(resp.elements) || typeof resp.fingerprint !== 'string') {
+                    throw new Error('Payload de Base de Conocimiento inválido.');
+                  }
+
+                  const calculatedFingerprint = await getKnowledgeBaseFingerprint(resp.elements);
+                  if (calculatedFingerprint !== resp.fingerprint) {
+                    throw new Error('La huella de Base de Conocimiento no coincide.');
+                  }
+
+                  if (!replaceKnowledgeBaseRef.current) {
+                    throw new Error('Guardado local de Base de Conocimiento no disponible.');
+                  }
+                  await replaceKnowledgeBaseRef.current(resp.elements);
+                } catch (error) {
+                  console.error('Error applying Knowledge Base payload:', error);
+                  setSyncStatus('Error al actualizar Base de Conocimiento');
+                } finally {
+                  try { conn.close(); } catch {}
+                }
               }
             });
 
@@ -429,18 +555,18 @@ export function useAutoSync(
             (unsynced.checklists && unsynced.checklists.length > 0);
           
           if (!hasData) {
-            setSyncStatus('✅ Todo está sincronizado.');
+            setSyncStatus('✅ Sin datos pendientes.');
             setIsSyncing(false);
             syncAttemptTimer = setTimeout(attemptSync, RECONNECT_INTERVAL);
             return;
           }
 
-          setSyncStatus('📤 Buscando al servidor para enviar datos...');
+          setSyncStatus('📋 Datos pendientes de envío. Conectando con Central...');
           setIsSyncing(true);
           const conn = peer.connect(targetServerId);
           
           conn.on('open', () => {
-            setSyncStatus('📤 Conectado. Enviando datos...');
+            setSyncStatus('📤 Enviando datos pendientes...');
             conn.send({ 
               type: 'SYNC_PAYLOAD', 
               payload: unsynced,
@@ -453,9 +579,9 @@ export function useAutoSync(
             if (data.type === 'SYNC_ACK') {
               await markDataAsSyncedRef.current(unsynced);
               recordSyncSuccess();
-              setSyncStatus('✅ Sincronización automática exitosa.');
+              setSyncStatus('✅ Envío confirmado por Central.');
               setTimeout(() => {
-                if (isActive) setSyncStatus('✅ Todo está sincronizado.');
+                if (isActive) setSyncStatus('✅ Sin datos pendientes.');
               }, 3000);
               setIsSyncing(false);
               conn.close();
@@ -474,11 +600,13 @@ export function useAutoSync(
                 localStorage.removeItem('horus_sync_role');
                 window.location.reload();
               }, 2500);
+            } else if (data.type === 'SYNC_ERROR') {
+              setSyncStatus(`❌ Error de sincronización${data.message ? `: ${data.message}` : '.'}`);
             }
           });
 
           conn.on('error', () => {
-            setSyncStatus('🔍 Control no encontrado. Reintentando luego...');
+            setSyncStatus('🔌 Sin conexión con Central. Reintentando luego...');
             setIsSyncing(false);
             conn.close();
           });
@@ -491,7 +619,7 @@ export function useAutoSync(
 
         peer.on('open', () => {
           if (!isActive) return;
-          setSyncStatus('🔍 Conectado a la red. Revisando datos pendientes...');
+          setSyncStatus('🔄 Conectando con Central...');
           attemptSync();
           // Start STATUS broadcast loop
           broadcastStatus();
@@ -502,10 +630,10 @@ export function useAutoSync(
           if (!isActive) return;
           console.error('PeerJS Client Error:', err);
           if (err.type === 'peer-unavailable') {
-            setSyncStatus('🔍 Central apagada o fuera de alcance.');
+            setSyncStatus('🔌 Sin conexión con Central: apagada o fuera de alcance.');
             syncAttemptTimer = setTimeout(attemptSync, RECONNECT_INTERVAL);
           } else {
-            setSyncStatus('🔍 Sin red. Esperando conexión...');
+            setSyncStatus('🔌 Sin conexión con Central. Esperando red...');
             reconnectTimer = setTimeout(connectPeer, RECONNECT_INTERVAL);
           }
         });
@@ -543,7 +671,7 @@ export function useAutoSync(
         return resolve({ success: false, message: 'El sistema de red de la tablet no está activo. Verifique su conexión Wi-Fi.' });
       }
 
-      setSyncStatus('📤 Sincronización forzada en curso...');
+      setSyncStatus('🔄 Conectando con Central...');
       setIsSyncing(true);
 
       const unsynced = await getUnsyncedDataRef.current();
@@ -559,7 +687,7 @@ export function useAutoSync(
       const timeoutId = setTimeout(() => {
         conn.close();
         setIsSyncing(false);
-        setSyncStatus(hasData ? '❌ Error de sincronización.' : '✅ Todo está sincronizado.');
+        setSyncStatus(hasData ? '❌ Error de sincronización: sin conexión con Central.' : '🔌 Sin conexión con Central.');
         resolve({ success: false, message: 'No se pudo contactar al Panel de Control. Asegúrese de que esté encendido y en la misma red Wi-Fi.' });
       }, 8000);
 
@@ -573,7 +701,7 @@ export function useAutoSync(
             deviceName: localStorage.getItem('horus_device_name') || 'Unknown'
           });
         } else {
-          setSyncStatus('📤 Verificando conexión con Central...');
+          setSyncStatus('🔄 Conectando con Central...');
           conn.send({ type: 'PING' });
         }
       });
@@ -584,9 +712,9 @@ export function useAutoSync(
           try {
             await markDataAsSyncedRef.current(unsynced);
             recordSyncSuccess();
-            setSyncStatus('✅ Sincronización exitosa.');
+            setSyncStatus('✅ Envío confirmado por Central.');
             setTimeout(() => {
-              setSyncStatus('✅ Todo está sincronizado.');
+              setSyncStatus('✅ Sin datos pendientes.');
             }, 3000);
             resolve({ success: true, message: 'Sincronización exitosa: El Panel de Control recibió todos los datos pendientes correctamente.' });
           } catch (err: any) {
@@ -597,7 +725,7 @@ export function useAutoSync(
             conn.close();
           }
         } else if (data.type === 'PONG') {
-          setSyncStatus('✅ Todo está sincronizado.');
+          setSyncStatus('✅ Sin datos pendientes.');
           setIsSyncing(false);
           conn.close();
           resolve({ success: true, message: 'Conexión exitosa: El Panel de Control está en línea y todos los datos del dispositivo están al día.' });
@@ -609,6 +737,7 @@ export function useAutoSync(
             window.customAlert('El nombre de esta tablet ya está siendo usado por otra unidad en el Panel de Control. Por favor, cámbialo en la pantalla de Configuración.');
             resolve({ success: false, message: 'Rechazado por nombre duplicado. Modifique el nombre en Configuración.' });
           } else {
+            setSyncStatus(`❌ Error de sincronización${data.message ? `: ${data.message}` : '.'}`);
             resolve({ success: false, message: `El servidor rechazó la sincronización: ${data.message || 'Error desconocido'}` });
           }
         }
@@ -618,6 +747,7 @@ export function useAutoSync(
         clearTimeout(timeoutId);
         setIsSyncing(false);
         conn.close();
+        setSyncStatus('🔌 Sin conexión con Central.');
         resolve({ success: false, message: 'No se pudo establecer conexión con el Panel de Control. Verifique su red Wi-Fi.' });
       });
     });

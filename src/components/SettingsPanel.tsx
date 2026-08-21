@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   X, Plus, Trash2, ChevronDown, ChevronUp, Settings,
   ClipboardPaste, BookOpen, CheckCircle, AlertCircle, ChevronRight, Wifi, ShieldAlert,
-  RefreshCcw, DownloadCloud
+  RefreshCcw, DownloadCloud, Edit2, Save
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Peer } from 'peerjs';
@@ -53,6 +53,7 @@ function parsePaste(text: string, category: string): { entry: ElementEntry; warn
 
   const anomalies: AnomalyEntry[] = [];
   const warnings: string[] = [];
+  const seenAnomalies = new Map<string, string>();
 
   for (let i = 1; i < lines.length; i++) {
     const cells = lines[i].split('\t');
@@ -60,6 +61,11 @@ function parsePaste(text: string, category: string): { entry: ElementEntry; warn
     const recommendation = cells[1]?.trim() || '';
 
     if (!anomalyName) { warnings.push(`Fila ${i + 1} ignorada (nombre vacío).`); continue; }
+    const normalizedName = anomalyName.toLowerCase();
+    if (seenAnomalies.has(normalizedName)) {
+      return { error: `Anomalía duplicada en el bloque: "${anomalyName}".` };
+    }
+    seenAnomalies.set(normalizedName, anomalyName);
     if (!recommendation) warnings.push(`Anomalía "${anomalyName}" sin recomendación.`);
     anomalies.push({ name: anomalyName, recommendation });
   }
@@ -149,6 +155,9 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
   const [selectedCategory, setSelectedCategory] = useState('Otros');
   const [parseResult, setParseResult] = useState<{ type: 'success' | 'error' | 'warning'; msg: string } | null>(null);
   const [kbExpanded, setKbExpanded] = useState<Record<string, boolean>>({});
+  const [editingElementIndex, setEditingElementIndex] = useState<number | null>(null);
+  const [editingElementOriginalName, setEditingElementOriginalName] = useState('');
+  const [elementDraft, setElementDraft] = useState<ElementEntry | null>(null);
   const [activeTab, setActiveTab] = useState<'lists' | 'knowledge' | 'connection' | 'updates'>('lists');
 
   /* ─── Updates state ─── */
@@ -159,6 +168,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
 
   /* ─── Connection state ─── */
   const appRole = localStorage.getItem('horus_sync_role');
+  const isKnowledgeBaseReadOnly = appRole === 'client'
+    && !!localStorage.getItem('horus_target_server_id')?.trim();
   const myServerId = localStorage.getItem('horus_my_server_id');
   const [knownClients, setKnownClients] = useState<KnownClient[]>(() => {
     return getKnownClients();
@@ -234,24 +245,37 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
 
   /* ─── Knowledge base helpers ─── */
   const processPaste = () => {
+    if (isKnowledgeBaseReadOnly) return;
     setParseResult(null);
     const result = parsePaste(pasteText, selectedCategory);
     if ('error' in result) { setParseResult({ type: 'error', msg: result.error }); return; }
 
     const { entry, warnings } = result;
-    const existingIdx = lists.elements.findIndex(e => e.name.toLowerCase() === entry.name.toLowerCase());
+    const existingIdx = lists.elements.findIndex(e => e.name.trim().toLowerCase() === entry.name.trim().toLowerCase());
     let updatedElements: ElementEntry[];
 
     if (existingIdx >= 0) {
-      // Merge: add new anomalies, skip duplicates
+      // Merge: update recommendations and add new anomalies without removing existing ones
       const existing = lists.elements[existingIdx];
-      const existingNames = existing.anomalies.map(a => a.name.toLowerCase());
-      const newAnomalies = entry.anomalies.filter(a => !existingNames.includes(a.name.toLowerCase()));
-      const merged: ElementEntry = { ...existing, category: selectedCategory, anomalies: [...existing.anomalies, ...newAnomalies] };
+      const incomingByName = new Map(entry.anomalies.map(a => [a.name.trim().toLowerCase(), a]));
+      let updatedCount = 0;
+      const mergedAnomalies = existing.anomalies.map(existingAnomaly => {
+        const normalizedName = existingAnomaly.name.trim().toLowerCase();
+        const incoming = incomingByName.get(normalizedName);
+        if (!incoming) return existingAnomaly;
+
+        incomingByName.delete(normalizedName);
+        if (!incoming.recommendation) return existingAnomaly;
+
+        updatedCount += 1;
+        return { ...existingAnomaly, recommendation: incoming.recommendation };
+      });
+      const newAnomalies = Array.from(incomingByName.values());
+      const merged: ElementEntry = { ...existing, category: selectedCategory, anomalies: [...mergedAnomalies, ...newAnomalies] };
       updatedElements = lists.elements.map((e, i) => i === existingIdx ? merged : e);
       setParseResult({
         type: warnings.length ? 'warning' : 'success',
-        msg: `Elemento "${entry.name}" actualizado en categoría "${selectedCategory}". +${newAnomalies.length} anomalías nuevas.${warnings.length ? ' Avisos: ' + warnings.join('; ') : ''}`
+        msg: `Elemento "${entry.name}" actualizado en categoría "${selectedCategory}". ${updatedCount} recomendaciones actualizadas y +${newAnomalies.length} anomalías nuevas. Las recomendaciones existentes no se eliminan por celdas vacías y las anomalías no incluidas se conservaron.${warnings.length ? ' Avisos: ' + warnings.join('; ') : ''}`
       });
     } else {
       updatedElements = [...lists.elements, entry];
@@ -267,12 +291,16 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
   };
 
   const removeElement = async (name: string) => {
+    if (isKnowledgeBaseReadOnly) return;
     const ok = await window.customConfirm(`¿Eliminar el elemento "${name}" y todas sus anomalías?`);
     if (!ok) return;
     onUpdate({ ...lists, elements: lists.elements.filter(e => e.name !== name) });
   };
 
-  const removeAnomaly = (elementName: string, anomalyName: string) => {
+  const removeAnomaly = async (elementName: string, anomalyName: string) => {
+    if (isKnowledgeBaseReadOnly) return;
+    const ok = await window.customConfirm('¿Eliminar esta anomalía y su recomendación asociada?');
+    if (!ok) return;
     onUpdate({
       ...lists,
       elements: lists.elements.map(e =>
@@ -281,6 +309,86 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
           : e
       )
     });
+  };
+
+  const startEditingElement = (element: ElementEntry, index: number) => {
+    if (isKnowledgeBaseReadOnly) return;
+    setEditingElementIndex(index);
+    setEditingElementOriginalName(element.name);
+    setElementDraft({
+      ...element,
+      anomalies: element.anomalies.map(anomaly => ({ ...anomaly }))
+    });
+    setKbExpanded(previous => ({ ...previous, [element.name]: true }));
+  };
+
+  const cancelEditingElement = () => {
+    setEditingElementIndex(null);
+    setEditingElementOriginalName('');
+    setElementDraft(null);
+  };
+
+  const saveElementDraft = async () => {
+    if (isKnowledgeBaseReadOnly) return;
+    if (editingElementIndex === null || !elementDraft) return;
+
+    const elementName = elementDraft.name.trim();
+    if (!elementName) {
+      await window.customAlert('El nombre del Elemento no puede quedar vacío.');
+      return;
+    }
+
+    const duplicateElement = lists.elements.some((element, index) =>
+      index !== editingElementIndex && element.name.trim().toLowerCase() === elementName.toLowerCase()
+    );
+    if (duplicateElement) {
+      await window.customAlert(`Ya existe otro Elemento con el nombre "${elementName}".`);
+      return;
+    }
+
+    const seenAnomalies = new Set<string>();
+    const normalizedAnomalies: AnomalyEntry[] = [];
+    for (const anomaly of elementDraft.anomalies) {
+      const anomalyName = anomaly.name.trim();
+      if (!anomalyName) {
+        await window.customAlert('Ningún nombre de Anomalía puede quedar vacío.');
+        return;
+      }
+
+      const normalizedName = anomalyName.toLowerCase();
+      if (seenAnomalies.has(normalizedName)) {
+        await window.customAlert(`Anomalía duplicada en el grupo: "${anomalyName}".`);
+        return;
+      }
+      seenAnomalies.add(normalizedName);
+      normalizedAnomalies.push({
+        name: anomalyName,
+        recommendation: anomaly.recommendation.trim()
+      });
+    }
+
+    if (normalizedAnomalies.some(anomaly => !anomaly.recommendation)) {
+      await window.customAlert('Advertencia: una o más Anomalías quedarán sin Recomendación.');
+    }
+
+    const updatedElement: ElementEntry = {
+      ...elementDraft,
+      name: elementName,
+      category: elementDraft.category?.trim() || 'Otros',
+      anomalies: normalizedAnomalies
+    };
+
+    onUpdate({
+      ...lists,
+      elements: lists.elements.map((element, index) => index === editingElementIndex ? updatedElement : element)
+    });
+    setKbExpanded(previous => {
+      const next = { ...previous };
+      if (editingElementOriginalName !== updatedElement.name) delete next[editingElementOriginalName];
+      next[updatedElement.name] = true;
+      return next;
+    });
+    cancelEditingElement();
   };
 
   /* ─── Styles ─── */
@@ -333,7 +441,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
     marginBottom: '0.75rem',
     background: 'rgba(255,255,255,0.03)',
     border: '1px solid rgba(255,255,255,0.07)',
-    borderRadius: '14px', overflow: 'hidden'
+    borderRadius: '14px', overflow: 'visible'
   };
 
   return (
@@ -342,47 +450,47 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', zIndex: 900 }} />
 
       {/* Panel */}
-      <div style={{
-        position: 'fixed', top: 0, right: 0, width: 'min(440px, 100vw)', height: '100vh',
+      <div className="settings-panel" style={{
+        position: 'fixed', top: 0, right: 0, width: 'min(440px, 100vw)', maxWidth: '100vw', height: '100dvh',
         background: 'linear-gradient(160deg, #0d1528 0%, #0a0f1e 100%)',
         borderLeft: '1px solid rgba(0,242,255,0.2)', zIndex: 1000,
         display: 'flex', flexDirection: 'column',
         boxShadow: '-20px 0 60px rgba(0,0,0,0.5)',
-        animation: 'slideInRight 0.3s ease'
+        animation: 'slideInRight 0.3s ease', overflowX: 'hidden'
       }}>
 
         {/* Header */}
-        <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(0,242,255,0.03)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <div className="settings-header" style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(0,242,255,0.03)' }}>
+          <div className="settings-header-main" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <div style={{ background: 'rgba(0,242,255,0.1)', padding: '0.5rem', borderRadius: '10px', color: 'var(--primary)' }}>
               <Settings size={20} />
             </div>
-            <div>
+            <div className="settings-header-copy">
               <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}>Configuración</h2>
               <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Listas y Base de Conocimiento</p>
             </div>
           </div>
-          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: 'white', cursor: 'pointer', padding: '0.4rem', display: 'flex' }}>
+          <button className="settings-touch-icon" onClick={onClose} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: 'white', cursor: 'pointer', padding: '0.4rem', display: 'flex' }}>
             <X size={20} />
           </button>
         </div>
 
         {/* Tabs */}
-        <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-          <button onClick={() => setActiveTab('lists')} style={tabBtnStyle('lists')}>
+        <div className="settings-tabs" style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+          <button className="settings-tab" onClick={() => setActiveTab('lists')} style={tabBtnStyle('lists')}>
             Listas
           </button>
-          <button onClick={() => setActiveTab('knowledge')} style={tabBtnStyle('knowledge')}>
+          <button className="settings-tab" onClick={() => setActiveTab('knowledge')} style={tabBtnStyle('knowledge')}>
             <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
               <BookOpen size={14} /> Base C.
             </span>
           </button>
-          <button onClick={() => setActiveTab('connection')} style={tabBtnStyle('connection')}>
+          <button className="settings-tab" onClick={() => setActiveTab('connection')} style={tabBtnStyle('connection')}>
             <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
               <Wifi size={14} /> Red
             </span>
           </button>
-          <button onClick={() => setActiveTab('updates')} style={tabBtnStyle('updates')}>
+          <button className="settings-tab" onClick={() => setActiveTab('updates')} style={tabBtnStyle('updates')}>
             <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
               <RefreshCcw size={14} /> Sistema
             </span>
@@ -390,7 +498,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
         </div>
 
         {/* Content */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '1rem' }}>
+        <div className="settings-content" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '1rem' }}>
 
           {/* ══════ TAB: FLAT LISTS ══════ */}
           {activeTab === 'lists' && (
@@ -432,6 +540,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
           {activeTab === 'lists' && flatCategories.map(cat => (
             <div key={cat.key} style={sectionStyle}>
               <button
+                className="settings-section-header"
                 onClick={() => toggleFlat(cat.key)}
                 style={{ width: '100%', padding: '0.85rem 1.2rem', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: 'white' }}
               >
@@ -446,18 +555,19 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
 
               {flatExpanded[cat.key] && (
                 <div style={{ padding: '0 1.2rem 1.2rem' }}>
-                  <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                  <div className="settings-flat-add-row" style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
                     <input
                       type="text"
                       value={flatInputs[cat.key]}
                       onChange={e => setFlatInputs(p => ({ ...p, [cat.key]: e.target.value }))}
                       onKeyDown={e => e.key === 'Enter' && addFlatItem(cat.key)}
                       placeholder={cat.placeholder}
-                      style={{ flex: 1, fontSize: '0.88rem', padding: '8px 12px' }}
+                      style={{ flex: 1, minWidth: 0, maxWidth: '100%', boxSizing: 'border-box', fontSize: '0.88rem', padding: '8px 12px' }}
                     />
                     <button
                       onClick={() => addFlatItem(cat.key)}
-                      style={{ background: 'linear-gradient(135deg, var(--primary), var(--secondary))', border: 'none', borderRadius: '10px', color: 'white', cursor: 'pointer', padding: '0 14px', display: 'flex', alignItems: 'center', flexShrink: 0 }}
+                      className="settings-touch-icon settings-flat-add"
+                      style={{ background: 'linear-gradient(135deg, var(--primary), var(--secondary))', border: 'none', borderRadius: '10px', color: 'white', cursor: 'pointer', padding: '0 14px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
                     >
                       <Plus size={17} />
                     </button>
@@ -467,11 +577,11 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                       {(lists[cat.key] as string[]).map(item => (
-                        <div key={item} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.04)', borderRadius: '8px', padding: '0.45rem 0.75rem' }}>
-                          <span style={{ fontSize: '0.88rem', color: cat.key === 'criticalities' ? (criticalityColors[item] || 'white') : 'white', fontWeight: cat.key === 'criticalities' ? 600 : 400 }}>
+                        <div className="settings-flat-item" key={item} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.04)', borderRadius: '8px', padding: '0.45rem 0.75rem' }}>
+                          <span className="settings-wrapping-value" style={{ fontSize: '0.88rem', color: cat.key === 'criticalities' ? (criticalityColors[item] || 'white') : 'white', fontWeight: cat.key === 'criticalities' ? 600 : 400 }}>
                             {item}
                           </span>
-                          <button onClick={() => removeFlatItem(cat.key, item)} style={{ background: 'rgba(255,60,60,0.1)', border: 'none', borderRadius: '6px', color: '#ff6060', cursor: 'pointer', padding: '3px 6px', display: 'flex' }}>
+                          <button className="settings-touch-icon" onClick={() => removeFlatItem(cat.key, item)} style={{ background: 'rgba(255,60,60,0.1)', border: 'none', borderRadius: '6px', color: '#ff6060', cursor: 'pointer', padding: '3px 6px', display: 'flex' }}>
                             <Trash2 size={13} />
                           </button>
                         </div>
@@ -487,8 +597,13 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
           {activeTab === 'knowledge' && (
             <>
               {/* Paste zone */}
-              <div style={{ ...sectionStyle, padding: '1.25rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.9rem' }}>
+              {isKnowledgeBaseReadOnly ? (
+                <div style={{ ...sectionStyle, padding: '1rem 1.2rem', border: '1px solid rgba(0,242,255,0.25)', color: 'var(--text-secondary)', fontSize: '0.82rem', lineHeight: 1.5 }}>
+                  La Base de Conocimiento es administrada por Control Central. Puedes consultarla y utilizarla sin conexión.
+                </div>
+              ) : (
+                <div className="settings-mass-upload" style={{ ...sectionStyle, padding: '1.25rem' }}>
+                <div className="settings-block-heading" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.9rem' }}>
                   <ClipboardPaste size={18} color="var(--primary)" />
                   <div>
                     <p style={{ margin: 0, fontWeight: 700, fontSize: '0.92rem' }}>Carga Masiva desde Excel</p>
@@ -526,13 +641,14 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
                   onChange={e => { setPasteText(e.target.value); setParseResult(null); }}
                   placeholder={'Pegar aquí...\n\nFormato esperado (copiado de Excel):\nATADURA\tRecomendaciones\nFaltante\tColocar elemento faltante\nOxidación\tReemplazar elemento\n...'}
                   rows={7}
-                  style={{ width: '100%', fontSize: '0.82rem', fontFamily: 'monospace', resize: 'vertical', marginBottom: '0.75rem' }}
+                  className="settings-paste-area"
+                  style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box', fontSize: '0.82rem', fontFamily: 'monospace', resize: 'vertical', marginBottom: '0.75rem', overflowX: 'hidden', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}
                 />
 
                 <button
                   onClick={processPaste}
                   disabled={!pasteText.trim()}
-                  className="btn-3d"
+                  className="btn-3d settings-primary-action"
                   style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', fontSize: '0.85rem', padding: '0.75rem', opacity: pasteText.trim() ? 1 : 0.4 }}
                 >
                   <ClipboardPaste size={16} /> Procesar y Cargar
@@ -540,7 +656,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
 
                 {/* Parse result feedback */}
                 {parseResult && (
-                  <div style={{
+                  <div className="settings-parse-result" style={{
                     marginTop: '0.75rem', padding: '0.65rem 0.9rem', borderRadius: '10px',
                     background: parseResult.type === 'error' ? 'rgba(255,60,60,0.12)' : 'rgba(0,255,136,0.08)',
                     border: `1px solid ${parseResult.type === 'error' ? 'rgba(255,60,60,0.3)' : 'rgba(0,255,136,0.25)'}`,
@@ -550,12 +666,13 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
                       ? <AlertCircle size={16} color="#ff6060" style={{ flexShrink: 0, marginTop: 2 }} />
                       : <CheckCircle size={16} color="var(--accent)" style={{ flexShrink: 0, marginTop: 2 }} />
                     }
-                    <p style={{ margin: 0, fontSize: '0.78rem', color: parseResult.type === 'error' ? '#ff9090' : '#a0ffc0', lineHeight: 1.4 }}>
+                    <p className="settings-wrapping-value" style={{ margin: 0, fontSize: '0.78rem', color: parseResult.type === 'error' ? '#ff9090' : '#a0ffc0', lineHeight: 1.4 }}>
                       {parseResult.msg}
                     </p>
                   </div>
                 )}
-              </div>
+                </div>
+              )}
 
               {/* Loaded elements */}
               <div style={{ marginTop: '0.25rem' }}>
@@ -566,17 +683,25 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
                 {lists.elements.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-secondary)', fontSize: '0.85rem', background: 'rgba(255,255,255,0.02)', borderRadius: '14px', border: '1px dashed rgba(255,255,255,0.08)' }}>
                     <BookOpen size={32} style={{ opacity: 0.3, marginBottom: '0.75rem' }} />
-                    <p style={{ margin: 0 }}>Sin elementos cargados.<br />Usa la carga masiva ↑ para importar desde Excel.</p>
+                    <p style={{ margin: 0 }}>
+                      Sin elementos cargados.
+                      {!isKnowledgeBaseReadOnly && <><br />Usa la carga masiva ↑ para importar desde Excel.</>}
+                    </p>
                   </div>
                 ) : (
-                  lists.elements.map(el => (
+                  lists.elements.map((el, elementIndex) => (
                     <div key={el.name} style={sectionStyle}>
                       <div
-                        onClick={() => setKbExpanded(p => ({ ...p, [el.name]: !p[el.name] }))}
+                        className="settings-kb-header"
+                        onClick={() => {
+                          if (editingElementIndex !== elementIndex) {
+                            setKbExpanded(p => ({ ...p, [el.name]: !p[el.name] }));
+                          }
+                        }}
                         style={{ width: '100%', padding: '0.85rem 1.2rem', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: 'white' }}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                          <span style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--primary)' }}>{el.name}</span>
+                        <div className="settings-kb-heading" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                          <span className="settings-kb-name" style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--primary)' }}>{el.name}</span>
                           {el.category && (
                             <span style={{
                               background: 'rgba(255,255,255,0.06)',
@@ -594,36 +719,140 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
                             {el.anomalies.length} anomalías
                           </span>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <button
-                            onClick={e => { e.stopPropagation(); removeElement(el.name); }}
-                            style={{ background: 'rgba(255,60,60,0.1)', border: 'none', borderRadius: '6px', color: '#ff6060', cursor: 'pointer', padding: '3px 6px', display: 'flex' }}
-                          >
-                            <Trash2 size={13} />
-                          </button>
+                        <div className="settings-kb-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          {!isKnowledgeBaseReadOnly && editingElementIndex !== elementIndex && (
+                            <button
+                              onClick={e => { e.stopPropagation(); startEditingElement(el, elementIndex); }}
+                              disabled={editingElementIndex !== null}
+                              title="Editar"
+                              className="settings-touch-icon"
+                              style={{ background: 'rgba(0,242,255,0.1)', border: 'none', borderRadius: '6px', color: 'var(--primary)', cursor: editingElementIndex === null ? 'pointer' : 'not-allowed', padding: '3px 6px', display: 'flex', opacity: editingElementIndex === null ? 1 : 0.4 }}
+                            >
+                              <Edit2 size={13} />
+                            </button>
+                          )}
+                          {!isKnowledgeBaseReadOnly && (
+                            <button
+                              onClick={e => { e.stopPropagation(); removeElement(el.name); }}
+                              disabled={editingElementIndex !== null}
+                              title="Eliminar Elemento"
+                              aria-label="Eliminar Elemento"
+                              className="settings-touch-icon"
+                              style={{ background: 'rgba(255,60,60,0.1)', border: 'none', borderRadius: '6px', color: '#ff6060', cursor: editingElementIndex === null ? 'pointer' : 'not-allowed', padding: '3px 6px', display: 'flex', opacity: editingElementIndex === null ? 1 : 0.4 }}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
                           {kbExpanded[el.name] ? <ChevronUp size={14} color="var(--text-secondary)" /> : <ChevronDown size={14} color="var(--text-secondary)" />}
                         </div>
                       </div>
 
                       {kbExpanded[el.name] && (
                         <div style={{ padding: '0 1rem 1rem' }}>
-                          {el.anomalies.map(a => (
+                          {!isKnowledgeBaseReadOnly && editingElementIndex === elementIndex && elementDraft ? (
+                            <div className="settings-element-editor" style={{ background: 'rgba(0,242,255,0.035)', border: '1px solid rgba(0,242,255,0.16)', borderRadius: '10px', padding: '0.85rem' }}>
+                              <div className="settings-element-fields" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(160px, 0.45fr)', gap: '0.65rem', marginBottom: '0.85rem' }}>
+                                <div>
+                                  <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-secondary)', marginBottom: '4px', fontWeight: 600 }}>Elemento</label>
+                                  <input
+                                    value={elementDraft.name}
+                                    onChange={e => setElementDraft({ ...elementDraft, name: e.target.value })}
+                                    style={{ width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box', fontSize: '0.82rem' }}
+                                  />
+                                </div>
+                                <div>
+                                  <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-secondary)', marginBottom: '4px', fontWeight: 600 }}>Categoría</label>
+                                  <select
+                                    value={elementDraft.category || 'Otros'}
+                                    onChange={e => setElementDraft({ ...elementDraft, category: e.target.value })}
+                                    style={{ width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box', background: 'black', border: '1px solid rgba(0,242,255,0.3)', color: 'white', fontSize: '0.82rem', padding: '8px 10px', borderRadius: '8px' }}
+                                  >
+                                    {INSPECTION_CATEGORIES.map(category => (
+                                      <option key={category} value={category}>{category}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </div>
+
+                              {elementDraft.anomalies.map((anomaly, anomalyIndex) => (
+                                <div className="settings-anomaly-row" key={anomalyIndex} style={{ display: 'grid', gridTemplateColumns: 'minmax(150px, 0.8fr) minmax(220px, 1.5fr) auto', gap: '0.5rem', alignItems: 'start', marginBottom: '0.5rem' }}>
+                                  <input
+                                    value={anomaly.name}
+                                    onChange={e => setElementDraft({
+                                      ...elementDraft,
+                                      anomalies: elementDraft.anomalies.map((item, index) => index === anomalyIndex ? { ...item, name: e.target.value } : item)
+                                    })}
+                                    placeholder="Anomalía"
+                                    style={{ width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box', fontSize: '0.8rem' }}
+                                  />
+                                  <textarea
+                                    value={anomaly.recommendation}
+                                    onChange={e => setElementDraft({
+                                      ...elementDraft,
+                                      anomalies: elementDraft.anomalies.map((item, index) => index === anomalyIndex ? { ...item, recommendation: e.target.value } : item)
+                                    })}
+                                    placeholder="Recomendación (opcional)"
+                                    rows={2}
+                                    style={{ width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box', fontSize: '0.8rem', resize: 'vertical' }}
+                                  />
+                                  <button
+                                    onClick={() => setElementDraft({ ...elementDraft, anomalies: elementDraft.anomalies.filter((_, index) => index !== anomalyIndex) })}
+                                    title="Eliminar anomalía"
+                                    className="settings-touch-icon settings-anomaly-delete"
+                                    style={{ background: 'rgba(255,60,60,0.08)', border: 'none', borderRadius: '6px', color: '#ff6060', cursor: 'pointer', padding: '7px', display: 'flex' }}
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                </div>
+                              ))}
+
+                              <button
+                                onClick={() => setElementDraft({ ...elementDraft, anomalies: [...elementDraft.anomalies, { name: '', recommendation: '' }] })}
+                                className="settings-add-anomaly"
+                                style={{ background: 'rgba(0,242,255,0.08)', border: '1px solid rgba(0,242,255,0.2)', borderRadius: '7px', color: 'var(--primary)', cursor: 'pointer', padding: '0.45rem 0.65rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', fontSize: '0.76rem', fontWeight: 700 }}
+                              >
+                                <Plus size={13} /> Agregar Anomalía
+                              </button>
+
+                              <div className="settings-editor-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem', marginTop: '1rem' }}>
+                                <button
+                                  onClick={cancelEditingElement}
+                                  className="settings-editor-action"
+                                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '8px', color: 'white', cursor: 'pointer', padding: '0.55rem 0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', fontSize: '0.78rem', fontWeight: 700 }}
+                                >
+                                  <X size={14} /> Cancelar
+                                </button>
+                                <button
+                                  onClick={saveElementDraft}
+                                  className="btn-3d settings-editor-action"
+                                  style={{ padding: '0.55rem 0.8rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem' }}
+                                >
+                                  <Save size={14} /> Guardar
+                                </button>
+                              </div>
+                            </div>
+                          ) : el.anomalies.map(a => (
                             <div key={a.name} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', padding: '0.6rem 0.75rem', marginBottom: '0.4rem' }}>
                               <ChevronRight size={13} color="var(--text-secondary)" style={{ flexShrink: 0, marginTop: 3 }} />
                               <div style={{ flex: 1, minWidth: 0 }}>
                                 <p style={{ margin: 0, fontWeight: 600, fontSize: '0.85rem', color: 'white' }}>{a.name}</p>
                                 {a.recommendation && (
-                                  <p style={{ margin: '2px 0 0', fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  <p style={{ margin: '2px 0 0', fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', lineHeight: 1.45 }}>
                                     → {a.recommendation}
                                   </p>
                                 )}
                               </div>
-                              <button
-                                onClick={() => removeAnomaly(el.name, a.name)}
-                                style={{ background: 'rgba(255,60,60,0.08)', border: 'none', borderRadius: '6px', color: '#ff6060', cursor: 'pointer', padding: '3px 6px', display: 'flex', flexShrink: 0 }}
-                              >
-                                <Trash2 size={12} />
-                              </button>
+                              {!isKnowledgeBaseReadOnly && (
+                                <button
+                                  onClick={() => removeAnomaly(el.name, a.name)}
+                                  title="Eliminar Anomalía"
+                                  aria-label="Eliminar Anomalía"
+                                  className="settings-touch-icon"
+                                  style={{ background: 'rgba(255,60,60,0.08)', border: 'none', borderRadius: '6px', color: '#ff6060', cursor: 'pointer', padding: '3px 6px', display: 'flex', flexShrink: 0 }}
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -674,7 +903,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
                       <div style={{ textAlign: 'center', background: 'rgba(0,0,0,0.5)', padding: '1.25rem', borderRadius: '10px', border: '1px solid #00f2d1' }}>
                         <p style={{ color: '#AAA', fontSize: '0.8rem', margin: '0 0 0.75rem 0' }}>Ingresa este código en la tablet antigua:</p>
                         
-                        <div style={{ display: 'flex', justifyContent: 'center', gap: '0.6rem', margin: '1rem 0' }}>
+                        <div className="settings-legacy-code" style={{ display: 'flex', justifyContent: 'center', gap: '0.6rem', margin: '1rem 0' }}>
                           {legacyCode.split('').map((char, idx) => (
                             <span key={idx} style={{
                               background: 'rgba(0,242,255,0.08)',
@@ -757,13 +986,14 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                         {knownClients.map(client => (
-                          <div key={client.deviceId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(0,255,136,0.05)', padding: '0.75rem', borderRadius: '8px', border: '1px solid rgba(0,255,136,0.15)' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <div className="settings-known-client" key={client.deviceId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(0,255,136,0.05)', padding: '0.75rem', borderRadius: '8px', border: '1px solid rgba(0,255,136,0.15)' }}>
+                            <div className="settings-known-client-name" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                               <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#00ff88', boxShadow: '0 0 6px #00ff88' }} />
-                              <span style={{ color: 'white', fontWeight: 'bold' }}>{client.deviceName}</span>
+                              <span className="settings-wrapping-value" style={{ color: 'white', fontWeight: 'bold' }}>{client.deviceName}</span>
                             </div>
                             <button 
                               onClick={() => removeKnownClient(client)}
+                              className="settings-known-client-action"
                               style={{ 
                                 background: 'rgba(255,68,68,0.12)', 
                                 color: '#ff6060', 
@@ -883,6 +1113,143 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
       </div>
 
       <style>{`
+        .settings-panel,
+        .settings-content,
+        .settings-panel * {
+          box-sizing: border-box;
+        }
+        .settings-content {
+          max-width: 100%;
+          min-width: 0;
+          overflow-x: hidden;
+        }
+        .settings-header {
+          flex-wrap: wrap;
+          gap: 0.75rem;
+        }
+        .settings-header-main,
+        .settings-header-copy,
+        .settings-block-heading > div,
+        .settings-known-client-name {
+          min-width: 0;
+        }
+        .settings-header-copy h2,
+        .settings-header-copy p,
+        .settings-block-heading p,
+        .settings-wrapping-value,
+        .settings-kb-name,
+        .settings-known-client-name span {
+          overflow-wrap: anywhere;
+          white-space: normal;
+        }
+        .settings-tabs {
+          display: grid !important;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+        .settings-tab {
+          min-width: 0;
+          width: 100%;
+          min-height: 48px;
+          white-space: normal;
+          overflow-wrap: anywhere;
+        }
+        .settings-tab > span {
+          min-width: 0;
+          flex-wrap: wrap;
+        }
+        .settings-section-header,
+        .settings-kb-header,
+        .settings-flat-item,
+        .settings-parse-result,
+        .settings-known-client {
+          min-width: 0;
+          flex-wrap: wrap;
+          gap: 0.5rem;
+        }
+        .settings-kb-heading {
+          min-width: 0;
+          flex: 1 1 220px;
+        }
+        .settings-kb-name {
+          min-width: 0;
+          max-width: 100%;
+        }
+        .settings-kb-actions {
+          flex: 0 0 auto;
+          flex-wrap: wrap;
+        }
+        .settings-touch-icon {
+          min-width: 48px;
+          min-height: 48px;
+          align-items: center;
+          justify-content: center;
+        }
+        .settings-flat-add-row > input,
+        .settings-mass-upload select,
+        .settings-paste-area,
+        .settings-element-editor input,
+        .settings-element-editor select,
+        .settings-element-editor textarea {
+          width: 100%;
+          max-width: 100%;
+          min-width: 0;
+        }
+        .settings-element-fields,
+        .settings-anomaly-row {
+          grid-template-columns: minmax(0, 1fr) !important;
+        }
+        .settings-anomaly-delete,
+        .settings-add-anomaly,
+        .settings-primary-action,
+        .settings-editor-action,
+        .settings-known-client-action {
+          min-height: 48px;
+        }
+        .settings-anomaly-delete,
+        .settings-add-anomaly {
+          width: 100%;
+          justify-content: center;
+        }
+        .settings-editor-actions {
+          flex-wrap: wrap;
+        }
+        .settings-editor-action {
+          flex: 1 1 140px;
+          justify-content: center;
+        }
+        .settings-legacy-code,
+        .settings-known-client {
+          flex-wrap: wrap;
+        }
+        .settings-known-client-name {
+          flex: 1 1 180px;
+        }
+        .settings-known-client-action {
+          flex: 0 0 auto;
+        }
+        @media (max-width: 480px) {
+          .settings-header {
+            padding: 1rem !important;
+          }
+          .settings-tabs {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+          .settings-flat-add-row,
+          .settings-editor-actions {
+            flex-direction: column;
+          }
+          .settings-flat-add,
+          .settings-editor-action,
+          .settings-known-client-action {
+            width: 100%;
+            flex-basis: auto;
+          }
+          .settings-kb-heading,
+          .settings-kb-actions,
+          .settings-known-client-name {
+            flex-basis: 100%;
+          }
+        }
         @keyframes slideInRight {
           from { transform: translateX(100%); opacity: 0; }
           to   { transform: translateX(0);    opacity: 1; }

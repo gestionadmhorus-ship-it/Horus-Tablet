@@ -133,12 +133,13 @@ export const DroneChecklistForm: React.FC<DroneChecklistFormProps> = ({
 
   const renderCheckItems = (items: { key: keyof typeof checks; label: string }[]) => {
     return (
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+      <div className="drone-checklist-checks" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
         {items.map(item => {
           const isChecked = checks[item.key];
           return (
             <div
               key={item.key}
+              className="drone-checklist-item"
               onClick={() => handleCheckboxChange(item.key)}
               style={{
                 display: 'flex',
@@ -181,7 +182,7 @@ export const DroneChecklistForm: React.FC<DroneChecklistFormProps> = ({
               }}>
                 {isChecked && <div style={{ width: '8px', height: '8px', background: 'black', borderRadius: '50%' }} />}
               </div>
-              <span style={{ 
+              <span className="drone-checklist-item-label" style={{
                 fontSize: '0.85rem', 
                 fontWeight: 600, 
                 color: isChecked ? '#fff' : 'var(--text-secondary)',
@@ -197,8 +198,8 @@ export const DroneChecklistForm: React.FC<DroneChecklistFormProps> = ({
   };
 
   return (
-    <div className="container" style={{ maxWidth: '900px', marginTop: '1rem', paddingBottom: '5rem' }}>
-      <button onClick={onBack} className="btn-3d" style={{
+    <div className="container drone-checklist-container" style={{ maxWidth: '900px', marginTop: '1rem', paddingBottom: '5rem' }}>
+      <button onClick={onBack} className="btn-3d drone-checklist-back" style={{
         background: 'rgba(255,255,255,0.03)',
         border: '1px solid rgba(255,255,255,0.08)',
         color: 'var(--text-secondary)',
@@ -211,8 +212,8 @@ export const DroneChecklistForm: React.FC<DroneChecklistFormProps> = ({
         <ArrowLeft size={16} /> Volver
       </button>
 
-      <div className="glass" style={{ padding: '2rem', borderRadius: '16px', marginBottom: '2rem' }}>
-        <h2 style={{ 
+      <div className="glass drone-checklist-card" style={{ padding: '2rem', borderRadius: '16px', marginBottom: '2rem' }}>
+        <h2 className="drone-checklist-title" style={{
           fontSize: '1.8rem', 
           fontWeight: 900, 
           margin: '0 0 0.5rem 0',
@@ -227,7 +228,7 @@ export const DroneChecklistForm: React.FC<DroneChecklistFormProps> = ({
         </p>
 
         {/* Datos Básicos */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+        <div className="drone-checklist-basic-data" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
           <SearchableSelect
             label="Piloto a cargo *"
             options={lists.pilots}
@@ -248,7 +249,7 @@ export const DroneChecklistForm: React.FC<DroneChecklistFormProps> = ({
         </div>
 
         {/* Indicador de pasos */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '1rem' }}>
+        <div className="drone-checklist-steps" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', marginBottom: '2rem', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '1rem' }}>
           {[
             { step: 1, label: '1. Física', active: isFase1Complete },
             { step: 2, label: '2. Enlace', active: isFase2Complete },
@@ -257,6 +258,7 @@ export const DroneChecklistForm: React.FC<DroneChecklistFormProps> = ({
           ].map(s => (
             <button
               key={s.step}
+              className="drone-checklist-step"
               onClick={() => {
                 // Permitimos saltar a fase 3 y 4 solo si el control está enlazado (Fase 2 rcDroneLinked marcado)
                 if (s.step > 2 && !isSystemLinked) {
@@ -291,7 +293,7 @@ export const DroneChecklistForm: React.FC<DroneChecklistFormProps> = ({
           {/* Fase 1 */}
           {activeStep === 1 && (
             <div>
-              <h4 style={{ color: '#fff', fontSize: '1rem', textTransform: 'uppercase', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <h4 className="drone-checklist-phase-title" style={{ color: '#fff', fontSize: '1rem', textTransform: 'uppercase', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <ShieldAlert size={18} style={{ color: 'var(--neon-orange)' }} /> Fase 1: Inspección Física (Dron Apagado)
               </h4>
               {renderCheckItems([
@@ -310,7 +312,7 @@ export const DroneChecklistForm: React.FC<DroneChecklistFormProps> = ({
           {/* Fase 2 */}
           {activeStep === 2 && (
             <div>
-              <h4 style={{ color: '#fff', fontSize: '1rem', textTransform: 'uppercase', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <h4 className="drone-checklist-phase-title" style={{ color: '#fff', fontSize: '1rem', textTransform: 'uppercase', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Wifi size={18} style={{ color: 'var(--neon-green)' }} /> Fase 2: Puesta en Marcha y Enlace
               </h4>
               {renderCheckItems([
@@ -326,7 +328,7 @@ export const DroneChecklistForm: React.FC<DroneChecklistFormProps> = ({
           {/* Fase 3 */}
           {activeStep === 3 && (
             <div>
-              <h4 style={{ color: '#fff', fontSize: '1rem', textTransform: 'uppercase', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <h4 className="drone-checklist-phase-title" style={{ color: '#fff', fontSize: '1rem', textTransform: 'uppercase', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Cpu size={18} style={{ color: 'var(--primary)' }} /> Fase 3: Telemetría y Sistemas (Conectado)
               </h4>
               {renderCheckItems([
@@ -343,7 +345,7 @@ export const DroneChecklistForm: React.FC<DroneChecklistFormProps> = ({
           {/* Fase 4 */}
           {activeStep === 4 && (
             <div>
-              <h4 style={{ color: '#fff', fontSize: '1rem', textTransform: 'uppercase', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <h4 className="drone-checklist-phase-title" style={{ color: '#fff', fontSize: '1rem', textTransform: 'uppercase', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Play size={18} style={{ color: 'var(--neon-green)' }} /> Fase 4: Despegue e Hover Test
               </h4>
               {renderCheckItems([
@@ -361,6 +363,7 @@ export const DroneChecklistForm: React.FC<DroneChecklistFormProps> = ({
             Observaciones (Justificar cualquier ítem no verificado aquí)
           </label>
           <textarea
+            className="drone-checklist-observations"
             value={observations}
             onChange={(e) => setObservations(e.target.value)}
             placeholder="Escribe alguna observación o justificación..."
@@ -380,7 +383,7 @@ export const DroneChecklistForm: React.FC<DroneChecklistFormProps> = ({
         </div>
 
         {/* Botón de Guardado */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2.5rem', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '1.5rem' }}>
+        <div className="drone-checklist-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2.5rem', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '1.5rem' }}>
           <button 
             onClick={onBack}
             className="btn-3d" 
@@ -409,6 +412,79 @@ export const DroneChecklistForm: React.FC<DroneChecklistFormProps> = ({
           </button>
         </div>
       </div>
+      <style>{`
+        .drone-checklist-container,
+        .drone-checklist-card,
+        .drone-checklist-card * {
+          min-width: 0;
+          box-sizing: border-box;
+        }
+        .drone-checklist-card.glass {
+          padding: 2rem !important;
+        }
+        .drone-checklist-title {
+          font-size: 1.8rem !important;
+          overflow-wrap: anywhere;
+        }
+        .drone-checklist-basic-data,
+        .drone-checklist-checks {
+          grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        }
+        .drone-checklist-steps {
+          gap: 0.5rem;
+        }
+        .drone-checklist-step {
+          width: 100%;
+          min-height: 48px;
+          justify-content: center;
+          flex-wrap: wrap;
+          white-space: normal;
+          overflow-wrap: anywhere;
+          text-align: center;
+        }
+        .drone-checklist-item {
+          min-width: 0;
+        }
+        .drone-checklist-item-label,
+        .drone-checklist-phase-title {
+          min-width: 0;
+          white-space: normal;
+          overflow-wrap: anywhere;
+        }
+        .drone-checklist-phase-title {
+          flex-wrap: wrap;
+        }
+        .drone-checklist-observations {
+          width: 100%;
+          max-width: 100%;
+          min-width: 0;
+          box-sizing: border-box;
+          overflow-x: hidden;
+        }
+        .drone-checklist-actions {
+          flex-wrap: wrap;
+        }
+        .drone-checklist-actions > .btn-3d,
+        .drone-checklist-back.btn-3d {
+          width: auto !important;
+          min-height: 48px;
+        }
+        @media (max-width: 600px) {
+          .drone-checklist-basic-data,
+          .drone-checklist-checks {
+            grid-template-columns: minmax(0, 1fr) !important;
+          }
+          .drone-checklist-steps {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          }
+          .drone-checklist-actions {
+            flex-direction: column;
+          }
+          .drone-checklist-actions > .btn-3d {
+            width: 100% !important;
+          }
+        }
+      `}</style>
     </div>
   );
 };

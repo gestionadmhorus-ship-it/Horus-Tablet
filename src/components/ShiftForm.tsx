@@ -16,7 +16,7 @@ interface ShiftFormProps {
 const SelectOrEmpty: React.FC<{ label: string; options: string[]; value: string; onChange: (v: string) => void; required?: boolean }> = ({
   label, options, value, onChange, required
 }) => (
-  <div>
+  <div className="shift-form-field">
     {options.length > 0 ? (
       <SearchableSelect
         label={label}
@@ -129,20 +129,20 @@ const ShiftForm: React.FC<ShiftFormProps> = ({ onSave, onUpdate, onBack, lists, 
   };
 
   return (
-    <div className="container" style={{ paddingBottom: '4rem' }}>
-      <button onClick={onBack} className="btn-3d" style={{ marginBottom: '2.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem', background: '#000', color: 'var(--primary)', border: '1px solid var(--primary)' }}>
+    <div className="container shift-form" style={{ paddingBottom: '4rem' }}>
+      <button onClick={onBack} className="btn-3d shift-form-back" style={{ marginBottom: '2.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem', background: '#000', color: 'var(--primary)', border: '1px solid var(--primary)' }}>
         <ArrowLeft size={20} /> VOLVER AL MENÚ
       </button>
 
-      <div className="glass" style={{ padding: '2rem', borderTop: '4px solid var(--primary)' }}>
-        <h2 style={{ fontSize: '2rem', fontWeight: 900, marginBottom: '2rem', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '2px' }}>{isEditMode ? 'Editar Jornada' : 'Inicio de Jornada'}</h2>
+      <div className="glass shift-form-panel" style={{ padding: '2rem', borderTop: '4px solid var(--primary)' }}>
+        <h2 className="shift-form-title" style={{ fontSize: '2rem', fontWeight: 900, marginBottom: '2rem', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '2px' }}>{isEditMode ? 'Editar Jornada' : 'Inicio de Jornada'}</h2>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
           <div className={`form-accordion-section ${expandedSection === 'coordinator' ? 'active' : ''}`}>
-            <button type="button" className="form-accordion-header" onClick={() => toggleSection('coordinator')}>
-              <span>👤 Coordinador a Cargo</span>
-              <span>{expandedSection === 'coordinator' ? '▲' : '▼'}</span>
+            <button type="button" className="form-accordion-header shift-form-accordion-header" onClick={() => toggleSection('coordinator')}>
+              <span className="shift-form-accordion-title">👤 Coordinador a Cargo</span>
+              <span className="shift-form-accordion-indicator">{expandedSection === 'coordinator' ? '▲' : '▼'}</span>
             </button>
             {expandedSection === 'coordinator' && (
               <div className="form-accordion-content">
@@ -159,16 +159,16 @@ const ShiftForm: React.FC<ShiftFormProps> = ({ onSave, onUpdate, onBack, lists, 
 
           {/* Section 2: Crew / Assistants */}
           <div className={`form-accordion-section ${expandedSection === 'assistants' ? 'active' : ''}`}>
-            <button type="button" className="form-accordion-header" onClick={() => toggleSection('assistants')}>
-              <span>👥 Asistentes de Vuelo</span>
-              <span>{expandedSection === 'assistants' ? '▲' : '▼'}</span>
+            <button type="button" className="form-accordion-header shift-form-accordion-header" onClick={() => toggleSection('assistants')}>
+              <span className="shift-form-accordion-title">👥 Asistentes de Vuelo</span>
+              <span className="shift-form-accordion-indicator">{expandedSection === 'assistants' ? '▲' : '▼'}</span>
             </button>
             {expandedSection === 'assistants' && (
               <div className="form-accordion-content">
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                   {formData.assistants.map((assistant, index) => (
-                    <div key={index} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'nowrap' }}>
-                      <div style={{ flex: 1 }}>
+                    <div key={index} className="shift-form-assistant-row">
+                      <div className="shift-form-assistant-select">
                         <SelectOrEmpty
                           label={`Asistente ${index + 1}`}
                           options={getAvailableAssistants(index)}
@@ -180,7 +180,8 @@ const ShiftForm: React.FC<ShiftFormProps> = ({ onSave, onUpdate, onBack, lists, 
                       <button 
                         type="button" 
                         onClick={() => removeAssistant(index)}
-                        style={{ background: 'rgba(255,0,0,0.1)', border: '1px solid #ff4444', color: '#ff4444', padding: '13px', borderRadius: '4px', cursor: 'pointer', height: '48px', flexShrink: 0 }}
+                        className="shift-form-remove-assistant"
+                        style={{ background: 'rgba(255,0,0,0.1)', border: '1px solid #ff4444', color: '#ff4444', padding: '13px', borderRadius: '4px', cursor: 'pointer', minHeight: '48px', flexShrink: 0 }}
                         title="Remover asistente"
                       >
                         X
@@ -192,7 +193,8 @@ const ShiftForm: React.FC<ShiftFormProps> = ({ onSave, onUpdate, onBack, lists, 
                 <button 
                   type="button" 
                   onClick={addAssistant}
-                  style={{ marginTop: '0.5rem', background: 'transparent', border: '1px dashed var(--primary)', color: 'var(--primary)', padding: '0.75rem 1.5rem', borderRadius: '4px', cursor: 'pointer', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.5rem', width: 'fit-content' }}
+                  className="shift-form-add-assistant"
+                  style={{ marginTop: '0.5rem', background: 'transparent', border: '1px dashed var(--primary)', color: 'var(--primary)', padding: '0.75rem 1.5rem', borderRadius: '4px', cursor: 'pointer', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.5rem', width: 'fit-content', minHeight: '48px' }}
                 >
                   + Agregar otro asistente
                 </button>
@@ -202,13 +204,13 @@ const ShiftForm: React.FC<ShiftFormProps> = ({ onSave, onUpdate, onBack, lists, 
 
           {/* Section 3: Vehicles / Logistics */}
           <div className={`form-accordion-section ${expandedSection === 'logistics' ? 'active' : ''}`}>
-            <button type="button" className="form-accordion-header" onClick={() => toggleSection('logistics')}>
-              <span>🚙 Logística y Movilidad</span>
-              <span>{expandedSection === 'logistics' ? '▲' : '▼'}</span>
+            <button type="button" className="form-accordion-header shift-form-accordion-header" onClick={() => toggleSection('logistics')}>
+              <span className="shift-form-accordion-title">🚙 Logística y Movilidad</span>
+              <span className="shift-form-accordion-indicator">{expandedSection === 'logistics' ? '▲' : '▼'}</span>
             </button>
             {expandedSection === 'logistics' && (
               <div className="form-accordion-content">
-                <div className="grid-cols-2">
+                <div className="shift-form-logistics-grid">
                   <SelectOrEmpty
                     label="Vehículo"
                     options={lists.vehicles}
@@ -229,11 +231,11 @@ const ShiftForm: React.FC<ShiftFormProps> = ({ onSave, onUpdate, onBack, lists, 
           </div>
           </div>
 
-          <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end' }} className="form-actions-container">
+          <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end' }} className="form-actions-container shift-form-actions">
             <button 
               type="submit" 
               disabled={isSaving}
-              className="btn-3d" 
+              className="btn-3d shift-form-submit"
               style={{ 
                 width: '100%', 
                 maxWidth: '350px', 
@@ -251,6 +253,106 @@ const ShiftForm: React.FC<ShiftFormProps> = ({ onSave, onUpdate, onBack, lists, 
           </div>
         </form>
       </div>
+      <style>{`
+        .shift-form,
+        .shift-form * {
+          box-sizing: border-box;
+        }
+        .shift-form-panel,
+        .shift-form-panel form,
+        .shift-form-panel .form-accordion-section,
+        .shift-form-panel .form-accordion-content,
+        .shift-form-field {
+          min-width: 0;
+          max-width: 100%;
+        }
+        .shift-form-back {
+          min-height: 48px;
+          max-width: 100%;
+          white-space: normal;
+        }
+        .shift-form-panel.glass {
+          padding: 2rem !important;
+        }
+        .shift-form-title {
+          min-width: 0;
+          max-width: 100%;
+          font-size: 2rem !important;
+          overflow-wrap: anywhere;
+        }
+        .shift-form-accordion-header {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.75rem;
+          max-width: 100%;
+        }
+        .shift-form-accordion-title {
+          flex: 1 1 auto;
+          min-width: 0;
+          overflow-wrap: anywhere;
+        }
+        .shift-form-accordion-indicator {
+          flex: 0 0 auto;
+        }
+        .shift-form-assistant-row {
+          display: flex;
+          gap: 0.75rem;
+          align-items: flex-end;
+          flex-wrap: nowrap;
+          min-width: 0;
+          max-width: 100%;
+        }
+        .shift-form-assistant-select {
+          flex: 1 1 auto;
+          min-width: 0;
+          max-width: 100%;
+        }
+        .shift-form-remove-assistant {
+          flex: 0 0 auto;
+          min-width: 0;
+        }
+        .shift-form-logistics-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 1.5rem;
+          min-width: 0;
+          max-width: 100%;
+        }
+        .shift-form-logistics-grid > * {
+          min-width: 0;
+          max-width: 100%;
+        }
+        .shift-form-submit {
+          min-height: 48px;
+        }
+        @media (min-width: 601px) and (max-width: 899px) {
+          .shift-form-assistant-row {
+            flex-wrap: wrap;
+          }
+        }
+        @media (max-width: 600px) {
+          .shift-form-assistant-row {
+            flex-direction: column;
+            align-items: stretch;
+            flex-wrap: nowrap;
+          }
+          .shift-form-assistant-select,
+          .shift-form-remove-assistant,
+          .shift-form-add-assistant,
+          .shift-form-submit {
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0;
+          }
+          .shift-form-logistics-grid {
+            grid-template-columns: minmax(0, 1fr);
+            gap: 1rem;
+          }
+          .shift-form-actions.form-actions-container {
+            justify-content: stretch !important;
+          }
+        }
+      `}</style>
     </div>
   );
 };

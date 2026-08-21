@@ -33,13 +33,13 @@ function App() {
   const { 
     fullData: data, 
     lists, 
-    saveShift, updateShift, deleteShift,
-    saveFlight, updateFlight, deleteFlight,
+    saveShift, updateShift, closeShift, reopenShift, deleteShift,
+    saveFlight, updateFlight, closeFlight, deleteFlight,
     saveBattery, updateBattery, deleteBattery,
     saveDetection, updateDetection, deleteDetection,
     saveChecklist, updateChecklist, deleteChecklist,
     saveDroneChecklist, updateDroneChecklist, deleteDroneChecklist,
-    updateLists,
+    updateLists, replaceKnowledgeBase,
     syncIncomingData,
     getUnsyncedData,
     markDataAsSynced,
@@ -221,7 +221,9 @@ function App() {
     appRole === 'client' ? getStatusSnapshot : undefined,
     appRole === 'server' ? handleStatusUpdate : undefined,
     getAllData,
-    deviceName
+    deviceName,
+    () => lists.elements,
+    replaceKnowledgeBase
   );
 
   // Merge hook-managed units state into local state for the dashboard
@@ -451,12 +453,7 @@ function App() {
       if (!confirm) return false;
     }
     
-    await updateFlight({
-      ...flight,
-      status: 'closed',
-      closedTimestamp: closedTime,
-      closingObservations: obs
-    });
+    await closeFlight(flight.id, closedTime, obs);
     return true;
   };
 
@@ -482,12 +479,7 @@ function App() {
           );
           obs = result !== null ? result : '';
         }
-        await updateFlight({ 
-          ...f, 
-          status: 'closed',
-          closedTimestamp: closedTime,
-          closingObservations: obs
-        });
+        await closeFlight(f.id, closedTime, obs);
       }
     }
     await saveFlight({ ...flightData, status: 'active' });
@@ -516,21 +508,16 @@ function App() {
             );
             obs = result !== null ? result : '';
           }
-          await updateFlight({
-            ...f,
-            status: 'closed',
-            closedTimestamp: closedTime,
-            closingObservations: obs
-          });
+          await closeFlight(f.id, closedTime, obs);
         }
-        updateShift({ ...latestShift, status: 'closed' });
+        await closeShift(latestShift.id);
       }
     }
   };
 
   const handleReopenShift = () => {
     if (latestShift && hasTodayClosedShift) {
-      updateShift({ ...latestShift, status: 'active' });
+      reopenShift(latestShift.id);
     }
   };
 
@@ -872,30 +859,31 @@ function App() {
 
       {/* Export Modal */}
       {showExportModal && (
-        <div style={{
+        <div className="global-modal-overlay export-modal-overlay" style={{
           position: 'fixed', inset: 0,
           background: 'rgba(0,0,0,0.8)',
           backdropFilter: 'blur(8px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           zIndex: 1000
         }}>
-          <div className="glass" style={{ padding: '3rem', width: '90%', maxWidth: '500px', position: 'relative' }}>
+          <div className="glass global-modal-panel export-modal-panel" style={{ padding: '3rem', width: '90%', maxWidth: '500px', position: 'relative' }}>
             <button
               onClick={() => setShowExportModal(false)}
+              className="export-modal-close"
               style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}
             >
               <X size={24} />
             </button>
 
-            <h2 style={{ textAlign: 'center', marginBottom: '0.5rem', fontSize: '1.8rem' }}>Exportar Reporte</h2>
-            <p style={{ textAlign: 'center', color: 'var(--text-secondary)', marginBottom: '2rem', fontSize: '0.85rem' }}>
+            <h2 className="global-modal-title export-modal-title" style={{ textAlign: 'center', marginBottom: '0.5rem', fontSize: '1.8rem' }}>Exportar Reporte</h2>
+            <p className="global-modal-copy" style={{ textAlign: 'center', color: 'var(--text-secondary)', marginBottom: '2rem', fontSize: '0.85rem' }}>
               {totalRecords} registro{totalRecords !== 1 ? 's' : ''} disponible{totalRecords !== 1 ? 's' : ''}
             </p>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div className="export-modal-actions" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               <button
                 onClick={() => { exportToExcel(data); setShowExportModal(false); }}
-                className="btn-3d"
+                className="btn-3d global-modal-action"
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', background: 'linear-gradient(135deg, #1D6F42, #217346)' }}
               >
                 <Table size={24} /> Descargar Excel (.xlsx)
@@ -903,23 +891,23 @@ function App() {
 
               <button
                 onClick={() => { exportToJSON(data); setShowExportModal(false); }}
-                className="btn-3d"
+                className="btn-3d global-modal-action"
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', background: 'linear-gradient(135deg, #333, #111)' }}
               >
                 <FileJson size={24} /> Descargar JSON (.json)
               </button>
             </div>
 
-            <div style={{ marginTop: '2rem', display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '0.5rem', textAlign: 'center' }}>
+            <div className="export-modal-summary" style={{ marginTop: '2rem', display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '0.5rem', textAlign: 'center' }}>
               {[
                 { label: 'Jornadas', count: data.shifts.length, color: 'var(--primary)' },
                 { label: 'Vuelos', count: data.flights.length, color: 'var(--secondary)' },
                 { label: 'Baterías', count: data.batteries.length, color: '#00c2ff' },
                 { label: 'Detecciones', count: data.detections.length, color: 'var(--accent)' },
               ].map(({ label, count, color }) => (
-                <div key={label} style={{ background: 'rgba(255,255,255,0.04)', borderRadius: '10px', padding: '0.75rem 0.5rem' }}>
+                <div className="export-modal-metric" key={label} style={{ background: 'rgba(255,255,255,0.04)', borderRadius: '10px', padding: '0.75rem 0.5rem' }}>
                   <div style={{ fontSize: '1.5rem', fontWeight: 800, color }}>{count}</div>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>{label}</div>
+                  <div className="export-modal-metric-label" style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>{label}</div>
                 </div>
               ))}
             </div>
@@ -929,7 +917,7 @@ function App() {
 
       {/* Reusable Custom Tactical Modal for Alerts/Confirms */}
       {dialog.show && (
-        <div style={{
+        <div className="global-modal-overlay tactical-dialog-overlay" style={{
           position: 'fixed', inset: 0,
           background: 'rgba(0,0,0,0.85)',
           backdropFilter: 'blur(10px)',
@@ -937,7 +925,7 @@ function App() {
           zIndex: 1100,
           animation: 'fadeIn 0.2s ease-out'
         }}>
-          <div className="glass" style={{ 
+          <div className="glass global-modal-panel tactical-dialog-panel" style={{
             padding: '2.5rem', 
             width: '90%', 
             maxWidth: '450px', 
@@ -967,16 +955,17 @@ function App() {
               </div>
             </div>
 
-            <h3 style={{ color: 'white', fontSize: '1.4rem', fontWeight: 900, marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
+            <h3 className="global-modal-title" style={{ color: 'white', fontSize: '1.4rem', fontWeight: 900, marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
               {dialog.type === 'confirm' ? 'Confirmación Requerida' : dialog.type === 'prompt' ? 'Registro de Observación' : dialog.type === 'choice' ? 'Selección Requerida' : 'Notificación'}
             </h3>
             
-            <p style={{ color: '#E0E0E0', fontSize: '1.05rem', lineHeight: '1.6', marginBottom: '1.5rem', whiteSpace: 'pre-line', fontWeight: 500 }}>
+            <p className="global-modal-copy" style={{ color: '#E0E0E0', fontSize: '1.05rem', lineHeight: '1.6', marginBottom: '1.5rem', whiteSpace: 'pre-line', fontWeight: 500 }}>
               {dialog.message}
             </p>
 
             {dialog.type === 'prompt' && (
               <textarea
+                className="global-modal-prompt"
                 value={dialog.inputValue || ''}
                 onChange={(e) => setDialog(d => ({ ...d, inputValue: e.target.value }))}
                 placeholder={dialog.placeholder || 'Escriba aquí (opcional)...'}
@@ -998,7 +987,7 @@ function App() {
             )}
 
             {dialog.type === 'choice' && dialog.choices && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
+              <div className="global-modal-choices" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
                 {dialog.choices.map(choice => (
                   <button
                     key={choice}
@@ -1006,7 +995,7 @@ function App() {
                       dialog.resolve?.(choice);
                       setDialog({ show: false, message: '', type: 'alert', placeholder: '', inputValue: '', choices: [], resolve: null });
                     }}
-                    className="btn-3d"
+                    className="btn-3d global-modal-action global-modal-choice"
                     style={{
                       width: '100%',
                       background: choice === 'KMS' ? 'var(--neon-green)' : choice === 'HS' ? 'var(--neon-cyan)' : 'var(--primary)',
@@ -1025,7 +1014,7 @@ function App() {
               </div>
             )}
 
-            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+            <div className="global-modal-actions" style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
               {dialog.type === 'confirm' || dialog.type === 'prompt' ? (
                 <>
                   <button
@@ -1033,7 +1022,7 @@ function App() {
                       dialog.resolve?.(dialog.type === 'prompt' ? (dialog.inputValue || '') : true);
                       setDialog({ show: false, message: '', type: 'alert', placeholder: '', inputValue: '', choices: [], resolve: null });
                     }}
-                    className="btn-3d"
+                    className="btn-3d global-modal-action"
                     style={{
                       flex: 1,
                       background: 'var(--primary)',
@@ -1052,6 +1041,7 @@ function App() {
                       dialog.resolve?.(dialog.type === 'prompt' ? null : false);
                       setDialog({ show: false, message: '', type: 'alert', placeholder: '', inputValue: '', choices: [], resolve: null });
                     }}
+                    className="global-modal-action"
                     style={{
                       flex: 1,
                       background: 'rgba(255,255,255,0.05)',
@@ -1082,6 +1072,7 @@ function App() {
                       dialog.resolve?.(null);
                       setDialog({ show: false, message: '', type: 'alert', placeholder: '', inputValue: '', choices: [], resolve: null });
                     }}
+                    className="global-modal-action"
                     style={{
                       flex: 1,
                       background: 'rgba(255,255,255,0.05)',
@@ -1103,7 +1094,7 @@ function App() {
                     dialog.resolve?.(true);
                     setDialog({ show: false, message: '', type: 'alert', placeholder: '', inputValue: '', choices: [], resolve: null });
                   }}
-                  className="btn-3d"
+                  className="btn-3d global-modal-action"
                   style={{
                     flex: 1,
                     background: '#00ff88',
@@ -1123,6 +1114,90 @@ function App() {
           </div>
         </div>
       )}
+      <style>{`
+        .global-modal-overlay,
+        .global-modal-overlay * {
+          box-sizing: border-box;
+        }
+        .global-modal-overlay {
+          padding: 1rem;
+          align-items: flex-start !important;
+          overflow-x: hidden;
+          overflow-y: auto;
+        }
+        .global-modal-panel {
+          min-width: 0;
+          max-height: calc(100dvh - 2rem);
+          margin: auto;
+          overflow-x: hidden;
+          overflow-y: auto;
+        }
+        .global-modal-title,
+        .global-modal-copy,
+        .export-modal-metric,
+        .export-modal-metric-label {
+          min-width: 0;
+          max-width: 100%;
+          overflow-wrap: anywhere;
+        }
+        .export-modal-title {
+          padding-inline: 2.5rem;
+        }
+        .export-modal-close {
+          width: 48px;
+          min-width: 48px;
+          height: 48px;
+          min-height: 48px;
+          padding: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .global-modal-action {
+          min-width: 0;
+          min-height: 48px;
+          max-width: 100%;
+          white-space: normal;
+          overflow-wrap: anywhere;
+        }
+        .global-modal-actions {
+          min-width: 0;
+          max-width: 100%;
+          flex-wrap: wrap;
+        }
+        .global-modal-actions > .global-modal-action {
+          flex: 1 1 150px !important;
+        }
+        .global-modal-prompt {
+          width: 100%;
+          min-width: 0;
+          max-width: 100%;
+          box-sizing: border-box;
+        }
+        .global-modal-choices,
+        .export-modal-actions {
+          min-width: 0;
+          max-width: 100%;
+        }
+        .export-modal-summary {
+          grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+          min-width: 0;
+          max-width: 100%;
+        }
+        @media (max-width: 600px) {
+          .global-modal-actions {
+            flex-direction: column;
+            align-items: stretch;
+          }
+          .global-modal-actions > .global-modal-action {
+            width: 100% !important;
+            flex-basis: auto !important;
+          }
+          .export-modal-summary {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }

@@ -83,20 +83,20 @@ const FlightForm: React.FC<FlightFormProps> = ({
   };
 
   return (
-    <div className="container" style={{ paddingBottom: '4rem' }}>
-      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
-        <button onClick={onBack} className="btn-3d" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: '#000', color: 'var(--primary)', border: '1px solid var(--primary)', flexShrink: 0 }}>
+    <div className="container flight-form" style={{ paddingBottom: '4rem' }}>
+      <div className="flight-form-header-actions" style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+        <button onClick={onBack} className="btn-3d flight-form-header-action" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: '#000', color: 'var(--primary)', border: '1px solid var(--primary)', flexShrink: 0 }}>
           <ArrowLeft size={20} /> VOLVER AL MENÚ
         </button>
         {isEditMode && onRegisterNew && (
-          <button onClick={onRegisterNew} className="btn-3d" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: '#000', color: '#00ff88', border: '1px solid #00ff88', flexShrink: 0 }}>
+          <button onClick={onRegisterNew} className="btn-3d flight-form-header-action" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: '#000', color: '#00ff88', border: '1px solid #00ff88', flexShrink: 0 }}>
             + REGISTRAR NUEVO VUELO
           </button>
         )}
       </div>
 
       {activeShiftId && (
-        <div style={{ 
+        <div className="flight-form-active-shift" style={{
           background: 'rgba(0,255,136,0.1)', 
           border: '1.5px solid var(--neon-green)', 
           color: '#00ff88', 
@@ -109,11 +109,12 @@ const FlightForm: React.FC<FlightFormProps> = ({
           fontWeight: 'bold', 
           boxShadow: 'none' 
         }}>
-          <span>📍 JORNADA ACTIVA: {activeShiftId}</span>
+          <span className="flight-form-active-shift-text">📍 JORNADA ACTIVA: {activeShiftId}</span>
           {onChangeShift && (
             <button 
               type="button" 
               onClick={onChangeShift}
+              className="flight-form-change-shift"
               style={{ 
                 background: 'rgba(0,255,136,0.2)', 
                 border: '1px solid #00ff88', 
@@ -134,8 +135,8 @@ const FlightForm: React.FC<FlightFormProps> = ({
         </div>
       )}
 
-      <div className="glass" style={{ padding: '2rem', borderTop: '4px solid #00ff88', boxShadow: '0 -5px 20px rgba(0,255,136,0.1)' }}>
-        <h2 style={{ fontSize: '2rem', fontWeight: 900, marginBottom: '2rem', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '2px' }}>
+      <div className="glass flight-form-panel" style={{ padding: '2rem', borderTop: '4px solid #00ff88', boxShadow: '0 -5px 20px rgba(0,255,136,0.1)' }}>
+        <h2 className="flight-form-title" style={{ fontSize: '2rem', fontWeight: 900, marginBottom: '2rem', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '2px' }}>
           {isEditMode ? `Editar Registro ${flightType}` : flightType === 'KMS' ? 'Registro Vuelos KMS' : 'Registro de Vuelos HS.'}
         </h2>
 
@@ -144,13 +145,13 @@ const FlightForm: React.FC<FlightFormProps> = ({
             <>
               {/* Section 1: Pilot & Category */}
               <div className={`form-accordion-section ${expandedSection === 'sec1' ? 'active' : ''}`}>
-                <button type="button" onClick={() => toggleSection('sec1')} className="form-accordion-header">
-                  <span>👤 Personal y Categoría</span>
-                  <span>{expandedSection === 'sec1' ? '▲' : '▼'}</span>
+                <button type="button" onClick={() => toggleSection('sec1')} className="form-accordion-header flight-form-accordion-header">
+                  <span className="flight-form-accordion-title">👤 Personal y Categoría</span>
+                  <span className="flight-form-accordion-indicator">{expandedSection === 'sec1' ? '▲' : '▼'}</span>
                 </button>
                 {expandedSection === 'sec1' && (
                   <div className="form-accordion-content">
-                    <div>
+                    <div className="flight-form-field">
                       {lists.pilots.length > 0 ? (
                         <SearchableSelect
                           label="Piloto"
@@ -173,7 +174,7 @@ const FlightForm: React.FC<FlightFormProps> = ({
                         </>
                       )}
                     </div>
-                    <div>
+                    <div className="flight-form-field">
                       <label style={{ display: 'block', marginBottom: '6px' }}>Categoría de Inspección</label>
                       <select
                         value={formData.category}
@@ -200,14 +201,14 @@ const FlightForm: React.FC<FlightFormProps> = ({
 
               {/* Section 2: Line & Auth Code */}
               <div className={`form-accordion-section ${expandedSection === 'sec2' ? 'active' : ''}`}>
-                <button type="button" onClick={() => toggleSection('sec2')} className="form-accordion-header">
-                  <span>⚡ Línea y Habilitación</span>
-                  <span>{expandedSection === 'sec2' ? '▲' : '▼'}</span>
+                <button type="button" onClick={() => toggleSection('sec2')} className="form-accordion-header flight-form-accordion-header">
+                  <span className="flight-form-accordion-title">⚡ Línea y Habilitación</span>
+                  <span className="flight-form-accordion-indicator">{expandedSection === 'sec2' ? '▲' : '▼'}</span>
                 </button>
                 {expandedSection === 'sec2' && (
                   <div className="form-accordion-content">
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
-                      <div>
+                    <div className="flight-form-kms-grid">
+                      <div className="flight-form-field">
                         <label>Nombre de Línea</label>
                         <input
                           type="text"
@@ -218,7 +219,7 @@ const FlightForm: React.FC<FlightFormProps> = ({
                           onChange={e => setFormData({ ...formData, lineName: e.target.value })}
                         />
                       </div>
-                      <div>
+                      <div className="flight-form-field">
                         <label>Etapa (Opcional)</label>
                         <input
                           type="text"
@@ -228,7 +229,7 @@ const FlightForm: React.FC<FlightFormProps> = ({
                           onChange={e => setFormData({ ...formData, stage: e.target.value })}
                         />
                       </div>
-                      <div>
+                      <div className="flight-form-field">
                         <label>Código de Habilitación / Otros</label>
                         <input
                           type="text"
@@ -246,13 +247,13 @@ const FlightForm: React.FC<FlightFormProps> = ({
 
               {/* Section 3: Observations */}
               <div className={`form-accordion-section ${expandedSection === 'sec3' ? 'active' : ''}`}>
-                <button type="button" onClick={() => toggleSection('sec3')} className="form-accordion-header">
-                  <span>📝 Observaciones</span>
-                  <span>{expandedSection === 'sec3' ? '▲' : '▼'}</span>
+                <button type="button" onClick={() => toggleSection('sec3')} className="form-accordion-header flight-form-accordion-header">
+                  <span className="flight-form-accordion-title">📝 Observaciones</span>
+                  <span className="flight-form-accordion-indicator">{expandedSection === 'sec3' ? '▲' : '▼'}</span>
                 </button>
                 {expandedSection === 'sec3' && (
                   <div className="form-accordion-content">
-                    <div>
+                    <div className="flight-form-field flight-form-full-field">
                       <textarea
                         rows={4}
                         placeholder="Notas adicionales sobre el vuelo..."
@@ -268,13 +269,13 @@ const FlightForm: React.FC<FlightFormProps> = ({
             <>
               {/* Section 1: Solicitor */}
               <div className={`form-accordion-section ${expandedSection === 'sec1' ? 'active' : ''}`}>
-                <button type="button" onClick={() => toggleSection('sec1')} className="form-accordion-header">
-                  <span>👤 Solicitante</span>
-                  <span>{expandedSection === 'sec1' ? '▲' : '▼'}</span>
+                <button type="button" onClick={() => toggleSection('sec1')} className="form-accordion-header flight-form-accordion-header">
+                  <span className="flight-form-accordion-title">👤 Solicitante</span>
+                  <span className="flight-form-accordion-indicator">{expandedSection === 'sec1' ? '▲' : '▼'}</span>
                 </button>
                 {expandedSection === 'sec1' && (
                   <div className="form-accordion-content">
-                    <div>
+                    <div className="flight-form-field flight-form-full-field">
                       <label>Solicitado por</label>
                       <input
                         type="text"
@@ -290,13 +291,13 @@ const FlightForm: React.FC<FlightFormProps> = ({
 
               {/* Section 2: Task Type & Location */}
               <div className={`form-accordion-section ${expandedSection === 'sec2' ? 'active' : ''}`}>
-                <button type="button" onClick={() => toggleSection('sec2')} className="form-accordion-header">
-                  <span>📍 Tarea y Ubicación</span>
-                  <span>{expandedSection === 'sec2' ? '▲' : '▼'}</span>
+                <button type="button" onClick={() => toggleSection('sec2')} className="form-accordion-header flight-form-accordion-header">
+                  <span className="flight-form-accordion-title">📍 Tarea y Ubicación</span>
+                  <span className="flight-form-accordion-indicator">{expandedSection === 'sec2' ? '▲' : '▼'}</span>
                 </button>
                 {expandedSection === 'sec2' && (
                   <div className="form-accordion-content">
-                    <div>
+                    <div className="flight-form-field flight-form-full-field">
                       <label>Tipo de tarea y Locación</label>
                       <input
                         type="text"
@@ -312,13 +313,13 @@ const FlightForm: React.FC<FlightFormProps> = ({
 
               {/* Section 3: Details */}
               <div className={`form-accordion-section ${expandedSection === 'sec3' ? 'active' : ''}`}>
-                <button type="button" onClick={() => toggleSection('sec3')} className="form-accordion-header">
-                  <span>📋 Detalles y Notas</span>
-                  <span>{expandedSection === 'sec3' ? '▲' : '▼'}</span>
+                <button type="button" onClick={() => toggleSection('sec3')} className="form-accordion-header flight-form-accordion-header">
+                  <span className="flight-form-accordion-title">📋 Detalles y Notas</span>
+                  <span className="flight-form-accordion-indicator">{expandedSection === 'sec3' ? '▲' : '▼'}</span>
                 </button>
                 {expandedSection === 'sec3' && (
                   <div className="form-accordion-content">
-                    <div>
+                    <div className="flight-form-field flight-form-full-field">
                       <label>Detalles</label>
                       <textarea
                         rows={4}
@@ -328,7 +329,7 @@ const FlightForm: React.FC<FlightFormProps> = ({
                         onChange={e => setFormData({ ...formData, details: e.target.value })}
                       />
                     </div>
-                    <div>
+                    <div className="flight-form-field flight-form-full-field">
                       <label>Observaciones de Cierre (Opcional)</label>
                       <textarea
                         rows={3}
@@ -343,11 +344,11 @@ const FlightForm: React.FC<FlightFormProps> = ({
             </>
           )}
 
-          <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end' }} className="form-actions-container">
+          <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end' }} className="form-actions-container flight-form-actions">
             <button 
               type="submit" 
               disabled={isSaving}
-              className="btn-3d" 
+              className="btn-3d flight-form-submit"
               style={{ 
                 width: '100%', 
                 maxWidth: '350px', 
@@ -365,6 +366,134 @@ const FlightForm: React.FC<FlightFormProps> = ({
           </div>
         </form>
       </div>
+      <style>{`
+        .flight-form,
+        .flight-form * {
+          box-sizing: border-box;
+        }
+        .flight-form-header-actions,
+        .flight-form-active-shift,
+        .flight-form-panel,
+        .flight-form-panel form,
+        .flight-form-panel .form-accordion-section,
+        .flight-form-panel .form-accordion-content,
+        .flight-form-field {
+          min-width: 0;
+          max-width: 100%;
+        }
+        .flight-form-header-actions {
+          align-items: stretch;
+        }
+        .flight-form-header-action {
+          min-width: 0;
+          max-width: 100%;
+          min-height: 48px;
+          white-space: normal;
+        }
+        .flight-form-active-shift {
+          gap: 1rem;
+        }
+        .flight-form-active-shift-text {
+          flex: 1 1 auto;
+          min-width: 0;
+          max-width: 100%;
+          overflow-wrap: anywhere;
+        }
+        .flight-form-change-shift {
+          flex: 0 0 auto;
+          min-width: 0;
+          max-width: 100%;
+          min-height: 48px;
+          white-space: normal;
+        }
+        .flight-form-panel.glass {
+          padding: 2rem !important;
+        }
+        .flight-form-title {
+          min-width: 0;
+          max-width: 100%;
+          font-size: 2rem !important;
+          overflow-wrap: anywhere;
+        }
+        .flight-form-accordion-header {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.75rem;
+          max-width: 100%;
+        }
+        .flight-form-accordion-title {
+          flex: 1 1 auto;
+          min-width: 0;
+          overflow-wrap: anywhere;
+        }
+        .flight-form-accordion-indicator {
+          flex: 0 0 auto;
+        }
+        .flight-form-field,
+        .flight-form-field input,
+        .flight-form-field select,
+        .flight-form-field textarea {
+          width: 100%;
+          min-width: 0;
+          max-width: 100%;
+        }
+        .flight-form-full-field {
+          box-sizing: border-box;
+        }
+        .flight-form-kms-grid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 1rem;
+          min-width: 0;
+          max-width: 100%;
+        }
+        .flight-form-kms-grid > * {
+          min-width: 0;
+          max-width: 100%;
+        }
+        .flight-form-submit {
+          min-height: 48px;
+        }
+        @media (max-width: 1099px) {
+          .flight-form-active-shift {
+            flex-wrap: wrap;
+          }
+          .flight-form-kms-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+        }
+        @media (min-width: 601px) and (max-width: 768px) {
+          .flight-form-header-action {
+            width: auto !important;
+            max-width: 100% !important;
+          }
+          .flight-form-actions.form-actions-container {
+            justify-content: flex-end !important;
+          }
+          .flight-form-submit {
+            max-width: 350px !important;
+          }
+        }
+        @media (max-width: 600px) {
+          .flight-form-header-actions,
+          .flight-form-active-shift {
+            flex-direction: column;
+            align-items: stretch !important;
+          }
+          .flight-form-header-action,
+          .flight-form-change-shift,
+          .flight-form-submit {
+            width: 100% !important;
+            max-width: 100% !important;
+          }
+          .flight-form-kms-grid {
+            grid-template-columns: minmax(0, 1fr);
+          }
+          .flight-form-actions.form-actions-container {
+            justify-content: stretch !important;
+          }
+        }
+      `}</style>
     </div>
   );
 };

@@ -36,6 +36,7 @@ export interface ShiftData {
   drone: string;
   status?: 'active' | 'closed';
   deviceName?: string;
+  originDeviceId?: string;
   isSynced?: boolean;
   isEdited?: boolean;
   editedTimestamp?: string;
@@ -195,6 +196,7 @@ export interface AppData {
   detections: DetectionData[];
   checklists?: VehicleChecklistData[];
   droneChecklists?: DroneChecklistData[];
+  knowledgeBase?: ElementEntry[];
 }
 
 /* ─── Sync Configuration ─── */

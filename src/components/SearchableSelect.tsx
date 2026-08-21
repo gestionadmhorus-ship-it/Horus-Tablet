@@ -52,6 +52,8 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
     option.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const showSelectedValue = !!value && !isOpen;
+
   const handleSelect = (option: string) => {
     onChange(option);
     setSearchTerm(option);
@@ -100,9 +102,13 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   };
 
   return (
-    <div ref={containerRef} style={{ position: 'relative', width: '100%', ...style }}>
+    <div
+      ref={containerRef}
+      className="searchable-select"
+      style={{ position: 'relative', width: '100%', minWidth: 0, maxWidth: '100%', boxSizing: 'border-box', ...style }}
+    >
       {label && <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.82rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '2px', color: 'var(--text-secondary)' }}>{label}</label>}
-      <div style={{ position: 'relative' }}>
+      <div style={{ position: 'relative', width: '100%', minWidth: 0, maxWidth: '100%', minHeight: '48px', boxSizing: 'border-box' }}>
         <input
           ref={inputRef}
           type="text"
@@ -117,20 +123,53 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
           required={required && !value}
           style={{
             width: '100%',
-            padding: '16px 45px 16px 16px',
+            minWidth: 0,
+            maxWidth: '100%',
+            minHeight: '48px',
+            height: showSelectedValue ? '100%' : undefined,
+            position: showSelectedValue ? 'absolute' : 'relative',
+            inset: showSelectedValue ? 0 : undefined,
+            padding: `16px ${value ? '92px' : '60px'} 16px 16px`,
             background: 'var(--bg-input)',
             border: isOpen ? '1.5px solid var(--primary)' : '1px solid var(--border-input)',
             boxShadow: isOpen ? '0 0 15px var(--primary-glow)' : 'none',
             borderRadius: '8px',
-            color: 'var(--text-primary)',
+            color: showSelectedValue ? 'transparent' : 'var(--text-primary)',
+            caretColor: showSelectedValue ? 'transparent' : 'var(--text-primary)',
             fontSize: 'max(16px, 1.05rem)',
             fontWeight: 700,
             outline: 'none',
             transition: 'all 0.2s ease',
-            textOverflow: 'ellipsis'
+            overflow: 'hidden',
+            textOverflow: 'clip',
+            whiteSpace: 'nowrap'
           }}
         />
-        <div style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        {showSelectedValue && (
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'relative',
+              zIndex: 1,
+              width: '100%',
+              minWidth: 0,
+              maxWidth: '100%',
+              minHeight: '48px',
+              padding: '16px 92px 16px 16px',
+              color: 'var(--text-primary)',
+              fontSize: 'max(16px, 1.05rem)',
+              fontWeight: 700,
+              lineHeight: 1.35,
+              whiteSpace: 'normal',
+              overflowWrap: 'anywhere',
+              pointerEvents: 'none',
+              boxSizing: 'border-box'
+            }}
+          >
+            {value}
+          </div>
+        )}
+        <div style={{ position: 'absolute', zIndex: 2, right: '8px', top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: '8px', maxWidth: 'calc(100% - 16px)' }}>
           {value && (
             <button
               type="button"
@@ -140,7 +179,11 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
                 border: 'none',
                 color: 'var(--text-secondary)',
                 cursor: 'pointer',
-                padding: '4px',
+                padding: 0,
+                width: '48px',
+                minWidth: '48px',
+                height: '48px',
+                minHeight: '48px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -167,7 +210,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
 
       {isOpen && (
         <div
-          className="glass"
+          className="glass searchable-select-menu"
           style={{
             position: 'absolute',
             top: 'calc(100% + 4px)',
@@ -204,9 +247,14 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
                     fontWeight: isSelected ? 800 : 600,
                     fontSize: '0.95rem',
                     transition: 'all 0.15s ease',
-                    minHeight: '46px',
+                    minHeight: '48px',
+                    minWidth: 0,
+                    maxWidth: '100%',
+                    whiteSpace: 'normal',
+                    overflowWrap: 'anywhere',
                     display: 'flex',
-                    alignItems: 'center'
+                    alignItems: 'center',
+                    boxSizing: 'border-box'
                   }}
                 >
                   {option}
@@ -220,6 +268,19 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
           )}
         </div>
       )}
+      <style>{`
+        .searchable-select,
+        .searchable-select * {
+          box-sizing: border-box;
+        }
+        .searchable-select-menu.glass {
+          width: 100%;
+          min-width: 0;
+          max-width: 100%;
+          padding: 4px !important;
+          overflow-x: hidden;
+        }
+      `}</style>
     </div>
   );
 };

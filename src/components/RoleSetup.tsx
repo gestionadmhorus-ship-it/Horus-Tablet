@@ -86,8 +86,8 @@ export function RoleSetup({ onComplete }: RoleSetupProps) {
   };
 
   return (
-    <div style={{
-      minHeight: '100vh',
+    <div className="role-setup" style={{
+      minHeight: '100dvh',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -95,7 +95,7 @@ export function RoleSetup({ onComplete }: RoleSetupProps) {
       padding: '1rem',
       position: 'relative'
     }}>
-      <div className="glass" style={{
+      <div className="glass role-setup-panel" style={{
         maxWidth: '500px',
         width: '100%',
         padding: '2.5rem',
@@ -104,24 +104,25 @@ export function RoleSetup({ onComplete }: RoleSetupProps) {
         textAlign: 'center'
       }}>
         {/* Logo + Branding */}
-        <div style={{ marginBottom: '1.5rem' }}>
-          <img src="/logo_horus_nuevo.png" alt="Horus Dron" style={{ height: '70px', marginBottom: '0.75rem' }} />
-          <h1 style={{ fontSize: '2rem', fontWeight: 900, letterSpacing: '3px', color: 'var(--primary)', margin: 0, textTransform: 'uppercase' }}>
+        <div className="role-setup-brand" style={{ marginBottom: '1.5rem' }}>
+          <img className="role-setup-logo" src="/logo_horus_nuevo.png" alt="Horus Dron" style={{ maxHeight: '70px', width: 'auto', height: 'auto', marginBottom: '0.75rem' }} />
+          <h1 className="role-setup-wrapping-text" style={{ fontSize: '2rem', fontWeight: 900, letterSpacing: '3px', color: 'var(--primary)', margin: 0, textTransform: 'uppercase' }}>
             Hermes <span style={{ fontStyle: 'italic' }}>II</span>
           </h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', letterSpacing: '2px', textTransform: 'uppercase', margin: '0.25rem 0 0 0' }}>
+          <p className="role-setup-wrapping-text" style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', letterSpacing: '2px', textTransform: 'uppercase', margin: '0.25rem 0 0 0' }}>
             Horus Dron — Imágenes Aéreas
           </p>
         </div>
 
-        <h2 style={{ fontSize: '1.2rem', marginBottom: '0.5rem', color: 'white' }}>Configuración Inicial</h2>
-        <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem', fontSize: '0.9rem' }}>
+        <h2 className="role-setup-wrapping-text" style={{ fontSize: '1.2rem', marginBottom: '0.5rem', color: 'white' }}>Configuración Inicial</h2>
+        <p className="role-setup-wrapping-text" style={{ color: 'var(--text-secondary)', marginBottom: '2rem', fontSize: '0.9rem' }}>
           Define el rol de este dispositivo en la red.
         </p>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '2rem' }}>
+        <div className="role-setup-role-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '2rem' }}>
           <button
             onClick={() => setRole('server')}
+            className="role-setup-role-card"
             style={{
               padding: '1.5rem',
               borderRadius: '12px',
@@ -143,6 +144,7 @@ export function RoleSetup({ onComplete }: RoleSetupProps) {
 
           <button
             onClick={() => setRole('client')}
+            className="role-setup-role-card"
             style={{
               padding: '1.5rem',
               borderRadius: '12px',
@@ -164,8 +166,8 @@ export function RoleSetup({ onComplete }: RoleSetupProps) {
         </div>
 
         {role === 'client' && (
-          <div style={{ marginBottom: '2rem', textAlign: 'left' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>
+          <div className="role-setup-device" style={{ marginBottom: '2rem', textAlign: 'left' }}>
+            <label className="role-setup-wrapping-text" style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>
               Nombre de Identificación (Ej. Dron-Alfa)
             </label>
             <input
@@ -183,23 +185,24 @@ export function RoleSetup({ onComplete }: RoleSetupProps) {
         )}
 
         {role === 'server' && (
-          <div style={{ marginBottom: '2rem', padding: '1rem', background: 'rgba(240,196,25,0.1)', borderRadius: '8px', color: 'var(--primary)', fontSize: '0.9rem' }}>
+          <div className="role-setup-message role-setup-wrapping-text" style={{ marginBottom: '2rem', padding: '1rem', background: 'rgba(240,196,25,0.1)', borderRadius: '8px', color: 'var(--primary)', fontSize: '0.9rem' }}>
             Este equipo operará como la Central de datos. Asegúrate de que sea el único configurado como Control.
           </div>
         )}
 
         {error && (
-          <div style={{ color: '#ff4444', marginBottom: '1rem', fontSize: '0.9rem' }}>
+          <div className="role-setup-message role-setup-wrapping-text" style={{ color: '#ff4444', marginBottom: '1rem', fontSize: '0.9rem' }}>
             {error}
           </div>
         )}
 
         {scanning && (
-          <div style={{ marginTop: '2rem', padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '12px' }}>
-            <h3 style={{ color: 'white', marginBottom: '1rem' }}>Escanea el código QR de Control</h3>
-            <div id="reader" style={{ width: '100%', maxWidth: '400px', margin: '0 auto' }}></div>
+          <div className="role-setup-scanner" style={{ marginTop: '2rem', padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '12px' }}>
+            <h3 className="role-setup-wrapping-text" style={{ color: 'white', marginBottom: '1rem' }}>Escanea el código QR de Control</h3>
+            <div id="reader" className="role-setup-reader" style={{ width: '100%', maxWidth: '400px', margin: '0 auto' }}></div>
             <button
               onClick={() => setScanning(false)}
+              className="role-setup-cancel"
               style={{ marginTop: '1rem', padding: '0.5rem 1rem', background: 'transparent', border: '1px solid #ff4444', color: '#ff4444', borderRadius: '4px', cursor: 'pointer' }}
             >
               Cancelar
@@ -210,13 +213,120 @@ export function RoleSetup({ onComplete }: RoleSetupProps) {
         {!scanning && (
           <button
             onClick={role === 'server' ? handleCompleteServer : handleStartClientSetup}
-            className="btn-3d"
+            className="btn-3d role-setup-primary-action"
             style={{ width: '100%', padding: '1rem', fontSize: '1.1rem', background: 'white', color: 'black' }}
           >
             {role === 'client' ? 'Siguiente (Escanear QR)' : 'Guardar Configuración'}
           </button>
         )}
       </div>
+
+      <style>{`
+        .role-setup,
+        .role-setup * {
+          box-sizing: border-box;
+        }
+
+        .role-setup {
+          width: 100%;
+          min-width: 0;
+          max-width: 100%;
+          height: auto;
+          overflow-x: hidden;
+          overflow-y: visible;
+        }
+
+        .role-setup-panel {
+          width: 100%;
+          min-width: 0;
+          max-width: min(500px, 100%) !important;
+        }
+
+        .role-setup-brand,
+        .role-setup-device,
+        .role-setup-message,
+        .role-setup-scanner,
+        .role-setup-role-grid {
+          min-width: 0;
+          max-width: 100%;
+        }
+
+        .role-setup-logo {
+          max-width: 100%;
+          object-fit: contain;
+        }
+
+        .role-setup-wrapping-text,
+        .role-setup-role-card span {
+          min-width: 0;
+          max-width: 100%;
+          white-space: normal;
+          overflow-wrap: anywhere;
+        }
+
+        .role-setup-role-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        }
+
+        .role-setup-role-card {
+          width: 100%;
+          min-width: 0;
+          max-width: 100%;
+          min-height: 48px;
+        }
+
+        .role-setup-device input {
+          width: 100%;
+          min-width: 0;
+          max-width: 100%;
+        }
+
+        .role-setup-primary-action,
+        .role-setup-cancel {
+          min-height: 48px;
+          white-space: normal;
+          overflow-wrap: anywhere;
+        }
+
+        .role-setup-reader {
+          width: 100%;
+          min-width: 0;
+          max-width: 400px;
+          overflow-x: hidden;
+        }
+
+        .role-setup-reader,
+        .role-setup-reader * {
+          box-sizing: border-box;
+        }
+
+        .role-setup-reader * {
+          max-width: 100%;
+        }
+
+        @media (max-width: 600px) {
+          .role-setup {
+            align-items: flex-start !important;
+          }
+
+          .role-setup-role-grid {
+            grid-template-columns: minmax(0, 1fr) !important;
+          }
+
+          .role-setup-role-card,
+          .role-setup-cancel,
+          .role-setup-primary-action {
+            width: 100% !important;
+            max-width: 100% !important;
+          }
+        }
+
+        @media (max-height: 600px) {
+          .role-setup {
+            align-items: flex-start !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }

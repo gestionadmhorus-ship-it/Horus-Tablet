@@ -419,122 +419,169 @@ const Dashboard: React.FC<DashboardProps> = ({
         .col-span-2 { grid-column: span 2; }
         .col-span-3 { grid-column: span 3; }
 
-        @media (max-width: 1024px) {
-          .dashboard-container {
+        @media (max-width: 1024px) and (orientation: portrait), (max-width: 700px) {
+          .dashboard-container:not(.server-mode) {
             width: 100vw;
-            height: 100vh;
-            max-height: 100vh;
+            height: auto;
+            min-height: 100dvh;
+            max-height: none;
             margin: 0;
             border-radius: 0;
             border: none;
             padding: 1.25rem;
             background: transparent;
             box-shadow: none;
+            overflow: visible;
+            justify-content: flex-start;
+            gap: 1rem;
+          }
+          .dashboard-container:not(.server-mode) .dashboard-banner {
+            flex-wrap: wrap;
+            gap: 1rem;
+          }
+          .dashboard-container:not(.server-mode) .dashboard-banner > * {
+            min-width: 0;
+          }
+          .dashboard-container:not(.server-mode) .dashboard-top-actions {
+            position: relative !important;
+            top: auto !important;
+            right: auto !important;
+            width: 100%;
+            max-width: 100%;
+            flex-wrap: wrap;
+            align-items: stretch !important;
+            justify-content: flex-end;
+          }
+          .dashboard-container:not(.server-mode) .dashboard-top-actions > * {
+            max-width: 100%;
+          }
+          .dashboard-container:not(.server-mode) .dashboard-top-actions > div:first-child {
+            flex: 1 1 100%;
+          }
+          .dashboard-container:not(.server-mode) .sync-label,
+          .dashboard-container:not(.server-mode) .dashboard-banner-subtitle,
+          .dashboard-container:not(.server-mode) .dashboard-card-desc,
+          .dashboard-container:not(.server-mode) .card-live-metric {
+            white-space: normal !important;
+            overflow: visible !important;
+            text-overflow: clip !important;
+            overflow-wrap: anywhere;
+          }
+          .dashboard-container:not(.server-mode) .dashboard-reopen-banner {
+            flex-wrap: wrap;
+            gap: 1rem;
+          }
+          .dashboard-container:not(.server-mode) .dashboard-clock-row {
+            flex-wrap: wrap;
+          }
+          .dashboard-container:not(.server-mode) .dashboard-close-shift {
+            margin-left: 0 !important;
+          }
+          .dashboard-container:not(.server-mode) .dashboard-grid {
+            width: 100%;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            align-content: start;
+            flex-grow: 0;
+          }
+          .dashboard-container:not(.server-mode) .col-span-2,
+          .dashboard-container:not(.server-mode) .col-span-3 {
+            grid-column: span 1;
+          }
+          .dashboard-container:not(.server-mode) .dashboard-card-shell {
+            min-width: 0;
+          }
+          .dashboard-container:not(.server-mode) .dashboard-card-shell .dashboard-card {
+            padding-right: 4rem;
+          }
+          .dashboard-container:not(.server-mode) .dashboard-action-overlay {
+            padding: 1rem;
+            overflow-y: auto;
+          }
+          .dashboard-container:not(.server-mode) .dashboard-action-dialog {
+            max-height: calc(100dvh - 2rem);
+            overflow-y: auto;
           }
         }
 
-        @media (max-width: 768px) {
-          .dashboard-container {
-            padding: 0.5rem;
-            padding-top: 0.5rem;
+        @media (max-width: 600px) {
+          .dashboard-container:not(.server-mode) {
+            padding: 1.25rem;
           }
-          .dashboard-banner {
-            padding: 0.75rem;
+          .dashboard-container:not(.server-mode) .dashboard-banner {
+            flex-direction: column;
+            align-items: stretch;
           }
-          .dashboard-banner-title {
-            font-size: 1.15rem;
+          .dashboard-container:not(.server-mode) .dashboard-brand-area {
+            align-items: flex-start !important;
           }
-          .dashboard-banner-subtitle {
-            font-size: 0.6rem;
+          .dashboard-container:not(.server-mode) .dashboard-grid {
+            grid-template-columns: minmax(0, 1fr) !important;
           }
-          .dashboard-grid {
-            grid-template-columns: repeat(2, 1fr) !important;
-            gap: 0.5rem;
-            padding-bottom: 0.5rem;
-          }
-          .col-span-2 { grid-column: span 1 !important; }
-          .col-span-3 { grid-column: span 1 !important; }
-          .mobile-full-width { grid-column: span 2 !important; }
+          .dashboard-container:not(.server-mode) .col-span-2 { grid-column: span 1 !important; }
+          .dashboard-container:not(.server-mode) .col-span-3 { grid-column: span 1 !important; }
+          .dashboard-container:not(.server-mode) .mobile-full-width { grid-column: span 1 !important; }
 
-          .dashboard-banner {
+          .dashboard-container:not(.server-mode) .dashboard-banner {
             border: 1px solid rgba(255, 255, 255, 0.12) !important;
             border-bottom: 3px solid rgba(255, 255, 255, 0.25) !important;
             border-right: 3px solid rgba(255, 255, 255, 0.25) !important;
             box-shadow: 4px 4px 15px rgba(0, 0, 0, 0.5) !important;
           }
           
-          .dashboard-top-actions > div, .dashboard-top-actions > button {
+          .dashboard-container:not(.server-mode) .dashboard-top-actions > div,
+          .dashboard-container:not(.server-mode) .dashboard-top-actions > button {
             border: 1px solid rgba(255, 255, 255, 0.12) !important;
             border-bottom: 3px solid rgba(255, 255, 255, 0.25) !important;
             border-right: 3px solid rgba(255, 255, 255, 0.25) !important;
             box-shadow: 4px 4px 15px rgba(0, 0, 0, 0.5) !important;
           }
 
-          .dashboard-card {
-            padding: 0.6rem;
-            min-height: 95px;
-            justify-content: space-around;
+          .dashboard-container:not(.server-mode) .dashboard-card {
             border: 1px solid rgba(255, 255, 255, 0.12) !important;
             border-bottom: 3px solid rgba(255, 255, 255, 0.25) !important;
             border-right: 3px solid rgba(255, 255, 255, 0.25) !important;
             box-shadow: 4px 4px 15px rgba(0, 0, 0, 0.5) !important;
             background: var(--bg-dark) !important;
           }
-          .dashboard-card-title {
-            font-size: 0.85rem !important;
-            line-height: 1.1;
+          .dashboard-container:not(.server-mode) .dashboard-top-actions {
+            flex-direction: column;
           }
-          .dashboard-card-desc {
+          .dashboard-container:not(.server-mode) .dashboard-top-actions > * {
+            width: 100%;
+          }
+          .dashboard-container:not(.server-mode) .dashboard-theme-actions {
+            justify-content: center;
+          }
+          .dashboard-container:not(.server-mode) .dashboard-reopen-banner,
+          .dashboard-container:not(.server-mode) .dashboard-clock-row {
+            flex-direction: column;
+            align-items: stretch !important;
+          }
+          .dashboard-container:not(.server-mode) .dashboard-reopen-banner button,
+          .dashboard-container:not(.server-mode) .dashboard-close-shift {
+            width: 100%;
+            justify-content: center;
+          }
+          .dashboard-container:not(.server-mode) .telemetry-wave {
             display: none !important;
           }
-          .card-live-metric {
-            font-size: 0.6rem;
-            padding: 0.3rem 0.4rem;
-            margin-top: 0.3rem;
+          .dashboard-container:not(.server-mode) .flight-actions {
+            flex-direction: column !important;
           }
-          .card-icon-wrapper {
-            padding: 0.4rem;
-            width: fit-content;
-            margin-bottom: 0.2rem;
-          }
-          .card-icon-wrapper svg {
-            width: 18px;
-            height: 18px;
-          }
-          .dashboard-top-actions {
-            position: relative !important;
-            top: auto !important;
-            right: auto !important;
-            width: 100%;
-            justify-content: flex-end;
-            margin-bottom: 0.5rem;
+          .dashboard-container:not(.server-mode) .flight-actions > div {
+            width: 100% !important;
             flex-wrap: wrap;
           }
-          .telemetry-wave {
-            display: none !important;
+          .dashboard-container:not(.server-mode) .flight-actions button {
+            min-width: 100%;
           }
-          .flight-actions {
-            flex-direction: row !important;
-            gap: 0.25rem !important;
-            margin-top: 0.25rem;
-          }
-          .flight-actions > div {
-            gap: 0.25rem !important;
-            width: auto !important;
-            flex: 2;
-          }
-          .flight-actions button {
-            padding: 0.35rem !important;
-            flex: 1;
-          }
-          .action-text {
-            display: none !important;
-          }
-          .dashboard-edit-badge {
-            width: 24px !important;
-            height: 24px !important;
-            top: 6px !important;
-            right: 6px !important;
+        }
+        @media (min-width: 701px) and (orientation: landscape) and (max-height: 700px) {
+          .dashboard-container:not(.server-mode) {
+            height: auto;
+            min-height: 100dvh;
+            max-height: none;
+            overflow: visible;
           }
         }
         /* ─── Units Telemetry Panel (server only) ─── */
@@ -724,7 +771,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
 
         {/* Brand identity area */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.4rem' }}>
+        <div className="dashboard-brand-area" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.4rem' }}>
           <img src="/logo_horus_nuevo.png" alt="Horus Dron" style={{ height: '36px', opacity: 0.9 }} />
           {appRole && (
             <span style={{
@@ -766,7 +813,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             <span className="sync-label">{syncStatus}</span>
           </div>
         )}
-        <div style={{ display: 'flex', gap: '0.3rem', background: 'var(--card-bg)', border: '1px solid var(--border-input)', borderRadius: '8px', padding: '3px', boxShadow: 'var(--shadow-glow)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}>
+        <div className="dashboard-theme-actions" style={{ display: 'flex', gap: '0.3rem', background: 'var(--card-bg)', border: '1px solid var(--border-input)', borderRadius: '8px', padding: '3px', boxShadow: 'var(--shadow-glow)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}>
           {[
             { id: 'hud', label: '🌙 HUD', title: 'Modo Oscuro' },
             { id: 'boost', label: '⚡ BOOST', title: 'HUD Alto Brillo' }
@@ -875,7 +922,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       {/* Clock & Close Shift section */}
       {appRole !== 'server' && (
         <div className="dashboard-clock-section">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem' }}>
+        <div className="dashboard-clock-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem' }}>
           <Clock size={16} color="var(--text-secondary)" />
           <span className="dashboard-clock-text">
             {formatDateDMY(currentTime)} | {formatTime24h(currentTime)}
@@ -884,6 +931,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={onCloseShift}
+              className="dashboard-close-shift"
               style={{
                 background: 'rgba(239, 68, 68, 0.1)',
                 border: '1px solid var(--neon-red)',
@@ -914,7 +962,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       {appRole !== 'server' && (
         <div className="dashboard-grid">
         {/* ─── Inicio de Jornada ─── */}
-        <div style={{ position: 'relative' }} className="col-span-2">
+        <div style={{ position: 'relative' }} className="dashboard-card-shell col-span-2">
           <motion.div
             whileTap={{ scale: 0.98 }}
             onClick={() => hasActiveShift ? onEditShift() : onNavigate('shift')}
@@ -956,7 +1004,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
  
         {/* ─── Registro Vuelos KMS ─── */}
-        <div style={{ position: 'relative' }} className="col-span-2">
+        <div style={{ position: 'relative' }} className="dashboard-card-shell col-span-2">
           <motion.div
             className={`dashboard-card ${isKMSActive ? 'card-vuelo-activo' : ''}`}
             onClick={() => hasActiveShift ? (isKMSActive ? setActionMenu('KMS') : onNewFlight('KMS')) : undefined}
@@ -991,7 +1039,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
 
         {/* ─── Baterías & Detecciones ─── */}
-        <div style={{ position: 'relative' }} className="col-span-2">
+        <div style={{ position: 'relative' }} className="dashboard-card-shell col-span-2">
           <motion.div
             whileTap={isBatteryEnabled ? { scale: 0.98 } : {}}
             onClick={() => isBatteryEnabled && onNavigate('batteries')}
@@ -1031,7 +1079,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
 
         {/* ─── Registro Vuelos HS ─── */}
-        <div style={{ position: 'relative' }} className="col-span-2">
+        <div style={{ position: 'relative' }} className="dashboard-card-shell col-span-2">
           <motion.div
             className={`dashboard-card ${isHSActive ? 'card-vuelo-activo' : ''}`}
             onClick={() => hasActiveShift ? (isHSActive ? setActionMenu('HS') : onNewFlight('HS')) : undefined}
@@ -1378,8 +1426,8 @@ const Dashboard: React.FC<DashboardProps> = ({
       </footer>
 
       {actionMenu && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(5px)' }} onClick={() => setActionMenu(null)}>
-          <div style={{ background: 'var(--bg-dark)', padding: '1.5rem', borderRadius: '16px', border: '1.5px solid var(--border-input)', display: 'flex', flexDirection: 'column', gap: '1rem', width: '85%', maxWidth: '350px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }} onClick={e => e.stopPropagation()}>
+        <div className="dashboard-action-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(5px)' }} onClick={() => setActionMenu(null)}>
+          <div className="dashboard-action-dialog" style={{ background: 'var(--bg-dark)', padding: '1.5rem', borderRadius: '16px', border: '1.5px solid var(--border-input)', display: 'flex', flexDirection: 'column', gap: '1rem', width: '85%', maxWidth: '350px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }} onClick={e => e.stopPropagation()}>
             <h3 style={{ margin: 0, textAlign: 'center', color: 'var(--text-primary)', marginBottom: '0.5rem', fontSize: '1.1rem' }}>Opciones de Vuelo {actionMenu}</h3>
             
             <button onClick={() => { onEditFlight(); setActionMenu(null); }} style={{ padding: '1rem', background: 'rgba(217,119,6,0.1)', color: 'var(--primary)', border: '1px solid var(--primary)', borderRadius: '8px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', fontSize: '0.9rem' }}>

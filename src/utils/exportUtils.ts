@@ -101,6 +101,8 @@ export const exportToExcel = async (
     { width: 26 }, // Nombre de archivo
     { width: 18 }, // Acceso a Traza
     { width: 40 }, // Observaciones (Siguiente a Acceso a Traza)
+    { width: 24 }, // Piloto
+    { width: 24 }, // Código de autorización
   ];
 
   wsHS.columns = [
@@ -139,7 +141,9 @@ export const exportToExcel = async (
       '',
       '',
       '',
-      '' // Column I (index 8) left empty for QR
+      '', // Column I (index 8) left empty for QR
+      '',
+      ''
     ]);
     
     // Styling Title Row
@@ -174,7 +178,7 @@ export const exportToExcel = async (
       console.error('Error generating QR code in Excel:', qrErr);
     }
 
-    // Row 2: Headers (9 columns)
+    // Row 2: Headers (11 columns)
     const headerRow = sheet.addRow([
       'Fecha',
       'Hora',
@@ -184,7 +188,9 @@ export const exportToExcel = async (
       'Criticidad',
       'Nombre de archivo',
       'Acceso a Traza',
-      'Observaciones'
+      'Observaciones',
+      'Piloto',
+      'Código de autorización'
     ]);
     headerRow.height = 24;
     headerRow.eachCell((cell) => {
@@ -198,7 +204,11 @@ export const exportToExcel = async (
     });
 
     if (detectionsList.length === 0) {
-      const noDataRow = sheet.addRow(['Sin detecciones registradas', '', '', '', '', '', '', '', '']);
+      const noDataRow = sheet.addRow([
+        'Sin detecciones registradas', '', '', '', '', '', '', '', '',
+        flight.pilot || '',
+        flight.authCode || ''
+      ]);
       noDataRow.eachCell((cell) => {
         cell.font = { name: 'Segoe UI', italic: true, color: { argb: 'FF757575' } };
         cell.alignment = { vertical: 'middle', horizontal: 'left' };
@@ -215,7 +225,9 @@ export const exportToExcel = async (
           det.criticality || '',
           det.fileName || '',
           det.accessStatus || 'Buena',
-          det.observations || ''
+          det.observations || '',
+          flight.pilot || '',
+          flight.authCode || ''
         ]);
 
         row.eachCell((cell, colNum) => {
@@ -284,7 +296,7 @@ export const exportToExcel = async (
       closeDate || 'No finalizado',
       'Hora finalizada:',
       closeTime || 'No finalizado',
-      '', '', '', '', ''
+      '', '', '', '', '', '', ''
     ]);
     closingRow.height = 20;
     closingRow.eachCell((cell) => {
@@ -536,6 +548,139 @@ export const exportToExcel = async (
   const link = document.createElement('a');
   link.href = url;
   link.download = `Reporte_Jornada_${dateStr}.xlsx`;
+  link.click();
+  window.URL.revokeObjectURL(url);
+};
+
+export const exportBatteriesToExcel = async (
+  data: AppData,
+  options?: {
+    dateMode?: 'specific' | 'range';
+    specificDate?: string;
+    startDate?: string;
+    endDate?: string;
+  }
+) => {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('Baterías');
+  const flightMap = new Map(data.flights.filter(flight => !flight.isDeleted).map(flight => [flight.id, flight]));
+  const shiftMap = new Map(data.shifts.filter(shift => !shift.isDeleted).map(shift => [shift.id, shift]));
+
+  const specDate = options?.specificDate ? new Date(options.specificDate + 'T00:00:00') : null;
+  const start = options?.startDate ? new Date(options.startDate + 'T00:00:00') : null;
+  const end = options?.endDate ? new Date(options.endDate + 'T23:59:59') : null;
+
+  const batteries = data.batteries
+    .filter(battery => {
+      if (battery.isDeleted) return false;
+      if (!options?.dateMode) return true;
+
+      const batteryDate = parseLocalTimestampToDate(battery.timestamp);
+      if (!batteryDate) return false;
+
+      if (options.dateMode === 'specific') {
+        return !!specDate
+          && batteryDate.getFullYear() === specDate.getFullYear()
+          && batteryDate.getMonth() === specDate.getMonth()
+          && batteryDate.getDate() === specDate.getDate();
+      }
+
+      return !!start && !!end && batteryDate >= start && batteryDate <= end;
+    })
+    .sort((a, b) => getChronologicalTime(a.timestamp) - getChronologicalTime(b.timestamp));
+
+  worksheet.columns = [
+    { header: 'Jornada', key: 'shift', width: 24 },
+    { header: 'Fecha de jornada', key: 'shiftDate', width: 18 },
+    { header: 'Vuelo', key: 'flight', width: 30 },
+    { header: 'Tipo de vuelo', key: 'flightType', width: 16 },
+    { header: 'Dron', key: 'drone', width: 18 },
+    { header: 'Piloto', key: 'pilot', width: 24 },
+    { header: 'Batería dron', key: 'droneBattery', width: 18 },
+    { header: 'Batería control', key: 'controlBattery', width: 18 },
+    { header: 'Fecha del registro', key: 'recordDate', width: 20 },
+    { header: 'Hora del registro', key: 'recordTime', width: 18 }
+  ];
+
+  batteries.forEach(battery => {
+    const flight = battery.flightId ? flightMap.get(battery.flightId) : undefined;
+    const shift = flight?.shiftId ? shiftMap.get(flight.shiftId) : undefined;
+    const shiftTimestamp = shift ? splitTimestamp(shift.timestamp) : { date: '—', time: '' };
+    const batteryTimestamp = splitTimestamp(battery.timestamp);
+    const flightName = flight
+      ? (flight.flightType === 'HS' ? flight.taskTypeAndLocation : flight.lineName) || flight.id
+      : battery.flightId || '—';
+
+    worksheet.addRow({
+      shift: shift?.id || '—',
+      shiftDate: shiftTimestamp.date || '—',
+      flight: flightName,
+      flightType: flight ? (flight.flightType || 'KMS') : '—',
+      drone: shift?.drone || '—',
+      pilot: flight?.pilot || battery.pilot || '—',
+      droneBattery: battery.droneBatteryName || '—',
+      controlBattery: battery.controlBatteryName || '—',
+      recordDate: batteryTimestamp.date || '—',
+      recordTime: batteryTimestamp.time || '—'
+    });
+  });
+
+  const header = worksheet.getRow(1);
+  header.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+  header.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F2937' } };
+  header.alignment = { vertical: 'middle', horizontal: 'center' };
+  worksheet.views = [{ state: 'frozen', ySplit: 1 }];
+  worksheet.autoFilter = { from: 'A1', to: 'J1' };
+
+  const dateStr = new Date().toISOString().split('T')[0];
+  const fileName = `Reporte_Baterias_${dateStr}.xlsx`;
+  const buffer = await workbook.xlsx.writeBuffer();
+
+  if (typeof window !== 'undefined' && !!(window as any).Capacitor?.isNativePlatform?.()) {
+    try {
+      const { Filesystem, Directory } = await import('@capacitor/filesystem');
+      const bytes = new Uint8Array(buffer);
+      let binary = '';
+      const chunk = 8192;
+      for (let i = 0; i < bytes.byteLength; i += chunk) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk) as any);
+      }
+
+      const writeResult = await Filesystem.writeFile({
+        path: `Horus_Datos/${fileName}`,
+        data: window.btoa(binary),
+        directory: Directory.Documents,
+        recursive: true
+      });
+
+      await window.customAlert(
+        `📊 REPORTE DE BATERÍAS GENERADO\n\n` +
+        `El archivo se ha guardado con éxito en tu dispositivo.\n\n` +
+        `📁 Ubicación: Documentos/Horus_Datos/${fileName}`
+      );
+
+      try {
+        const { Share } = await import('@capacitor/share');
+        await Share.share({
+          title: 'Compartir Reporte de Baterías',
+          text: `Reporte de Baterías - ${dateStr}`,
+          files: [writeResult.uri],
+          dialogTitle: 'Compartir o guardar reporte de baterías'
+        });
+      } catch (shareErr) {
+        console.log('Compartir cancelado o no disponible:', shareErr);
+      }
+    } catch (err: any) {
+      await window.customAlert(`❌ Error al guardar el reporte de baterías: ${err.message || err}`);
+    }
+    return;
+  }
+
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
   link.click();
   window.URL.revokeObjectURL(url);
 };

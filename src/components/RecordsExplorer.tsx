@@ -8,7 +8,7 @@ import PrintableChecklistBatch from './PrintableChecklistBatch';
 import type { 
   ShiftData, FlightData, BatteryData, DetectionData, AppData, ListsData 
 } from '../types';
-import { exportToExcel } from '../utils/exportUtils';
+import { exportBatteriesToExcel, exportToExcel } from '../utils/exportUtils';
 import { parseLocalTimestampToDate } from '../utils/dateUtils';
 
 interface RecordsExplorerProps {
@@ -248,6 +248,15 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
     });
   };
 
+  const handleExportBatteries = () => {
+    exportBatteriesToExcel(props.data, {
+      dateMode,
+      specificDate,
+      startDate,
+      endDate
+    });
+  };
+
   const handleDelete = async (id: string) => {
     const ok1 = await window.customConfirm('¿Estás seguro de eliminar este registro? (Paso 1 de 2)');
     if (!ok1) return;
@@ -276,20 +285,20 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
       {/* Hide UI when printing bulk checklists */}
       <div className="records-explorer-ui">
       {/* Header Navigation */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '3rem', borderBottom: '2px solid rgba(255,255,255,0.1)', paddingBottom: '2rem' }}>
+      <div className="records-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '3rem', borderBottom: '2px solid rgba(255,255,255,0.1)', paddingBottom: '2rem' }}>
         <div style={{ display: 'flex', gap: '1rem' }}>
           <button onClick={props.onBack} className="btn-3d" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: '#000', color: 'var(--primary)', border: '1px solid var(--primary)', padding: '1rem 2rem' }}>
             <ArrowLeft size={20} /> VOLVER AL MENÚ
           </button>
         </div>
-        <div style={{ textAlign: 'right' }}>
+        <div className="records-header-title" style={{ textAlign: 'right' }}>
           <h2 style={{ fontSize: '2.5rem', fontWeight: 900, margin: 0, color: 'var(--text-primary)', textTransform: 'uppercase' }}>Historial Técnico</h2>
           <p style={{ color: 'var(--primary)', fontWeight: 900, margin: 0, letterSpacing: '4px', background: '#000', display: 'inline-block', padding: '2px 10px', fontSize: '0.8rem', border: '1px solid var(--primary)' }}>HORUS DRON</p>
         </div>
       </div>
 
       {/* Table Selector Tabs */}
-      <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
+      <div className="records-tabs" style={{ gap: '1rem', marginBottom: '1.5rem', paddingBottom: '0.5rem' }}>
         {[
           { id: 'shifts', label: 'Jornadas', icon: LayoutDashboard },
           { id: 'flights', label: 'Vuelos', icon: Plane },
@@ -300,8 +309,9 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
           <button
             key={tab.id}
             onClick={() => handleTableChange(tab.id as RecordType)}
+            className="records-tab"
             style={{
-              flex: 1, minWidth: '180px', padding: '1.2rem', borderRadius: '8px', border: '2px solid',
+              padding: '1.2rem', borderRadius: '8px', border: '2px solid',
               borderColor: activeTable === tab.id ? 'var(--primary)' : 'var(--border-input)',
               background: activeTable === tab.id ? 'var(--primary)' : 'var(--bg-input)',
               color: activeTable === tab.id ? 'var(--bg-dark)' : 'var(--text-secondary)',
@@ -318,7 +328,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
 
       {/* Subtype selector for checklists */}
       {activeTable === 'checklists' && (
-        <div style={{ display: 'flex', gap: '1rem', marginBottom: '2.5rem', justifyContent: 'center' }}>
+        <div className="records-checklist-selector" style={{ display: 'flex', gap: '1rem', marginBottom: '2.5rem', justifyContent: 'center' }}>
           <button
             onClick={() => { setChecklistSubtype('vehicle'); setSearchField('all'); setSearchTerm(''); }}
             className="btn-3d"
@@ -371,7 +381,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
       </div>
 
       {/* Filters Bar */}
-      <div className={`glass filters-bar-desktop ${showMobileFilters ? 'show-mobile' : ''}`} style={{ 
+      <div className={`glass filters-bar-desktop records-filters ${showMobileFilters ? 'show-mobile' : ''}`} style={{
         padding: '2rem', 
         marginBottom: '2.5rem', 
         display: 'flex', 
@@ -383,14 +393,15 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
         borderRadius: '16px',
         boxShadow: 'var(--shadow-glow)'
       }}>
-        <div style={{ flex: '2 1 300px' }}>
+        <div className="records-search-block" style={{ flex: '2 1 300px' }}>
           <label>Buscador Específico</label>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <div className="records-search-row" style={{ display: 'flex', gap: '0.5rem' }}>
             <select
               value={searchField}
               onChange={e => setSearchField(e.target.value)}
               style={{
-                width: '170px',
+                width: '100%',
+                maxWidth: '170px',
                 background: 'var(--bg-input)',
                 border: '1px solid var(--border-input)',
                 color: 'var(--text-primary)',
@@ -418,9 +429,9 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
         </div>
 
         {/* Date Mode Toggle */}
-        <div style={{ flex: '1 1 200px', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        <div className="records-date-mode" style={{ flex: '1 1 200px', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
           <label>Filtro de Fecha</label>
-          <div style={{ display: 'flex', background: 'var(--bg-input)', padding: '4px', borderRadius: '8px', border: '1px solid var(--border-input)' }}>
+          <div className="records-date-toggle" style={{ display: 'flex', background: 'var(--bg-input)', padding: '4px', borderRadius: '8px', border: '1px solid var(--border-input)' }}>
             <button
               onClick={() => setDateMode('specific')}
               style={{
@@ -462,7 +473,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
 
         {/* Specific Date Input */}
         {dateMode === 'specific' && (
-          <div style={{ flex: '1 1 200px' }}>
+          <div className="records-date-field" style={{ flex: '1 1 200px' }}>
             <label>Fecha Seleccionada</label>
             <div style={{ position: 'relative' }}>
               <Calendar size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary)', pointerEvents: 'none' }} />
@@ -485,7 +496,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
         {/* Range Date Inputs */}
         {dateMode === 'range' && (
           <>
-            <div style={{ flex: '1 1 180px' }}>
+            <div className="records-date-field" style={{ flex: '1 1 180px' }}>
               <label>Fecha Desde</label>
               <div style={{ position: 'relative' }}>
                 <Calendar size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary)', pointerEvents: 'none' }} />
@@ -503,7 +514,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
                 />
               </div>
             </div>
-            <div style={{ flex: '1 1 180px' }}>
+            <div className="records-date-field" style={{ flex: '1 1 180px' }}>
               <label>Fecha Hasta</label>
               <div style={{ position: 'relative' }}>
                 <Calendar size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary)', pointerEvents: 'none' }} />
@@ -525,9 +536,9 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
         )}
 
         {/* Action Button */}
-        <div style={{ flex: '0 0 160px', display: 'flex', gap: '0.5rem', flexDirection: 'column', justifyContent: 'flex-end' }}>
+        <div className="records-actions" style={{ display: 'flex', gap: '0.5rem', flexDirection: 'column', justifyContent: 'flex-end' }}>
           {activeTable === 'checklists' && (
-            <button onClick={() => window.print()} className="btn-3d" style={{ width: '100%', height: '58px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', background: '#ff6600', color: 'black', border: '1px solid #ff6600' }}>
+            <button onClick={() => window.print()} className="btn-3d records-action-button" style={{ width: '100%', padding: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', background: '#ff6600', color: 'black', border: '1px solid #ff6600' }}>
               <Printer size={18} /> IMPRIMIR LOTES
             </button>
           )}
@@ -535,20 +546,38 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
             <button 
               onClick={handleExportFiltered} 
               disabled={filteredData.length === 0}
-              className="btn-3d" 
-              style={{ 
-                width: '100%', 
-                height: '40px', 
-                padding: 0, 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center', 
+              className="btn-3d records-action-button"
+              style={{
+                width: '100%',
+                padding: '1rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
                 gap: '0.75rem',
                 opacity: filteredData.length === 0 ? 0.5 : 1,
                 cursor: filteredData.length === 0 ? 'not-allowed' : 'pointer'
               }}
             >
               <Download size={16} /> EXPORTAR
+            </button>
+          )}
+          {activeTable === 'batteries' && (
+            <button
+              onClick={handleExportBatteries}
+              disabled={!isFilterActive || props.data.batteries.length === 0}
+              className="btn-3d records-action-button"
+              style={{
+                width: '100%',
+                padding: '1rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.75rem',
+                opacity: !isFilterActive || props.data.batteries.length === 0 ? 0.5 : 1,
+                cursor: !isFilterActive || props.data.batteries.length === 0 ? 'not-allowed' : 'pointer'
+              }}
+            >
+              <Download size={16} /> REPORTE BATERÍAS
             </button>
           )}
           
@@ -572,14 +601,13 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
                 props.onAddNew('checklists');
               }
             }}
-            className="btn-3d" 
-            style={{ 
-              width: '100%', 
-              height: '40px', 
-              padding: 0, 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center', 
+            className="btn-3d records-action-button"
+            style={{
+              width: '100%',
+              padding: '1rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               gap: '0.5rem',
               background: 'linear-gradient(135deg, #0ea5e9, #0284c7)',
               border: '1px solid #0ea5e9'
@@ -795,7 +823,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
                   <div>
                     <div className="history-card-title">
                       {activeTable === 'shifts' && `Jornada: ${item.id.slice(-8)}`}
-                      {activeTable === 'flights' && `Vuelo: ${item.flightType || 'KMS'} (${item.lineName || item.taskTypeAndLocation || 'HS'})`}
+                      {activeTable === 'flights' && `Vuelo: ${item.flightType === 'HS' ? 'HS' : 'KMS'} (${item.flightType === 'HS' ? (item.taskTypeAndLocation || 'HS') : (item.lineName || 'KMS')})`}
                       {activeTable === 'batteries' && `Registro Batería`}
                       {activeTable === 'detections' && `Detección: ${item.element}`}
                       {activeTable === 'checklists' && `Checklist ${checklistSubtype === 'drone' ? 'Dron' : 'Vehicular'}`}
@@ -805,11 +833,9 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
                       {item.isEdited && <span style={{ display: 'block', color: 'var(--primary)', fontSize: '0.7rem' }}>✍️ Editado: {item.editedTimestamp}</span>}
                     </div>
                   </div>
-                  {item.deviceName && (
-                    <span className="history-card-badge" style={{ color: '#00f2ff', border: '1px solid rgba(0,242,255,0.2)', background: 'rgba(0,242,255,0.05)', display: 'inline-block' }}>
-                      {item.deviceName}
-                    </span>
-                  )}
+                  <span className="history-card-badge" style={{ color: '#00f2ff', border: '1px solid rgba(0,242,255,0.2)', background: 'rgba(0,242,255,0.05)', display: 'inline-block' }}>
+                    Origen: {item.deviceName || 'Local'}
+                  </span>
                 </div>
 
                 <div className="history-card-body">
@@ -840,7 +866,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
                         <span className="history-card-label">Piloto:</span>
                         <span className="history-card-value">{item.pilot}</span>
                       </div>
-                      {item.flightType === 'KMS' ? (
+                      {item.flightType !== 'HS' ? (
                         <>
                           <div className="history-card-item">
                             <span className="history-card-label">Línea:</span>
@@ -1110,12 +1136,12 @@ const EditModal: React.FC<{
   const [formData, setFormData] = useState({ ...data });
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(8px)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+    <div className="records-edit-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(8px)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
       <motion.div 
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.9, y: 20 }}
-        className="glass" 
+        className="glass records-edit-modal"
         style={{ width: '100%', maxWidth: '600px', padding: '2rem', position: 'relative', border: '1px solid var(--glass-border)' }}
       >
         <button onClick={onClose} style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer' }}>
@@ -1261,7 +1287,7 @@ const EditModal: React.FC<{
             </>
           )}
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1rem' }}>
+          <div className="records-edit-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1rem' }}>
             <button onClick={onClose} style={{ background: 'transparent', border: '1px solid var(--border-input)', borderRadius: '12px', color: 'var(--text-primary)', padding: '0.8rem 1.5rem', cursor: 'pointer' }}>
               Cancelar
             </button>

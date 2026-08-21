@@ -425,8 +425,13 @@ label {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 0.75rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   padding-bottom: 0.75rem;
+}
+.history-card-header > * {
+  min-width: 0;
 }
 .history-card-title {
   font-weight: 900;
@@ -465,16 +470,30 @@ label {
 .history-card-value {
   color: var(--text-primary);
   text-align: right;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+.history-card-title,
+.history-card-subtitle,
+.history-card-badge {
+  overflow-wrap: anywhere;
 }
 .history-card-footer {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
   margin-top: 0.5rem;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
   padding-top: 0.75rem;
 }
 
-@media (max-width: 768px) {
+.history-card-footer > button,
+.records-edit-actions > button {
+  min-height: 48px;
+}
+
+@media (max-width: 1300px) {
   .history-cards-container {
     display: flex;
   }
@@ -499,9 +518,152 @@ label {
 
 .table-responsive-wrapper {
   width: 100%;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+  overflow-x: visible;
   margin-bottom: 1rem;
+}
+
+/* ─── Records Explorer responsive layout ─── */
+.records-tabs {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  width: 100%;
+}
+
+.records-tab,
+.records-filters > *,
+.records-search-row > *,
+.records-actions {
+  min-width: 0;
+}
+
+.records-actions {
+  flex: 0 1 180px;
+}
+
+.records-action-button {
+  min-height: 48px;
+}
+
+.records-edit-overlay {
+  overflow-y: auto;
+}
+
+.records-edit-modal {
+  max-height: calc(100dvh - 2rem);
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+@media (max-width: 1300px) {
+  .records-tabs {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .records-header {
+    flex-wrap: wrap;
+    gap: 1.5rem;
+  }
+
+  .records-checklist-selector {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .records-filters > * {
+    flex: 1 1 calc(50% - 0.75rem) !important;
+  }
+
+  .records-search-block,
+  .records-actions {
+    flex-basis: 100% !important;
+  }
+
+  .records-actions {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1024px) {
+  .records-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .records-tab:last-child {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 600px) {
+  .records-header {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+
+  .records-header-title {
+    text-align: left !important;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .records-tabs {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .records-tab:last-child {
+    grid-column: auto;
+  }
+
+  .records-checklist-selector,
+  .records-search-row,
+  .records-date-toggle,
+  .records-edit-actions {
+    flex-direction: column;
+  }
+
+  .records-checklist-selector {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .records-search-row select {
+    max-width: none !important;
+  }
+
+  .records-filters > *,
+  .records-actions {
+    flex: 1 1 100% !important;
+    width: 100%;
+  }
+
+  .records-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .history-card-header,
+  .history-card-item,
+  .history-card-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .history-card-value {
+    text-align: left;
+  }
+
+  .history-card-footer > button,
+  .records-edit-actions > button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 768px) {
+  .records-edit-actions {
+    flex-direction: column;
+  }
+
+  .records-edit-actions > button {
+    width: 100%;
+  }
 }
 
 /* Recovery Modal Buttons */

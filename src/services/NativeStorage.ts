@@ -12,6 +12,11 @@
 
 import type { AppData } from '../types';
 
+export type PersistToDiskResult =
+  | { status: 'success' }
+  | { status: 'failure'; error: string }
+  | { status: 'not-applicable' };
+
 // Detect if we're running inside Electron (.exe)
 const isElectron = (): boolean => {
   return typeof window !== 'undefined' && 
@@ -28,17 +33,33 @@ const isCapacitor = (): boolean => {
  * WRITE: Save a full snapshot of data to physical disk.
  * Called silently after every save/update/delete operation.
  */
-export async function persistToDisk(data: AppData): Promise<void> {
-  const payload = JSON.stringify(data, null, 2);
+export async function persistToDisk(data: AppData): Promise<PersistToDiskResult> {
+  if (!isElectron() && !isCapacitor()) {
+    return { status: 'not-applicable' };
+  }
+
+  let payload: string;
+  try {
+    payload = JSON.stringify(data, null, 2);
+  } catch (e) {
+    console.error('[NativeStorage] Backup serialization failed:', e);
+    return { status: 'failure', error: e instanceof Error ? e.message : String(e) };
+  }
 
   if (isElectron()) {
     // Windows .exe path: Uses Node.js fs via IPC bridge
     try {
-      await (window as any).horusNative.writeData(payload);
+      const result = await (window as any).horusNative.writeData(payload);
+      if (result?.success === false) {
+        const error = result.error || 'Error desconocido al escribir el respaldo.';
+        console.error('[NativeStorage] Electron write failed:', error);
+        return { status: 'failure', error: String(error) };
+      }
+      return { status: 'success' };
     } catch (e) {
       console.error('[NativeStorage] Electron write failed:', e);
+      return { status: 'failure', error: e instanceof Error ? e.message : String(e) };
     }
-    return;
   }
 
   if (isCapacitor()) {
@@ -52,13 +73,14 @@ export async function persistToDisk(data: AppData): Promise<void> {
         recursive: true,
         encoding: (await import('@capacitor/filesystem')).Encoding.UTF8,
       });
+      return { status: 'success' };
     } catch (e) {
       console.error('[NativeStorage] Capacitor write failed:', e);
+      return { status: 'failure', error: e instanceof Error ? e.message : String(e) };
     }
-    return;
   }
 
-  // Browser (development): No-op, Dexie handles everything
+  return { status: 'not-applicable' };
 }
 
 /**

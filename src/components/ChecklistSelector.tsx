@@ -8,10 +8,10 @@ interface ChecklistSelectorProps {
 
 export const ChecklistSelector: React.FC<ChecklistSelectorProps> = ({ onSelect, onBack }) => {
   return (
-    <div className="container" style={{ maxWidth: '800px', marginTop: '2rem', paddingBottom: '3rem' }}>
+    <div className="container checklist-selector" style={{ maxWidth: 'min(800px, 100%)', marginTop: '2rem', paddingBottom: '3rem' }}>
       <button 
         onClick={onBack}
-        className="btn-3d"
+        className="btn-3d checklist-selector-back"
         style={{
           background: 'rgba(255, 255, 255, 0.03)',
           border: '1px solid rgba(255, 255, 255, 0.08)',
@@ -27,8 +27,8 @@ export const ChecklistSelector: React.FC<ChecklistSelectorProps> = ({ onSelect, 
         <ArrowLeft size={16} /> Volver al Dashboard
       </button>
 
-      <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
-        <h1 style={{ 
+      <div className="checklist-selector-header" style={{ textAlign: 'center', marginBottom: '3rem' }}>
+        <h1 className="checklist-selector-title" style={{
           fontSize: '2.2rem', 
           fontWeight: 900, 
           letterSpacing: '1px',
@@ -40,21 +40,20 @@ export const ChecklistSelector: React.FC<ChecklistSelectorProps> = ({ onSelect, 
         }}>
           Checklist Diario
         </h1>
-        <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem', fontSize: '0.95rem' }}>
+        <p className="checklist-selector-text" style={{ color: 'var(--text-secondary)', marginTop: '0.5rem', fontSize: '0.95rem' }}>
           Selecciona la unidad o equipo a verificar antes de iniciar la jornada
         </p>
       </div>
 
-      <div style={{
+      <div className="checklist-selector-grid" style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
         gap: '1.5rem',
         marginTop: '1rem'
       }}>
         {/* Tarjeta Vehículo */}
         <div 
           onClick={() => onSelect('vehicle')}
-          className="dashboard-card card-vehicular"
+          className="dashboard-card card-vehicular checklist-selector-card"
           style={{
             cursor: 'pointer',
             padding: '2.5rem 2rem',
@@ -83,8 +82,8 @@ export const ChecklistSelector: React.FC<ChecklistSelectorProps> = ({ onSelect, 
           }}>
             <Truck size={36} />
           </div>
-          <div>
-            <h3 style={{ 
+          <div className="checklist-selector-card-content">
+            <h3 className="checklist-selector-card-title" style={{
               fontSize: '1.25rem', 
               fontWeight: 800, 
               color: '#fff', 
@@ -93,7 +92,7 @@ export const ChecklistSelector: React.FC<ChecklistSelectorProps> = ({ onSelect, 
             }}>
               Inspección Vehicular
             </h3>
-            <p style={{ 
+            <p className="checklist-selector-card-description" style={{
               color: 'var(--text-secondary)', 
               fontSize: '0.82rem', 
               margin: 0,
@@ -107,7 +106,7 @@ export const ChecklistSelector: React.FC<ChecklistSelectorProps> = ({ onSelect, 
         {/* Tarjeta Dron */}
         <div 
           onClick={() => onSelect('drone')}
-          className="dashboard-card card-vuelo-activo"
+          className="dashboard-card card-vuelo-activo checklist-selector-card"
           style={{
             cursor: 'pointer',
             padding: '2.5rem 2rem',
@@ -136,8 +135,8 @@ export const ChecklistSelector: React.FC<ChecklistSelectorProps> = ({ onSelect, 
           }}>
             <Cpu size={36} />
           </div>
-          <div>
-            <h3 style={{ 
+          <div className="checklist-selector-card-content">
+            <h3 className="checklist-selector-card-title" style={{
               fontSize: '1.25rem', 
               fontWeight: 800, 
               color: '#fff', 
@@ -146,7 +145,7 @@ export const ChecklistSelector: React.FC<ChecklistSelectorProps> = ({ onSelect, 
             }}>
               Inspección de Dron
             </h3>
-            <p style={{ 
+            <p className="checklist-selector-card-description" style={{
               color: 'var(--text-secondary)', 
               fontSize: '0.82rem', 
               margin: 0,
@@ -157,6 +156,77 @@ export const ChecklistSelector: React.FC<ChecklistSelectorProps> = ({ onSelect, 
           </div>
         </div>
       </div>
+
+      <style>{`
+        .checklist-selector {
+          width: 100%;
+          min-width: 0;
+          max-width: 100%;
+          height: auto;
+          overflow-x: hidden;
+        }
+
+        .checklist-selector-header,
+        .checklist-selector-grid,
+        .checklist-selector-card,
+        .checklist-selector-card-content,
+        .checklist-selector-text {
+          min-width: 0;
+          max-width: 100%;
+        }
+
+        .checklist-selector-title {
+          min-width: 0;
+          max-width: 100%;
+          font-size: 2.2rem !important;
+          white-space: normal;
+          overflow-wrap: anywhere;
+        }
+
+        .checklist-selector-back {
+          min-width: 0;
+          max-width: 100%;
+          min-height: 48px;
+          white-space: normal;
+          overflow-wrap: anywhere;
+          flex-wrap: wrap;
+        }
+
+        .checklist-selector-back svg {
+          flex: 0 0 auto;
+        }
+
+        .checklist-selector-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .checklist-selector-card {
+          width: 100%;
+          min-width: 0;
+          max-width: 100%;
+          box-sizing: border-box;
+        }
+
+        .checklist-selector-card-title,
+        .checklist-selector-card-description,
+        .checklist-selector-text {
+          min-width: 0;
+          max-width: 100%;
+          white-space: normal;
+          overflow-wrap: anywhere;
+        }
+
+        @media (max-width: 600px) {
+          .checklist-selector-grid {
+            grid-template-columns: minmax(0, 1fr);
+          }
+
+          .checklist-selector-back,
+          .checklist-selector-card {
+            width: 100% !important;
+          }
+        }
+      `}</style>
     </div>
   );
 };
