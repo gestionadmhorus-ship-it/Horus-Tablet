@@ -39,7 +39,7 @@ function App() {
     saveDetection, updateDetection, deleteDetection,
     saveChecklist, updateChecklist, deleteChecklist,
     saveDroneChecklist, updateDroneChecklist, deleteDroneChecklist,
-    updateLists, replaceKnowledgeBase,
+    updateLists, replaceKnowledgeBase, replaceOperationalLists,
     syncIncomingData,
     getUnsyncedData,
     markDataAsSynced,
@@ -228,6 +228,11 @@ function App() {
     deviceName,
     () => lists.elements,
     replaceKnowledgeBase,
+    () => {
+      const { elements: _elements, ...operationalLists } = lists;
+      return operationalLists;
+    },
+    replaceOperationalLists,
     getControlRecordsState,
     applyControlRecordsState
   );

@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { Peer } from 'peerjs';
-import type { AppData, AppRole, UnitStatus, KnownClient, ElementEntry } from '../types';
+import type { AppData, AppRole, UnitStatus, KnownClient, ElementEntry, ConfigurableListsSnapshot } from '../types';
 
 export function getKnownClients(): KnownClient[] {
   try {
@@ -40,6 +40,42 @@ const getKnowledgeBaseFingerprint = async (elements: ElementEntry[]) => {
   const bytes = new TextEncoder().encode(canonicalizeKnowledgeBase(elements));
   const digest = await crypto.subtle.digest('SHA-256', bytes);
   return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+};
+
+const OPERATIONAL_LIST_KEYS = ['clients', 'coordinators', 'pilots', 'assistants', 'vehicles', 'drones', 'criticalities'] as const;
+
+const normalizeOperationalLists = (lists: ConfigurableListsSnapshot) => Object.fromEntries(
+  OPERATIONAL_LIST_KEYS.map(key => [key, [...(lists[key] || [])]
+    .map(value => value.trim())
+    .filter(Boolean)])
+) as Record<(typeof OPERATIONAL_LIST_KEYS)[number], string[]>;
+
+const canonicalizeOperationalLists = (lists: ConfigurableListsSnapshot) => JSON.stringify(
+  Object.fromEntries(OPERATIONAL_LIST_KEYS.map(key => [key, (lists[key] || [])
+    .map(value => value.trim().toLowerCase()).filter(Boolean).sort()]))
+);
+
+const getOperationalListsFingerprint = async (lists: ConfigurableListsSnapshot) => {
+  const bytes = new TextEncoder().encode(canonicalizeOperationalLists(lists));
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+};
+
+const isValidOperationalLists = (value: unknown): value is ConfigurableListsSnapshot => {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Record<string, unknown>;
+  for (const listKey of OPERATIONAL_LIST_KEYS) {
+    const list = candidate[listKey];
+    if (!Array.isArray(list)) return false;
+    const normalized = new Set<string>();
+    for (const item of list) {
+      if (typeof item !== 'string' || !item.trim()) return false;
+      const key = item.trim().toLowerCase();
+      if (normalized.has(key)) return false;
+      normalized.add(key);
+    }
+  }
+  return true;
 };
 
 const isValidKnowledgeBase = (value: unknown): value is ElementEntry[] => {
@@ -101,6 +137,8 @@ export function useAutoSync(
   deviceName?: string,
   getKnowledgeBase?: () => ElementEntry[],
   replaceKnowledgeBase?: (elements: ElementEntry[]) => Promise<void>,
+  getOperationalLists?: () => ConfigurableListsSnapshot,
+  replaceOperationalLists?: (lists: ConfigurableListsSnapshot) => Promise<void>,
   getControlRecordsState?: (sourceDeviceId: string) => Promise<AppData>,
   applyControlRecordsState?: (data: AppData) => Promise<{ applied: number; protectedLocal: number }>
 ) {
@@ -128,6 +166,8 @@ export function useAutoSync(
   const getAllDataRef = useRef(getAllData);
   const getKnowledgeBaseRef = useRef(getKnowledgeBase);
   const replaceKnowledgeBaseRef = useRef(replaceKnowledgeBase);
+  const getOperationalListsRef = useRef(getOperationalLists);
+  const replaceOperationalListsRef = useRef(replaceOperationalLists);
   const getControlRecordsStateRef = useRef(getControlRecordsState);
   const applyControlRecordsStateRef = useRef(applyControlRecordsState);
 
@@ -140,9 +180,11 @@ export function useAutoSync(
     getAllDataRef.current = getAllData;
     getKnowledgeBaseRef.current = getKnowledgeBase;
     replaceKnowledgeBaseRef.current = replaceKnowledgeBase;
+    getOperationalListsRef.current = getOperationalLists;
+    replaceOperationalListsRef.current = replaceOperationalLists;
     getControlRecordsStateRef.current = getControlRecordsState;
     applyControlRecordsStateRef.current = applyControlRecordsState;
-  }, [getUnsyncedData, markDataAsSynced, onDataReceived, getStatusSnapshot, onStatusUpdate, getAllData, getKnowledgeBase, replaceKnowledgeBase, getControlRecordsState, applyControlRecordsState]);
+  }, [getUnsyncedData, markDataAsSynced, onDataReceived, getStatusSnapshot, onStatusUpdate, getAllData, getKnowledgeBase, replaceKnowledgeBase, getOperationalLists, replaceOperationalLists, getControlRecordsState, applyControlRecordsState]);
 
   // ── Ticker that marks stale units as disconnected (server-side) ──
   useEffect(() => {
@@ -265,11 +307,16 @@ export function useAutoSync(
               const isBlocked = blockedClients.includes(senderDeviceId) || blockedClients.includes(senderDeviceName);
               
               try {
+                const operationalListsFingerprint = getOperationalListsRef.current
+                  ? await getOperationalListsFingerprint(getOperationalListsRef.current())
+                  : undefined;
                 conn.send({
                   type: 'STATUS_ACK',
                   serverVersion: localStorage.getItem('horus_current_version') || 'v2.0.0',
                   isLinked: !isBlocked,
-                  recordsStateSupported: true
+                  recordsStateSupported: true,
+                  operationalListsSupported: !!getOperationalListsRef.current,
+                  operationalListsFingerprint
                 });
               } catch (err) {
                 console.error('Error sending STATUS_ACK:', err);
@@ -311,6 +358,25 @@ export function useAutoSync(
                 );
               } catch (error) {
                 console.error('Error preparing Knowledge Base payload:', error);
+              }
+              return;
+            }
+
+            if (data.type === 'OPERATIONAL_LISTS_REQUEST') {
+              const blockedClients: string[] = JSON.parse(localStorage.getItem('horus_blocked_clients') || '[]');
+              const senderDeviceName = typeof data.deviceName === 'string' ? data.deviceName : 'Unknown';
+              const senderDeviceId = typeof data.deviceId === 'string' ? data.deviceId : `legacy-${senderDeviceName}`;
+              if (blockedClients.includes(senderDeviceId) || blockedClients.includes(senderDeviceName)
+                || !getOperationalListsRef.current || typeof data.fingerprint !== 'string') return;
+
+              try {
+                const operationalLists = normalizeOperationalLists(getOperationalListsRef.current());
+                const fingerprint = await getOperationalListsFingerprint(operationalLists);
+                conn.send(fingerprint === data.fingerprint
+                  ? { type: 'OPERATIONAL_LISTS_PAYLOAD', fingerprint, unchanged: true }
+                  : { type: 'OPERATIONAL_LISTS_PAYLOAD', fingerprint, operationalLists });
+              } catch (error) {
+                console.error('Error preparing operational lists payload:', error);
               }
               return;
             }
@@ -481,6 +547,27 @@ export function useAutoSync(
             let closeTimeout = setTimeout(() => {
               try { conn.close(); } catch {}
             }, 4000);
+            let operationalListsSupported = false;
+            let serverOperationalListsFingerprint: string | undefined;
+
+            const requestOperationalLists = async () => {
+              if (!operationalListsSupported || !serverOperationalListsFingerprint || !getOperationalListsRef.current || !replaceOperationalListsRef.current) {
+                try { conn.close(); } catch {}
+                return;
+              }
+              const fingerprint = await getOperationalListsFingerprint(getOperationalListsRef.current());
+              if (fingerprint === serverOperationalListsFingerprint) {
+                try { conn.close(); } catch {}
+                return;
+              }
+              closeTimeout = setTimeout(() => { try { conn.close(); } catch {} }, 4000);
+              conn.send({
+                type: 'OPERATIONAL_LISTS_REQUEST',
+                deviceId: localStorage.getItem('horus_device_id') || 'dev-unknown',
+                deviceName,
+                fingerprint
+              });
+            };
 
             const requestKnowledgeBase = async () => {
               if (!getKnowledgeBaseRef.current || !replaceKnowledgeBaseRef.current) {
@@ -510,6 +597,8 @@ export function useAutoSync(
             conn.on('data', async (resp: any) => {
               if (resp && resp.type === 'STATUS_ACK') {
                 clearTimeout(closeTimeout);
+                operationalListsSupported = resp.operationalListsSupported === true;
+                serverOperationalListsFingerprint = typeof resp.operationalListsFingerprint === 'string' ? resp.operationalListsFingerprint : undefined;
                 
                 // 1. Verificar si fue desvinculado por el servidor
                 if (!resp.isLinked) {
@@ -567,7 +656,7 @@ export function useAutoSync(
 
                 try {
                   if (resp.unchanged === true) {
-                    try { conn.close(); } catch {}
+                    await requestOperationalLists();
                     return;
                   }
 
@@ -584,9 +673,29 @@ export function useAutoSync(
                     throw new Error('Guardado local de Base de Conocimiento no disponible.');
                   }
                   await replaceKnowledgeBaseRef.current(resp.elements);
+                  await requestOperationalLists();
                 } catch (error) {
                   console.error('Error applying Knowledge Base payload:', error);
                   setSyncStatus('Error al actualizar Base de Conocimiento');
+                  try { conn.close(); } catch {}
+                }
+              } else if (resp && resp.type === 'OPERATIONAL_LISTS_PAYLOAD') {
+                clearTimeout(closeTimeout);
+                try {
+                  if (resp.unchanged === true) return;
+                  if (!isValidOperationalLists(resp.operationalLists) || typeof resp.fingerprint !== 'string') {
+                    throw new Error('Payload de listas operativas inválido.');
+                  }
+                  const normalizedLists = normalizeOperationalLists(resp.operationalLists);
+                  const calculatedFingerprint = await getOperationalListsFingerprint(normalizedLists);
+                  if (calculatedFingerprint !== resp.fingerprint || calculatedFingerprint !== serverOperationalListsFingerprint) {
+                    throw new Error('La huella de listas operativas no coincide.');
+                  }
+                  if (!replaceOperationalListsRef.current) throw new Error('Guardado local de listas operativas no disponible.');
+                  await replaceOperationalListsRef.current(normalizedLists);
+                } catch (error) {
+                  console.error('Error applying operational lists payload:', error);
+                  setSyncStatus('Error al actualizar configuración operativa');
                 } finally {
                   try { conn.close(); } catch {}
                 }

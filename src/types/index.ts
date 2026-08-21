@@ -47,7 +47,7 @@ export interface HistoricalRecordIdentity {
   globalRelationStatus?: 'resolved' | 'unresolved' | 'ambiguous';
 }
 
-export type ConfigurableListsSnapshot = Omit<ListsData, 'elements' | 'clients'> & { clients?: string[] };
+export type ConfigurableListsSnapshot = Partial<Omit<ListsData, 'elements'>>;
 
 /* ─── Form Records ─── */
 export interface ShiftData extends HistoricalRecordIdentity {

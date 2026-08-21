@@ -171,6 +171,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
   const appRole = localStorage.getItem('horus_sync_role');
   const isKnowledgeBaseReadOnly = appRole === 'client'
     && !!localStorage.getItem('horus_target_server_id')?.trim();
+  const areOperationalListsReadOnly = isKnowledgeBaseReadOnly;
   const myServerId = localStorage.getItem('horus_my_server_id');
   const [knownClients, setKnownClients] = useState<KnownClient[]>(() => {
     return getKnownClients();
@@ -233,6 +234,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
   const toggleFlat = (key: string) => setFlatExpanded(p => ({ ...p, [key]: !p[key] }));
 
   const addFlatItem = async (key: FlatKey) => {
+    if (areOperationalListsReadOnly) return;
     const value = flatInputs[key].trim();
     if (!value) return;
     if ((lists[key] as string[]).some(item => item.trim().toLowerCase() === value.toLowerCase())) { await window.customAlert(`"${value}" ya existe.`); return; }
@@ -241,6 +243,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
   };
 
   const removeFlatItem = (key: FlatKey, item: string) => {
+    if (areOperationalListsReadOnly) return;
     onUpdate({ ...lists, [key]: (lists[key] as string[]).filter(i => i !== item) });
   };
 
@@ -556,7 +559,12 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
 
               {flatExpanded[cat.key] && (
                 <div style={{ padding: '0 1.2rem 1.2rem' }}>
-                  <div className="settings-flat-add-row" style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                  {areOperationalListsReadOnly && (
+                    <p style={{ color: 'var(--primary)', fontSize: '0.8rem', lineHeight: 1.5, overflowWrap: 'anywhere' }}>
+                      Lista maestra administrada por Control Central. Esta Tablet conserva la última copia recibida para uso offline.
+                    </p>
+                  )}
+                  {!areOperationalListsReadOnly && <div className="settings-flat-add-row" style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
                     <input
                       type="text"
                       value={flatInputs[cat.key]}
@@ -572,9 +580,11 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
                     >
                       <Plus size={17} />
                     </button>
-                  </div>
+                  </div>}
                   {(lists[cat.key] as string[]).length === 0 ? (
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.78rem', textAlign: 'center', margin: 0 }}>Sin elementos. Añade el primero ↑</p>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.78rem', textAlign: 'center', margin: 0 }}>
+                      {areOperationalListsReadOnly ? 'Control Central no publicó elementos para esta lista todavía.' : 'Sin elementos. Añade el primero ↑'}
+                    </p>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                       {(lists[cat.key] as string[]).map(item => (
@@ -582,9 +592,9 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
                           <span className="settings-wrapping-value" style={{ fontSize: '0.88rem', color: cat.key === 'criticalities' ? (criticalityColors[item] || 'white') : 'white', fontWeight: cat.key === 'criticalities' ? 600 : 400 }}>
                             {item}
                           </span>
-                          <button className="settings-touch-icon" onClick={() => removeFlatItem(cat.key, item)} style={{ background: 'rgba(255,60,60,0.1)', border: 'none', borderRadius: '6px', color: '#ff6060', cursor: 'pointer', padding: '3px 6px', display: 'flex' }}>
+                          {!areOperationalListsReadOnly && <button className="settings-touch-icon" onClick={() => removeFlatItem(cat.key, item)} style={{ background: 'rgba(255,60,60,0.1)', border: 'none', borderRadius: '6px', color: '#ff6060', cursor: 'pointer', padding: '3px 6px', display: 'flex' }}>
                             <Trash2 size={13} />
-                          </button>
+                          </button>}
                         </div>
                       ))}
                     </div>

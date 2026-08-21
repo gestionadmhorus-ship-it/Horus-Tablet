@@ -43,6 +43,8 @@ const SelectOrEmpty: React.FC<{ label: string; options: string[]; value: string;
 
 const ShiftForm: React.FC<ShiftFormProps> = ({ onSave, onUpdate, onBack, lists, editData }) => {
   const isEditMode = !!editData;
+  const isLinkedTablet = localStorage.getItem('horus_sync_role') === 'client'
+    && !!localStorage.getItem('horus_target_server_id')?.trim();
   
   const [formData, setFormData] = useState({
     client: editData?.client || '',
@@ -163,8 +165,13 @@ const ShiftForm: React.FC<ShiftFormProps> = ({ onSave, onUpdate, onBack, lists, 
                   value={formData.client}
                   onChange={client => setFormData({ ...formData, client })}
                   required={!isEditMode}
-                  placeholder={lists.clients.length ? '-- Seleccionar --' : 'Sin clientes activos en Configuración'}
+                  placeholder={lists.clients.length
+                    ? '-- Seleccionar --'
+                    : isLinkedTablet ? 'Aún no se recibieron Clientes desde Control' : 'Sin clientes activos en Configuración'}
                 />
+                {!isEditMode && isLinkedTablet && lists.clients.length === 0 && (
+                  <p style={{ color: 'var(--text-secondary)', overflowWrap: 'anywhere' }}>Conecta con Control para recibir la lista. La última copia recibida quedará disponible offline.</p>
+                )}
                 {isEditMode && !editData?.client && !formData.client && <p style={{ color: 'var(--text-secondary)', overflowWrap: 'anywhere' }}>Sin cliente histórico. Puedes asignar uno de la lista activa.</p>}
               </div>
             )}

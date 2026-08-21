@@ -55,9 +55,8 @@ export const validateHistoricalArchive = async (candidate: unknown): Promise<His
   }
   if (archive.configurableLists !== undefined) {
     if (!archive.configurableLists || typeof archive.configurableLists !== 'object') return null;
-    const configurableArrays = ['coordinators', 'pilots', 'assistants', 'vehicles', 'drones', 'criticalities'] as const;
-    if (!configurableArrays.every(key => Array.isArray(archive.configurableLists?.[key]))) return null;
-    if (archive.configurableLists.clients !== undefined && !Array.isArray(archive.configurableLists.clients)) return null;
+    const configurableArrays = ['clients', 'coordinators', 'pilots', 'assistants', 'vehicles', 'drones', 'criticalities'] as const;
+    if (!configurableArrays.every(key => archive.configurableLists?.[key] === undefined || Array.isArray(archive.configurableLists[key]))) return null;
   }
   if (!archive.metadata || archive.metadata.checksumAlgorithm !== 'SHA-256' || typeof archive.metadata.contentChecksum !== 'string') return null;
   const entityTypes = new Set(['shift', 'flight', 'battery', 'detection', 'vehicleChecklist', 'droneChecklist']);

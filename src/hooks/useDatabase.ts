@@ -5,7 +5,7 @@ import {
   type BatteryData, type DetectionData, type DroneChecklistData,
   type HistoricalEntityType, type HistoricalRecordPayload,
   type HistoricalOriginalStatus, type HistoricalCaptureSource,
-  type HistoricalEditorRole
+  type HistoricalEditorRole, type ConfigurableListsSnapshot
 } from '../types';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { persistToDisk, loadFromDisk, persistHistoricalToDisk, loadHistoricalFromDisk } from '../services/NativeStorage';
@@ -537,9 +537,7 @@ export function useDatabase() {
       const currentSettings = await db.settings.get('current');
       await db.settings.put({
         id: 'current',
-        data: isLinkedTablet
-          ? { ...newList, elements: (currentSettings?.data || DEFAULT_LISTS).elements }
-          : newList
+        data: isLinkedTablet ? (currentSettings?.data || DEFAULT_LISTS) : newList
       });
     });
   };
@@ -552,6 +550,20 @@ export function useDatabase() {
         data: {
           ...(currentSettings?.data || DEFAULT_LISTS),
           elements
+        }
+      });
+    });
+  };
+
+  const replaceOperationalLists = async (incomingLists: ConfigurableListsSnapshot) => {
+    await db.transaction('rw', db.settings, async () => {
+      const currentSettings = await db.settings.get('current');
+      await db.settings.put({
+        id: 'current',
+        data: {
+          ...(currentSettings?.data || DEFAULT_LISTS),
+          ...incomingLists,
+          clients: incomingLists.clients || []
         }
       });
     });
@@ -1206,6 +1218,7 @@ export function useDatabase() {
     saveDroneChecklist, updateDroneChecklist, deleteDroneChecklist,
     updateLists,
     replaceKnowledgeBase,
+    replaceOperationalLists,
     syncIncomingData,
     getUnsyncedData,
     markDataAsSynced,
