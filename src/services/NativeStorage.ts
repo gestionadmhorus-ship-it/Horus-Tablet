@@ -26,7 +26,8 @@ const historicalContent = (archive: HistoricalArchiveInput | HistoricalArchive) 
   trash: archive.trash,
   conflicts: archive.conflicts,
   operationalState: archive.operationalState,
-  knowledgeBase: archive.knowledgeBase
+  knowledgeBase: archive.knowledgeBase,
+  configurableLists: archive.configurableLists
 });
 
 const checksum = async (value: unknown) => {
@@ -51,6 +52,12 @@ export const validateHistoricalArchive = async (candidate: unknown): Promise<His
       ...(archive.operationalState.checklists || []), ...(archive.operationalState.droneChecklists || [])
     ];
     if (!operationalRecords.every(record => record && typeof record.id === 'string' && typeof record.recordUid === 'string' && !!record.recordUid.trim())) return null;
+  }
+  if (archive.configurableLists !== undefined) {
+    if (!archive.configurableLists || typeof archive.configurableLists !== 'object') return null;
+    const configurableArrays = ['coordinators', 'pilots', 'assistants', 'vehicles', 'drones', 'criticalities'] as const;
+    if (!configurableArrays.every(key => Array.isArray(archive.configurableLists?.[key]))) return null;
+    if (archive.configurableLists.clients !== undefined && !Array.isArray(archive.configurableLists.clients)) return null;
   }
   if (!archive.metadata || archive.metadata.checksumAlgorithm !== 'SHA-256' || typeof archive.metadata.contentChecksum !== 'string') return null;
   const entityTypes = new Set(['shift', 'flight', 'battery', 'detection', 'vehicleChecklist', 'droneChecklist']);

@@ -31,7 +31,13 @@ export function useDatabase() {
   
   // 2. Settings management (ListsData)
   const settingsRow = useLiveQuery(() => db.settings.get('current'));
-  const lists = settingsRow?.data || DEFAULT_LISTS;
+  const lists: ListsData = useMemo(() => settingsRow?.data
+    ? { ...DEFAULT_LISTS, ...settingsRow.data, clients: settingsRow.data.clients || [] }
+    : DEFAULT_LISTS, [settingsRow?.data]);
+  const configurableLists = useMemo(() => {
+    const { elements: _elements, ...flatLists } = lists;
+    return flatLists;
+  }, [lists]);
 
   // 3. Migration & Seeding logic (runs exactly ONCE per app lifecycle)
   //    Uses a ref guard to prevent the race condition where useLiveQuery
@@ -56,7 +62,7 @@ export function useDatabase() {
         // Priority: migrate from legacy localStorage if available
         try {
           const localLists = JSON.parse(localListsStr);
-          await db.settings.put({ id: 'current', data: localLists });
+          await db.settings.put({ id: 'current', data: { ...DEFAULT_LISTS, ...localLists, clients: localLists.clients || [] } });
           localStorage.removeItem('field_ops_lists_v3');
           console.log('✅ Lists migrated from Legacy Storage');
         } catch (e) { console.error('Migration error (lists):', e); }
@@ -1053,7 +1059,7 @@ export function useDatabase() {
     return () => {
       if (persistTimeoutRef.current) clearTimeout(persistTimeoutRef.current);
     };
-  }, [shifts, flights, batteries, detections, checklists, droneChecklists, lists.elements]);
+  }, [shifts, flights, batteries, detections, checklists, droneChecklists, lists]);
 
   useEffect(() => {
     if (!historicalStorageReady) return;
@@ -1066,7 +1072,8 @@ export function useDatabase() {
         trash: historicalTrash,
         conflicts: historicalConflicts,
         operationalState: fullData,
-        knowledgeBase: lists.elements
+        knowledgeBase: lists.elements,
+        configurableLists
       }).then(result => {
         if (result.status === 'failure') {
           console.error('[DB] Historical backup failed:', result.error);
@@ -1082,7 +1089,7 @@ export function useDatabase() {
     return () => {
       if (historicalPersistTimeoutRef.current) clearTimeout(historicalPersistTimeoutRef.current);
     };
-  }, [historicalStorageReady, historicalOriginals, historicalOverrides, historicalTrash, historicalConflicts, shifts, flights, batteries, detections, checklists, droneChecklists, lists.elements]);
+  }, [historicalStorageReady, historicalOriginals, historicalOverrides, historicalTrash, historicalConflicts, shifts, flights, batteries, detections, checklists, droneChecklists, lists.elements, configurableLists]);
 
   // 7. Load from physical disk on first boot and seed Dexie if DB is empty
   useEffect(() => {
@@ -1166,14 +1173,17 @@ export function useDatabase() {
       }
 
         const restoredKnowledgeBase = diskData?.knowledgeBase || historicalArchive?.knowledgeBase;
-        if (restoredKnowledgeBase) {
+        const restoredLists = historicalArchive?.configurableLists;
+        if (restoredKnowledgeBase || restoredLists) {
         await db.transaction('rw', db.settings, async () => {
           const currentSettings = await db.settings.get('current');
           await db.settings.put({
             id: 'current',
             data: {
               ...(currentSettings?.data || DEFAULT_LISTS),
-              elements: restoredKnowledgeBase
+              ...(restoredLists || {}),
+              clients: restoredLists ? (restoredLists.clients || []) : (currentSettings?.data?.clients || []),
+              elements: restoredKnowledgeBase || currentSettings?.data?.elements || DEFAULT_LISTS.elements
             }
           });
         });

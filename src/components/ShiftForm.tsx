@@ -45,13 +45,14 @@ const ShiftForm: React.FC<ShiftFormProps> = ({ onSave, onUpdate, onBack, lists, 
   const isEditMode = !!editData;
   
   const [formData, setFormData] = useState({
+    client: editData?.client || '',
     coordinator: editData?.coordinator || '',
     assistants: editData?.assistants?.length ? [...editData.assistants] : [''],
     vehicle: editData?.vehicle || '',
     drone: editData?.drone || ''
   });
 
-  const [expandedSection, setExpandedSection] = useState<string | null>('coordinator');
+  const [expandedSection, setExpandedSection] = useState<string | null>('client');
   const [isSaving, setIsSaving] = useState(false);
 
   const toggleSection = (section: string) => {
@@ -64,6 +65,14 @@ const ShiftForm: React.FC<ShiftFormProps> = ({ onSave, onUpdate, onBack, lists, 
     setIsSaving(true);
     
     try {
+      if (!isEditMode && !formData.client.trim()) {
+        await window.customAlert('Selecciona un Cliente para iniciar una nueva Jornada.');
+        return;
+      }
+      if (isEditMode && editData?.client && !formData.client.trim()) {
+        await window.customAlert('Conserva el Cliente actual o selecciona otro Cliente activo.');
+        return;
+      }
       const now = new Date();
     
     // Filter out any empty assistants
@@ -73,6 +82,7 @@ const ShiftForm: React.FC<ShiftFormProps> = ({ onSave, onUpdate, onBack, lists, 
       // Update existing record, keep original ID and timestamp
       onUpdate({
         ...editData,
+        client: formData.client.trim() || undefined,
         coordinator: formData.coordinator,
         assistants: finalAssistants,
         vehicle: formData.vehicle,
@@ -82,6 +92,7 @@ const ShiftForm: React.FC<ShiftFormProps> = ({ onSave, onUpdate, onBack, lists, 
     } else {
       const newData: ShiftData = {
         id: generateId('JORN'),
+        client: formData.client.trim(),
         timestamp: formatTimestamp(now),
         coordinator: formData.coordinator,
         assistants: finalAssistants,
@@ -139,6 +150,25 @@ const ShiftForm: React.FC<ShiftFormProps> = ({ onSave, onUpdate, onBack, lists, 
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+          <div className={`form-accordion-section ${expandedSection === 'client' ? 'active' : ''}`}>
+            <button type="button" className="form-accordion-header shift-form-accordion-header" onClick={() => toggleSection('client')}>
+              <span className="shift-form-accordion-title">Cliente *</span>
+              <span className="shift-form-accordion-indicator">{expandedSection === 'client' ? '▲' : '▼'}</span>
+            </button>
+            {expandedSection === 'client' && (
+              <div className="form-accordion-content">
+                <SearchableSelect
+                  label="Cliente"
+                  options={lists.clients}
+                  value={formData.client}
+                  onChange={client => setFormData({ ...formData, client })}
+                  required={!isEditMode}
+                  placeholder={lists.clients.length ? '-- Seleccionar --' : 'Sin clientes activos en Configuración'}
+                />
+                {isEditMode && !editData?.client && !formData.client && <p style={{ color: 'var(--text-secondary)', overflowWrap: 'anywhere' }}>Sin cliente histórico. Puedes asignar uno de la lista activa.</p>}
+              </div>
+            )}
+          </div>
           <div className={`form-accordion-section ${expandedSection === 'coordinator' ? 'active' : ''}`}>
             <button type="button" className="form-accordion-header shift-form-accordion-header" onClick={() => toggleSection('coordinator')}>
               <span className="shift-form-accordion-title">👤 Coordinador a Cargo</span>

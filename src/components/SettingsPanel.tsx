@@ -22,8 +22,9 @@ interface SettingsPanelProps {
 }
 
 /* ─── Flat list categories (no elements/anomalies) ─── */
-type FlatKey = 'coordinators' | 'pilots' | 'assistants' | 'vehicles' | 'drones' | 'criticalities';
+type FlatKey = 'clients' | 'coordinators' | 'pilots' | 'assistants' | 'vehicles' | 'drones' | 'criticalities';
 const flatCategories: { key: FlatKey; label: string; placeholder: string }[] = [
+  { key: 'clients',      label: 'Clientes',             placeholder: 'Nombre del cliente...' },
   { key: 'coordinators', label: 'Coordinadores',        placeholder: 'Nombre del coordinador...' },
   { key: 'pilots',       label: 'Pilotos',              placeholder: 'Nombre del piloto...' },
   { key: 'assistants',   label: 'Asistentes',           placeholder: 'Nombre del asistente...' },
@@ -234,7 +235,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
   const addFlatItem = async (key: FlatKey) => {
     const value = flatInputs[key].trim();
     if (!value) return;
-    if (lists[key].includes(value as never)) { await window.customAlert(`"${value}" ya existe.`); return; }
+    if ((lists[key] as string[]).some(item => item.trim().toLowerCase() === value.toLowerCase())) { await window.customAlert(`"${value}" ya existe.`); return; }
     onUpdate({ ...lists, [key]: [...(lists[key] as string[]), value] });
     setFlatInputs(p => ({ ...p, [key]: '' }));
   };

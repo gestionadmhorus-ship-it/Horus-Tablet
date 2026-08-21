@@ -43,6 +43,7 @@ export const exportToExcel = async (
     specificDate?: string;
     startDate?: string;
     endDate?: string;
+    client?: string;
   }
 ) => {
   const workbook = new ExcelJS.Workbook();
@@ -73,8 +74,14 @@ export const exportToExcel = async (
     }
   }
 
+  if (options?.client) {
+    shiftsToExport = shiftsToExport.filter(shift => options.client === '__legacy_without_client__'
+      ? !shift.client?.trim()
+      : shift.client === options.client);
+  }
+
   // Fallback: If no shifts match or shifts array is empty, but flights exist, export all flights under virtual shift
-  if (shiftsToExport.length === 0 && data.flights.length > 0) {
+  if (shiftsToExport.length === 0 && data.flights.length > 0 && !options?.client) {
     shiftsToExport = [{
       id: 'fallback-shift',
       timestamp: data.flights[0]?.timestamp || data.detections[0]?.timestamp || '',
@@ -122,6 +129,7 @@ export const exportToExcel = async (
   ) => {
     const { date: startDay } = splitTimestamp(flight.timestamp || shift.timestamp || '');
     const origenVal = flight.deviceName || shift.deviceName || 'Local';
+    const clientVal = shift.client || 'Sin cliente histórico';
     const lineVal = flight.lineName || 'Detecciones Tácticas';
     const stageText = flight.stage ? ` | Etapa: ${flight.stage}` : '';
     const detCount = detectionsList.length;
@@ -135,7 +143,7 @@ export const exportToExcel = async (
     const titleRow = sheet.addRow([
       `Fecha: ${startDay}`,
       '',
-      `Origen: ${origenVal}`,
+      `Cliente: ${clientVal} | Origen: ${origenVal}`,
       '',
       `Línea: ${lineVal}${stageText}`,
       '',
@@ -388,7 +396,7 @@ export const exportToExcel = async (
       const titleRow = wsHS.addRow([
         `Fecha: ${startDay}`,
         '',
-        `Detalles: ${detallesVal}`
+        `Cliente: ${shift.client || 'Sin cliente histórico'} | Detalles: ${detallesVal}`
       ]);
       titleRow.height = 24;
       titleRow.eachCell((cell) => {
@@ -559,6 +567,7 @@ export const exportBatteriesToExcel = async (
     specificDate?: string;
     startDate?: string;
     endDate?: string;
+    client?: string;
   }
 ) => {
   const workbook = new ExcelJS.Workbook();
@@ -573,6 +582,11 @@ export const exportBatteriesToExcel = async (
   const batteries = data.batteries
     .filter(battery => {
       if (battery.isDeleted) return false;
+      if (options?.client) {
+        const flight = battery.flightRecordUid ? flightMap.get(battery.flightRecordUid) : undefined;
+        const shift = flight?.shiftRecordUid ? shiftMap.get(flight.shiftRecordUid) : undefined;
+        if (options.client === '__legacy_without_client__' ? !!shift?.client?.trim() : shift?.client !== options.client) return false;
+      }
       if (!options?.dateMode) return true;
 
       const batteryDate = parseLocalTimestampToDate(battery.timestamp);

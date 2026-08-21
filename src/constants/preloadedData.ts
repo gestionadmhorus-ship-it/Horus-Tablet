@@ -1,6 +1,7 @@
 import type { ListsData } from '../types';
 
 export const PRELOADED_LISTS: ListsData = {
+  clients: [],
   coordinators: ["Adelio Gonzalez", "Juan Lucero", "Jorge Sierra", "Tobias Romano", "Guillermo Maschioveccio"],
   pilots: ["Adelio Gonzalez", "Juan Lucero", "Jorge Sierra", "Tobias Romano", "Guillermo Maschioveccio"],
   assistants: ["Adelio Gonzalez", "Juan Lucero", "Jorge Sierra", "Tobias Romano", "Guillermo Maschioveccio"],

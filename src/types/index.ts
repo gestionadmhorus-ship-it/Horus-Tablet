@@ -14,6 +14,7 @@ export interface ElementEntry {
 
 /* ─── Configurable Lists ─── */
 export interface ListsData {
+  clients: string[];
   coordinators: string[];
   pilots: string[];
   assistants: string[];
@@ -46,9 +47,12 @@ export interface HistoricalRecordIdentity {
   globalRelationStatus?: 'resolved' | 'unresolved' | 'ambiguous';
 }
 
+export type ConfigurableListsSnapshot = Omit<ListsData, 'elements' | 'clients'> & { clients?: string[] };
+
 /* ─── Form Records ─── */
 export interface ShiftData extends HistoricalRecordIdentity {
   id: string;
+  client?: string;
   timestamp: string;
   coordinator: string;
   assistants: string[];
@@ -297,6 +301,7 @@ export interface HistoricalArchive {
   conflicts: HistoricalConflictRecord[];
   operationalState?: AppData;
   knowledgeBase?: ElementEntry[];
+  configurableLists?: ConfigurableListsSnapshot;
   metadata: {
     application: 'Hermes 2.0';
     checksumAlgorithm: 'SHA-256';

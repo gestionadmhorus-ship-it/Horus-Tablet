@@ -55,6 +55,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
   const [checklistSubtype, setChecklistSubtype] = useState<'vehicle' | 'drone'>('vehicle');
   const [searchTerm, setSearchTerm] = useState('');
   const [searchField, setSearchField] = useState('all');
+  const [clientFilter, setClientFilter] = useState('all');
   const [dateMode, setDateMode] = useState<'specific' | 'range'>('specific');
   const [specificDate, setSpecificDate] = useState(getTodayDateString());
   const [startDate, setStartDate] = useState('');
@@ -68,11 +69,24 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
   // Helper maps for related entities lookup
   const flightMap = useMemo(() => new Map(props.data.flights.map(f => [f.recordUid, f])), [props.data.flights]);
   const shiftMap = useMemo(() => new Map(props.data.shifts.map(s => [s.recordUid, s])), [props.data.shifts]);
+  const legacyClientValue = '__legacy_without_client__';
+  const clientOptions = useMemo(() => Array.from(new Set(
+    props.data.shifts.map(shift => shift.client?.trim()).filter((value): value is string => !!value)
+  )).sort((a, b) => a.localeCompare(b, 'es')), [props.data.shifts]);
+  const hasLegacyClientRecords = useMemo(() => props.data.shifts.some(shift => !shift.client?.trim()), [props.data.shifts]);
+
+  const resolveShift = (item: any): ShiftData | undefined => {
+    if (activeTable === 'shifts') return item as ShiftData;
+    if (activeTable === 'flights') return shiftMap.get(item.shiftRecordUid);
+    const flight = flightMap.get(item.flightRecordUid);
+    return flight ? shiftMap.get(flight.shiftRecordUid) : undefined;
+  };
 
   const handleTableChange = (tabId: RecordType) => {
     setActiveTable(tabId);
     setSearchField('all');
     setSearchTerm('');
+    setClientFilter('all');
     setDateMode('specific');
     setSpecificDate(getTodayDateString());
     setStartDate('');
@@ -185,6 +199,11 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
         if (itemDate < start || itemDate > end) return false;
       }
 
+      if (activeTable !== 'checklists' && clientFilter !== 'all') {
+        const client = resolveShift(item)?.client?.trim();
+        if (clientFilter === legacyClientValue ? !!client : client !== clientFilter) return false;
+      }
+
       // 2. Search Term Filter
       if (!searchTerm) return true;
       const term = searchTerm.toLowerCase();
@@ -210,6 +229,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
           flight?.pilot,
           flight?.lineName,
           shift?.coordinator,
+          shift?.client,
           shift?.vehicle,
           shift?.drone,
           shift?.assistants?.join(' '),
@@ -247,14 +267,15 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
 
       return false;
     }).sort((a, b) => b.timestamp.localeCompare(a.timestamp));
-  }, [props.data, activeTable, checklistSubtype, searchTerm, searchField, dateMode, specificDate, startDate, endDate, flightMap, shiftMap]);
+  }, [props.data, activeTable, checklistSubtype, searchTerm, searchField, clientFilter, dateMode, specificDate, startDate, endDate, flightMap, shiftMap]);
 
   const handleExportFiltered = () => {
     exportToExcel(props.data, {
       dateMode,
       specificDate,
       startDate,
-      endDate
+      endDate,
+      client: clientFilter === 'all' ? undefined : clientFilter
     });
   };
 
@@ -263,7 +284,8 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
       dateMode,
       specificDate,
       startDate,
-      endDate
+      endDate,
+      client: clientFilter === 'all' ? undefined : clientFilter
     });
   };
 
@@ -421,6 +443,16 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
         borderRadius: '16px',
         boxShadow: 'var(--shadow-glow)'
       }}>
+        {activeTable !== 'checklists' && (
+          <div style={{ flex: '1 1 220px', minWidth: 0 }}>
+            <label>Cliente</label>
+            <select value={clientFilter} onChange={e => setClientFilter(e.target.value)} style={{ width: '100%', minHeight: '48px' }}>
+              <option value="all">Todos los clientes</option>
+              {clientOptions.map(client => <option key={client} value={client}>{client}</option>)}
+              {hasLegacyClientRecords && <option value={legacyClientValue}>Sin cliente histórico</option>}
+            </select>
+          </div>
+        )}
         <div className="records-search-block" style={{ flex: '2 1 300px' }}>
           <label>Buscador Específico</label>
           <div className="records-search-row" style={{ display: 'flex', gap: '0.5rem' }}>
@@ -699,7 +731,9 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
                   
                   {activeTable === 'shifts' && (
                     <>
-                      <td style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>{item.coordinator}</td>
+                      <td style={{ padding: '1.2rem', color: 'var(--text-primary)', overflowWrap: 'anywhere' }}>
+                        <strong>Cliente: {item.client || 'Sin cliente histórico'}</strong><br />{item.coordinator}
+                      </td>
                       <td style={{ padding: '1.2rem', color: 'var(--text-primary)', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {item.assistants ? item.assistants.join(', ') : item.assistant}
                       </td>
@@ -872,6 +906,10 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
                 <div className="history-card-body">
                   {activeTable === 'shifts' && (
                     <>
+                      <div className="history-card-item">
+                        <span className="history-card-label">Cliente:</span>
+                        <span className="history-card-value">{item.client || 'Sin cliente histórico'}</span>
+                      </div>
                       <div className="history-card-item">
                         <span className="history-card-label">Coordinador:</span>
                         <span className="history-card-value">{item.coordinator}</span>
@@ -1272,6 +1310,14 @@ const EditModal: React.FC<{
 
           {type === 'shifts' && (
             <>
+              <div>
+                <label>Cliente</label>
+                <select value={formData.client || ''} onChange={e => setFormData({ ...formData, client: e.target.value || undefined })}>
+                  {!formData.client && <option value="">Sin cliente histórico</option>}
+                  {formData.client && !lists.clients.includes(formData.client) && <option value={formData.client}>{formData.client} (retirado)</option>}
+                  {lists.clients.map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
               <div className="grid-cols-2">
                 <div>
                   <label>Coordinador</label>
