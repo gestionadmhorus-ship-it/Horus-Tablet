@@ -51,7 +51,7 @@ const resolveShiftsToExport = (data: AppData, options?: ExcelExportOptions): any
   if (options?.client) {
     shifts = shifts.filter(shift => options.client === '__legacy_without_client__'
       ? !shift.client?.trim()
-      : shift.client === options.client);
+      : shift.client?.trim() === options.client);
   }
 
   if (options?.scope?.table === 'shifts') {

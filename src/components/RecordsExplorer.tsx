@@ -10,7 +10,7 @@ import type {
   ShiftData, FlightData, BatteryData, DetectionData, AppData, ListsData 
 } from '../types';
 import { exportBatteriesToExcel, exportToExcel, getExcelExportContext } from '../utils/exportUtils';
-import { parseLocalTimestampToDate } from '../utils/dateUtils';
+import { getChronologicalTime, parseLocalTimestampToDate } from '../utils/dateUtils';
 import type { HistoricalRecordState, HistoricalViewState } from '../utils/historicalView';
 import { getHistoricalDifferences } from '../utils/historicalView';
 
@@ -41,6 +41,13 @@ interface RecordsExplorerProps {
 }
 
 type RecordType = 'shifts' | 'flights' | 'batteries' | 'detections' | 'checklists';
+const LEGACY_CLIENT_VALUE = '__legacy_without_client__';
+
+const toDateInputValue = (timestamp: string): string => {
+  const date = parseLocalTimestampToDate(timestamp);
+  if (!date) return '';
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+};
 
 const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
   const getTodayDateString = () => {
@@ -51,13 +58,20 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
     return `${year}-${month}-${day}`;
   };
 
+  const initialClosedShift = [...props.data.shifts]
+    .filter(shift => !shift.isDeleted && shift.status === 'closed')
+    .sort((a, b) => getChronologicalTime(b.timestamp) - getChronologicalTime(a.timestamp))[0];
+  const initialClosedDate = initialClosedShift ? toDateInputValue(initialClosedShift.timestamp) : '';
+
   const [activeTable, setActiveTable] = useState<RecordType>('flights');
   const [checklistSubtype, setChecklistSubtype] = useState<'vehicle' | 'drone'>('vehicle');
   const [searchTerm, setSearchTerm] = useState('');
   const [searchField, setSearchField] = useState('all');
-  const [clientFilter, setClientFilter] = useState('all');
+  const [clientFilter, setClientFilter] = useState(() => initialClosedShift
+    ? (initialClosedShift.client?.trim() || LEGACY_CLIENT_VALUE)
+    : 'all');
   const [dateMode, setDateMode] = useState<'specific' | 'range'>('specific');
-  const [specificDate, setSpecificDate] = useState(getTodayDateString());
+  const [specificDate, setSpecificDate] = useState(() => initialClosedDate || getTodayDateString());
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [editingRecord, setEditingRecord] = useState<{ type: RecordType, data: any } | null>(null);
@@ -67,19 +81,30 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
 
 
   // Helper maps for related entities lookup
-  const flightMap = useMemo(() => new Map(props.data.flights.map(f => [f.recordUid, f])), [props.data.flights]);
-  const shiftMap = useMemo(() => new Map(props.data.shifts.map(s => [s.recordUid, s])), [props.data.shifts]);
-  const legacyClientValue = '__legacy_without_client__';
+  const flightMap = useMemo(() => new Map(props.data.flights.filter(f => !!f.recordUid).map(f => [f.recordUid!, f])), [props.data.flights]);
+  const legacyFlightMap = useMemo(() => new Map(props.data.flights.map(f => [f.id, f])), [props.data.flights]);
+  const shiftMap = useMemo(() => new Map(props.data.shifts.filter(s => !!s.recordUid).map(s => [s.recordUid!, s])), [props.data.shifts]);
+  const legacyShiftMap = useMemo(() => new Map(props.data.shifts.map(s => [s.id, s])), [props.data.shifts]);
   const clientOptions = useMemo(() => Array.from(new Set(
-    props.data.shifts.map(shift => shift.client?.trim()).filter((value): value is string => !!value)
+    props.data.shifts.filter(shift => !shift.isDeleted).map(shift => shift.client?.trim()).filter((value): value is string => !!value)
   )).sort((a, b) => a.localeCompare(b, 'es')), [props.data.shifts]);
-  const hasLegacyClientRecords = useMemo(() => props.data.shifts.some(shift => !shift.client?.trim()), [props.data.shifts]);
+  const hasLegacyClientRecords = useMemo(() => props.data.shifts.some(shift => !shift.isDeleted && !shift.client?.trim()), [props.data.shifts]);
+
+  const resolveFlight = (item: any): FlightData | undefined => item.flightRecordUid
+    ? flightMap.get(item.flightRecordUid)
+    : legacyFlightMap.get(item.flightId);
+
+  const resolveShiftFromFlight = (flight: FlightData | undefined): ShiftData | undefined => {
+    if (!flight) return undefined;
+    return flight.shiftRecordUid ? shiftMap.get(flight.shiftRecordUid) : legacyShiftMap.get(flight.shiftId || '');
+  };
 
   const resolveShift = (item: any): ShiftData | undefined => {
     if (activeTable === 'shifts') return item as ShiftData;
-    if (activeTable === 'flights') return shiftMap.get(item.shiftRecordUid);
-    const flight = flightMap.get(item.flightRecordUid);
-    return flight ? shiftMap.get(flight.shiftRecordUid) : undefined;
+    if (activeTable === 'flights') return item.shiftRecordUid
+      ? shiftMap.get(item.shiftRecordUid)
+      : legacyShiftMap.get(item.shiftId);
+    return resolveShiftFromFlight(resolveFlight(item));
   };
 
   const handleTableChange = (tabId: RecordType) => {
@@ -201,7 +226,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
 
       if (activeTable !== 'checklists' && clientFilter !== 'all') {
         const client = resolveShift(item)?.client?.trim();
-        if (clientFilter === legacyClientValue ? !!client : client !== clientFilter) return false;
+        if (clientFilter === LEGACY_CLIENT_VALUE ? !!client : client !== clientFilter) return false;
       }
 
       // 2. Search Term Filter
@@ -213,13 +238,14 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
       let shift: ShiftData | undefined;
 
       if (activeTable === 'flights') {
-        shift = shiftMap.get(item.shiftRecordUid);
+        flight = item as FlightData;
+        shift = resolveShiftFromFlight(flight);
       } else if (activeTable === 'batteries') {
-        flight = flightMap.get(item.flightRecordUid);
-        if (flight) shift = shiftMap.get(flight.shiftRecordUid);
+        flight = resolveFlight(item);
+        shift = resolveShiftFromFlight(flight);
       } else if (activeTable === 'detections') {
-        flight = flightMap.get(item.flightRecordUid);
-        if (flight) shift = shiftMap.get(flight.shiftRecordUid);
+        flight = resolveFlight(item);
+        shift = resolveShiftFromFlight(flight);
       }
 
       // Specific field search logic
@@ -267,7 +293,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
 
       return false;
     }).sort((a, b) => b.timestamp.localeCompare(a.timestamp));
-  }, [props.data, activeTable, checklistSubtype, searchTerm, searchField, clientFilter, dateMode, specificDate, startDate, endDate, flightMap, shiftMap]);
+  }, [props.data, activeTable, checklistSubtype, searchTerm, searchField, clientFilter, dateMode, specificDate, startDate, endDate, flightMap, legacyFlightMap, shiftMap, legacyShiftMap]);
 
   const getCurrentExcelScope = () => {
     if (activeTable !== 'shifts' && activeTable !== 'flights' && activeTable !== 'detections') return undefined;
@@ -289,6 +315,10 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
   };
 
   const handlePrepareEmail = async () => {
+    if (props.data.shifts.some(shift => !shift.isDeleted && shift.status !== 'closed')) {
+      await window.customAlert('Hay una Jornada abierta. Debe cerrarse antes de preparar el correo.');
+      return;
+    }
     const exportOptions = {
       dateMode,
       specificDate,
@@ -299,6 +329,10 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
       delivery: 'share' as const
     };
     const context = getExcelExportContext(props.data, exportOptions);
+    if (context.recordCount === 0) {
+      await window.customAlert('No hay registros para preparar el correo con los filtros seleccionados.');
+      return;
+    }
     const confirmed = await window.customConfirm(
       `Preparar correo con el reporte Excel:\n\n` +
       `Período: ${context.period}\nCliente(s): ${context.clients}\n` +
@@ -479,7 +513,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
             <select value={clientFilter} onChange={e => setClientFilter(e.target.value)} style={{ width: '100%', minHeight: '48px' }}>
               <option value="all">Todos los clientes</option>
               {clientOptions.map(client => <option key={client} value={client}>{client}</option>)}
-              {hasLegacyClientRecords && <option value={legacyClientValue}>Sin cliente histórico</option>}
+              {hasLegacyClientRecords && <option value={LEGACY_CLIENT_VALUE}>Sin cliente histórico</option>}
             </select>
           </div>
         )}
