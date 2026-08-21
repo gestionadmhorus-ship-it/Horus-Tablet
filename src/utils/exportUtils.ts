@@ -4,6 +4,165 @@ import qrcode from 'qrcode-generator';
 import type { AppData } from '../types';
 import { parseLocalTimestampToDate, getChronologicalTime, formatDateDMY, formatTime24h } from './dateUtils';
 
+export interface ExcelExportOptions {
+  dateMode?: 'specific' | 'range';
+  specificDate?: string;
+  startDate?: string;
+  endDate?: string;
+  client?: string;
+  delivery?: 'download' | 'share';
+  scope?: {
+    table: 'shifts' | 'flights' | 'detections';
+    keys: string[];
+  };
+}
+
+export interface ExcelExportContext {
+  period: string;
+  clients: string;
+  lines: string;
+  recordCount: number;
+  fileName: string;
+  subject: string;
+  body: string;
+}
+
+const resolveShiftsToExport = (data: AppData, options?: ExcelExportOptions): any[] => {
+  let shifts = [...data.shifts]
+    .filter(shift => !shift.isDeleted)
+    .sort((a, b) => getChronologicalTime(a.timestamp) - getChronologicalTime(b.timestamp));
+
+  if (options?.dateMode) {
+    const specDateObj = options.specificDate ? new Date(options.specificDate + 'T00:00:00') : null;
+    const start = options.startDate ? new Date(options.startDate + 'T00:00:00') : null;
+    const end = options.endDate ? new Date(options.endDate + 'T23:59:59') : null;
+    shifts = shifts.filter(shift => {
+      const shiftDate = parseLocalTimestampToDate(shift.timestamp);
+      if (!shiftDate) return false;
+      if (options.dateMode === 'specific' && specDateObj) {
+        return shiftDate.getFullYear() === specDateObj.getFullYear()
+          && shiftDate.getMonth() === specDateObj.getMonth()
+          && shiftDate.getDate() === specDateObj.getDate();
+      }
+      return options.dateMode !== 'range' || !start || !end || (shiftDate >= start && shiftDate <= end);
+    });
+  }
+
+  if (options?.client) {
+    shifts = shifts.filter(shift => options.client === '__legacy_without_client__'
+      ? !shift.client?.trim()
+      : shift.client === options.client);
+  }
+
+  if (options?.scope?.table === 'shifts') {
+    const keys = new Set(options.scope.keys);
+    shifts = shifts.filter(shift => keys.has(shift.recordUid || shift.id));
+  }
+
+  if (shifts.length === 0 && data.flights.some(flight => !flight.isDeleted) && !options?.client) {
+    shifts = [{
+      id: 'fallback-shift',
+      timestamp: data.flights.find(flight => !flight.isDeleted)?.timestamp || data.detections.find(detection => !detection.isDeleted)?.timestamp || '',
+      coordinator: 'Sistema',
+      assistants: [],
+      vehicle: '',
+      drone: '',
+      status: 'closed'
+    }];
+  }
+
+  return shifts;
+};
+
+const belongsToShift = (flight: any, shift: any): boolean => shift.id === 'fallback-shift'
+  || (shift.recordUid ? flight.shiftRecordUid === shift.recordUid : flight.shiftId === shift.id);
+
+const recordKey = (record: any): string => record.recordUid || record.id;
+
+const resolveFlightsToExport = (data: AppData, shifts: any[], options?: ExcelExportOptions): any[] => {
+  let flights = data.flights.filter(flight => !flight.isDeleted && shifts.some(shift => belongsToShift(flight, shift)));
+  if (options?.scope?.table === 'flights') {
+    const keys = new Set(options.scope.keys);
+    flights = flights.filter(flight => keys.has(recordKey(flight)));
+  } else if (options?.scope?.table === 'detections') {
+    const detectionKeys = new Set(options.scope.keys);
+    const selectedDetections = data.detections.filter(detection => detectionKeys.has(recordKey(detection)));
+    const flightKeys = new Set(selectedDetections.flatMap(detection => [detection.flightRecordUid, detection.flightId].filter(Boolean)));
+    flights = flights.filter(flight => flightKeys.has(flight.recordUid) || flightKeys.has(flight.id));
+  }
+  return flights;
+};
+
+const isTimestampInExportRange = (timestamp: string, options?: ExcelExportOptions): boolean => {
+  if (!options?.dateMode) return true;
+  const date = parseLocalTimestampToDate(timestamp);
+  if (!date) return true;
+  const specific = options.specificDate ? new Date(options.specificDate + 'T00:00:00') : null;
+  const start = options.startDate ? new Date(options.startDate + 'T00:00:00') : null;
+  const end = options.endDate ? new Date(options.endDate + 'T23:59:59') : null;
+  if (options.dateMode === 'specific' && specific) {
+    return date.getFullYear() === specific.getFullYear()
+      && date.getMonth() === specific.getMonth()
+      && date.getDate() === specific.getDate();
+  }
+  return options.dateMode !== 'range' || !start || !end || (date >= start && date <= end);
+};
+
+const resolveDetectionsToExport = (data: AppData, flights: any[], options?: ExcelExportOptions): any[] => {
+  let detections = data.detections.filter(detection => !detection.isDeleted && isTimestampInExportRange(detection.timestamp, options));
+  if (options?.scope?.table === 'detections') {
+    const keys = new Set(options.scope.keys);
+    return detections.filter(detection => keys.has(recordKey(detection)));
+  }
+  if (options?.client || options?.scope) {
+    const flightKeys = new Set(flights.flatMap(flight => [flight.recordUid, flight.id].filter(Boolean)));
+    detections = detections.filter(detection => flightKeys.has(detection.flightRecordUid) || flightKeys.has(detection.flightId));
+  }
+  return detections;
+};
+
+const sanitizeFilePart = (value: string): string => value
+  .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '-')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+export const getExcelExportContext = (data: AppData, options?: ExcelExportOptions): ExcelExportContext => {
+  const shifts = resolveShiftsToExport(data, options);
+  const flights = resolveFlightsToExport(data, shifts, options);
+  const detections = resolveDetectionsToExport(data, flights, options);
+  const contextShifts = options?.scope && options.scope.table !== 'shifts'
+    ? shifts.filter(shift => flights.some(flight => belongsToShift(flight, shift)))
+    : shifts;
+
+  const dates = [...contextShifts.map(shift => shift.timestamp), ...flights.map(flight => flight.timestamp), ...detections.map(detection => detection.timestamp)]
+    .map(parseLocalTimestampToDate)
+    .filter((date): date is Date => !!date)
+    .sort((a, b) => a.getTime() - b.getTime());
+  const firstDate = dates[0];
+  const lastDate = dates[dates.length - 1];
+  const period = !firstDate ? 'Sin fecha'
+    : firstDate.toDateString() === lastDate.toDateString()
+      ? formatDateDMY(firstDate).replaceAll('/', '-')
+      : `${formatDateDMY(firstDate).replaceAll('/', '-')} al ${formatDateDMY(lastDate).replaceAll('/', '-')}`;
+
+  const clientValues = Array.from(new Set(contextShifts
+    .filter(shift => shift.id !== 'fallback-shift')
+    .map(shift => shift.client?.trim() || 'Sin cliente histórico')));
+  const lineValues = Array.from(new Set(flights
+    .filter(flight => flight.flightType === 'KMS' || !flight.flightType)
+    .map(flight => flight.lineName?.trim())
+    .filter(Boolean))) as string[];
+  const clients = clientValues.length > 1 ? 'Varios Clientes' : (clientValues[0] || 'Sin cliente histórico');
+  const lines = lineValues.length > 1 ? 'Varias Lineas' : (lineValues[0] || '');
+  const descriptor = clients === 'Varios Clientes' ? clients : [clients, lines].filter(Boolean).join(' ');
+  const fileName = `${sanitizeFilePart(period)} - ${sanitizeFilePart(descriptor)}.xlsx`;
+  const recordCount = flights.length + detections.length;
+  const subject = `Hermes - ${descriptor} - ${period}`;
+  const body = `Se adjuntan los registros correspondientes a los filtros seleccionados en Hermes 2.0.\n\nPeríodo: ${period}\nCliente(s): ${clients}\nLínea(s): ${lines || 'No aplica'}\nRegistros: ${recordCount}`;
+
+  return { period, clients, lines, recordCount, fileName, subject, body };
+};
+
 const splitTimestamp = (timestamp: string): { date: string; time: string } => {
   if (!timestamp) return { date: '', time: '' };
   const d = parseLocalTimestampToDate(timestamp);
@@ -38,60 +197,18 @@ const formatDuration = (hours: number): string => {
 
 export const exportToExcel = async (
   data: AppData,
-  options?: {
-    dateMode?: 'specific' | 'range';
-    specificDate?: string;
-    startDate?: string;
-    endDate?: string;
-    client?: string;
-  }
+  options?: ExcelExportOptions
 ) => {
+  const exportContext = getExcelExportContext(data, options);
+  if (exportContext.recordCount === 0) {
+    await window.customAlert('No hay registros para exportar con los filtros seleccionados.');
+    return;
+  }
   const workbook = new ExcelJS.Workbook();
   
   // 1. Filter and sort shifts (jornadas)
-  let shiftsToExport = [...data.shifts].sort((a, b) => getChronologicalTime(a.timestamp) - getChronologicalTime(b.timestamp));
-
-  if (options?.dateMode) {
-    const { dateMode, specificDate, startDate, endDate } = options;
-    const specDateObj = specificDate ? new Date(specificDate + 'T00:00:00') : null;
-    const start = startDate ? new Date(startDate + 'T00:00:00') : null;
-    const end = endDate ? new Date(endDate + 'T23:59:59') : null;
-
-    if (dateMode === 'specific' && specDateObj) {
-      shiftsToExport = shiftsToExport.filter(shift => {
-        const shiftDate = parseLocalTimestampToDate(shift.timestamp);
-        if (!shiftDate) return false;
-        return shiftDate.getFullYear() === specDateObj.getFullYear() &&
-               shiftDate.getMonth() === specDateObj.getMonth() &&
-               shiftDate.getDate() === specDateObj.getDate();
-      });
-    } else if (dateMode === 'range' && start && end) {
-      shiftsToExport = shiftsToExport.filter(shift => {
-        const shiftDate = parseLocalTimestampToDate(shift.timestamp);
-        if (!shiftDate) return false;
-        return shiftDate >= start && shiftDate <= end;
-      });
-    }
-  }
-
-  if (options?.client) {
-    shiftsToExport = shiftsToExport.filter(shift => options.client === '__legacy_without_client__'
-      ? !shift.client?.trim()
-      : shift.client === options.client);
-  }
-
-  // Fallback: If no shifts match or shifts array is empty, but flights exist, export all flights under virtual shift
-  if (shiftsToExport.length === 0 && data.flights.length > 0 && !options?.client) {
-    shiftsToExport = [{
-      id: 'fallback-shift',
-      timestamp: data.flights[0]?.timestamp || data.detections[0]?.timestamp || '',
-      coordinator: 'Sistema',
-      assistants: [],
-      vehicle: '',
-      drone: '',
-      status: 'closed'
-    } as any];
-  }
+  const shiftsToExport = resolveShiftsToExport(data, options);
+  const flightsToExport = resolveFlightsToExport(data, shiftsToExport, options);
 
   // 2. Create sheets
   const wsKMS = workbook.addWorksheet('Vuelos KMS');
@@ -143,9 +260,9 @@ export const exportToExcel = async (
     const titleRow = sheet.addRow([
       `Fecha: ${startDay}`,
       '',
-      `Cliente: ${clientVal} | Origen: ${origenVal}`,
+      `Origen: ${origenVal}`,
       '',
-      `Línea: ${lineVal}${stageText}`,
+      `Línea: ${clientVal} ${lineVal}${stageText}`,
       '',
       '',
       '',
@@ -321,35 +438,12 @@ export const exportToExcel = async (
     sheet.addRow([]);
   };
 
-  // Filter detections based on date mode
-  const isDateInFilter = (timestampStr: string): boolean => {
-    if (!options?.dateMode) return true;
-    const { dateMode, specificDate, startDate, endDate } = options;
-    const specDateObj = specificDate ? new Date(specificDate + 'T00:00:00') : null;
-    const start = startDate ? new Date(startDate + 'T00:00:00') : null;
-    const end = endDate ? new Date(endDate + 'T23:59:59') : null;
-
-    if (dateMode === 'specific' && specDateObj) {
-      const d = parseLocalTimestampToDate(timestampStr);
-      if (!d) return true;
-      return d.getFullYear() === specDateObj.getFullYear() &&
-             d.getMonth() === specDateObj.getMonth() &&
-             d.getDate() === specDateObj.getDate();
-    }
-    if (dateMode === 'range' && start && end) {
-      const d = parseLocalTimestampToDate(timestampStr);
-      if (!d) return true;
-      return d >= start && d <= end;
-    }
-    return true;
-  };
-
-  const allDetectionsToExport = data.detections.filter(d => !d.isDeleted && isDateInFilter(d.timestamp));
+  const allDetectionsToExport = resolveDetectionsToExport(data, flightsToExport, options);
   const processedDetectionIds = new Set<string>();
 
   // 3. Populate KMS Sheet by iterating shifts & flights
   shiftsToExport.forEach((shift) => {
-    const kmsFlights = data.flights.filter(f => (shift.id === 'fallback-shift' || (shift.recordUid ? f.shiftRecordUid === shift.recordUid : f.shiftId === shift.id)) && (f.flightType === 'KMS' || !f.flightType))
+    const kmsFlights = flightsToExport.filter(f => belongsToShift(f, shift) && (f.flightType === 'KMS' || !f.flightType))
                                    .sort((a, b) => getChronologicalTime(a.timestamp) - getChronologicalTime(b.timestamp));
 
     kmsFlights.forEach((flight) => {
@@ -385,7 +479,7 @@ export const exportToExcel = async (
   // 4. Populate HS Sheet
   let totalHSDuration = 0;
   shiftsToExport.forEach((shift) => {
-    const hsFlights = data.flights.filter(f => (shift.recordUid ? f.shiftRecordUid === shift.recordUid : f.shiftId === shift.id) && f.flightType === 'HS')
+    const hsFlights = flightsToExport.filter(f => belongsToShift(f, shift) && f.flightType === 'HS')
                                   .sort((a, b) => getChronologicalTime(a.timestamp) - getChronologicalTime(b.timestamp));
 
     hsFlights.forEach((flight) => {
@@ -509,55 +603,72 @@ export const exportToExcel = async (
     return window.btoa(binary);
   };
 
-  // Write and trigger download
-  const dateStr = new Date().toISOString().split('T')[0];
+  // Write once; every delivery path reuses this exact workbook and contextual name.
   const buffer = await workbook.xlsx.writeBuffer();
+  const fileName = exportContext.fileName;
 
   // Mobile / Capacitor native saving
   if (typeof window !== 'undefined' && !!(window as any).Capacitor?.isNativePlatform?.()) {
     try {
       const { Filesystem, Directory } = await import('@capacitor/filesystem');
       const base64Data = arrayBufferToBase64(buffer);
-      const fileName = `Reporte_Jornada_${dateStr}.xlsx`;
-      
+      const isShare = options?.delivery === 'share';
       const writeResult = await Filesystem.writeFile({
-        path: `Horus_Datos/${fileName}`,
+        path: `${isShare ? 'Horus_Exportaciones' : 'Horus_Datos'}/${fileName}`,
         data: base64Data,
-        directory: Directory.Documents,
+        directory: isShare ? Directory.Cache : Directory.Documents,
         recursive: true
       });
 
-      await window.customAlert(
-        `📊 REPORTE EXCEL GENERADO\n\n` +
-        `El archivo se ha guardado con éxito en tu dispositivo.\n\n` +
-        `📁 Ubicación: Documentos/Horus_Datos/${fileName}`
-      );
-
-      try {
+      if (isShare) {
         const { Share } = await import('@capacitor/share');
         await Share.share({
-          title: 'Compartir Reporte Excel',
-          text: `Reporte de Jornada - ${dateStr}`,
+          title: exportContext.subject,
+          text: exportContext.body,
           files: [writeResult.uri],
-          dialogTitle: 'Compartir o guardar reporte Excel'
+          dialogTitle: 'Preparar correo o compartir reporte'
         });
-      } catch (shareErr) {
-        console.log('Compartir cancelado o no disponible:', shareErr);
+      } else {
+        await window.customAlert(
+          `📊 REPORTE EXCEL GENERADO\n\n` +
+          `El archivo se ha guardado con éxito en tu dispositivo.\n\n` +
+          `📁 Ubicación: Documentos/Horus_Datos/${fileName}`
+        );
       }
     } catch (err: any) {
-      await window.customAlert(`❌ Error al guardar el reporte Excel: ${err.message || err}`);
+      await window.customAlert(`❌ Error al preparar el reporte Excel: ${err.message || err}`);
     }
     return;
   }
 
   // Browser / Electron saving
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const file = new File([blob], fileName, { type: blob.type });
+  const shareData = { title: exportContext.subject, text: exportContext.body, files: [file] };
+  if (options?.delivery === 'share' && navigator.share && navigator.canShare?.(shareData)) {
+    try {
+      await navigator.share(shareData);
+      return;
+    } catch (error: any) {
+      if (error?.name === 'AbortError') return;
+      console.warn('No se pudo abrir el compartidor con adjunto:', error);
+    }
+  }
+
   const url = window.URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `Reporte_Jornada_${dateStr}.xlsx`;
+  link.download = fileName;
   link.click();
   window.URL.revokeObjectURL(url);
+
+  if (options?.delivery === 'share') {
+    await window.customAlert(
+      `El archivo “${fileName}” se descargó, pero esta plataforma no permite adjuntarlo automáticamente de forma segura.\n\n` +
+      `Asunto sugerido: ${exportContext.subject}\n\n${exportContext.body}\n\n` +
+      `Adjunta manualmente el archivo descargado en tu cliente de correo.`
+    );
+  }
 };
 
 export const exportBatteriesToExcel = async (

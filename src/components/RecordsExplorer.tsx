@@ -2,14 +2,14 @@ import React, { useState, useMemo } from 'react';
 import { 
   ArrowLeft, Search, Calendar, Edit2, Trash2, 
   Download, LayoutDashboard, Plane, Cpu, AlertTriangle, Save, X, ShieldCheck, Printer, Filter,
-  Eye, GitCompare, ArchiveRestore
+  Eye, GitCompare, ArchiveRestore, Mail
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import PrintableChecklistBatch from './PrintableChecklistBatch';
 import type { 
   ShiftData, FlightData, BatteryData, DetectionData, AppData, ListsData 
 } from '../types';
-import { exportBatteriesToExcel, exportToExcel } from '../utils/exportUtils';
+import { exportBatteriesToExcel, exportToExcel, getExcelExportContext } from '../utils/exportUtils';
 import { parseLocalTimestampToDate } from '../utils/dateUtils';
 import type { HistoricalRecordState, HistoricalViewState } from '../utils/historicalView';
 import { getHistoricalDifferences } from '../utils/historicalView';
@@ -269,14 +269,44 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
     }).sort((a, b) => b.timestamp.localeCompare(a.timestamp));
   }, [props.data, activeTable, checklistSubtype, searchTerm, searchField, clientFilter, dateMode, specificDate, startDate, endDate, flightMap, shiftMap]);
 
+  const getCurrentExcelScope = () => {
+    if (activeTable !== 'shifts' && activeTable !== 'flights' && activeTable !== 'detections') return undefined;
+    return {
+      table: activeTable,
+      keys: filteredData.map(item => item.recordUid || item.id)
+    };
+  };
+
   const handleExportFiltered = () => {
     exportToExcel(props.data, {
       dateMode,
       specificDate,
       startDate,
       endDate,
-      client: clientFilter === 'all' ? undefined : clientFilter
+      client: clientFilter === 'all' ? undefined : clientFilter,
+      scope: getCurrentExcelScope()
     });
+  };
+
+  const handlePrepareEmail = async () => {
+    const exportOptions = {
+      dateMode,
+      specificDate,
+      startDate,
+      endDate,
+      client: clientFilter === 'all' ? undefined : clientFilter,
+      scope: getCurrentExcelScope(),
+      delivery: 'share' as const
+    };
+    const context = getExcelExportContext(props.data, exportOptions);
+    const confirmed = await window.customConfirm(
+      `Preparar correo con el reporte Excel:\n\n` +
+      `Período: ${context.period}\nCliente(s): ${context.clients}\n` +
+      `Línea(s): ${context.lines || 'No aplica'}\nRegistros: ${context.recordCount}\n\n` +
+      `Archivo: ${context.fileName}`
+    );
+    if (!confirmed) return;
+    await exportToExcel(props.data, exportOptions);
   };
 
   const handleExportBatteries = () => {
@@ -596,7 +626,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
         )}
 
         {/* Action Button */}
-        <div className="records-actions" style={{ display: 'flex', gap: '0.5rem', flexDirection: 'column', justifyContent: 'flex-end' }}>
+        <div className="records-actions" style={{ display: 'grid', gap: '0.5rem', justifyContent: 'flex-end' }}>
           {activeTable === 'checklists' && (
             <button onClick={() => window.print()} className="btn-3d records-action-button" style={{ width: '100%', padding: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', background: '#ff6600', color: 'black', border: '1px solid #ff6600' }}>
               <Printer size={18} /> IMPRIMIR LOTES
@@ -619,6 +649,25 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
               }}
             >
               <Download size={16} /> EXPORTAR
+            </button>
+          )}
+          {activeTable !== 'checklists' && (
+            <button
+              onClick={handlePrepareEmail}
+              disabled={filteredData.length === 0}
+              className="btn-3d records-action-button"
+              style={{
+                width: '100%',
+                padding: '1rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.75rem',
+                opacity: filteredData.length === 0 ? 0.5 : 1,
+                cursor: filteredData.length === 0 ? 'not-allowed' : 'pointer'
+              }}
+            >
+              <Mail size={16} /> PREPARAR CORREO
             </button>
           )}
           {activeTable === 'batteries' && (
