@@ -16,7 +16,9 @@ interface DashboardProps {
   onReopenShift: () => void;
   hasTodayClosedShift: boolean;
   activeShiftId?: string;
+  activeShiftRecordUid?: string;
   activeFlightId?: string;
+  activeFlightRecordUid?: string;
   activeFlightName?: string;
   onEditShift: () => void;
   onEditFlight: () => void;
@@ -37,7 +39,7 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ 
   data, onNavigate, onSettings, hasActiveShift, hasActiveFlight, activeFlightType, onCloseShift, 
-  onReopenShift, hasTodayClosedShift, activeShiftId, activeFlightId,
+  onReopenShift, hasTodayClosedShift, activeShiftId, activeShiftRecordUid, activeFlightRecordUid,
   onEditShift, onEditFlight, onNewFlight, onCloseFlight, deviceName, syncStatus, appRole,
   currentTheme = 'hud', onChangeTheme, onForceSync, lastSyncTimestamp, unitsStatus,
   syncHistory = [], onExport, onRequestFullBackup
@@ -70,7 +72,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   }, []);
 
   // ─── Live Metrics & Database Stats Calculation ───
-  const activeShift = data?.shifts?.find((s: any) => s.id === activeShiftId);
+  const activeShift = data?.shifts?.find((s: any) => activeShiftRecordUid ? s.recordUid === activeShiftRecordUid : s.id === activeShiftId);
   const shiftText = activeShift 
     ? `Coord: ${activeShift.coordinator}` 
     : 'Sin jornada activa';
@@ -79,22 +81,22 @@ const Dashboard: React.FC<DashboardProps> = ({
     : 'Registre base e integrantes';
 
   // KMS Flights
-  const kmsFlightsToday = data?.flights?.filter((f: any) => f.shiftId === activeShiftId && f.flightType === 'KMS') || [];
+  const kmsFlightsToday = data?.flights?.filter((f: any) => (activeShiftRecordUid ? f.shiftRecordUid === activeShiftRecordUid : f.shiftId === activeShiftId) && f.flightType === 'KMS') || [];
   const kmsCount = kmsFlightsToday.length;
   const lastKms = kmsFlightsToday[kmsFlightsToday.length - 1];
   const kmsText = kmsCount > 0 ? `${kmsCount} vuelo${kmsCount > 1 ? 's' : ''} registrado${kmsCount > 1 ? 's' : ''}` : 'Sin vuelos cargados';
   const kmsSubText = lastKms ? `Último: ${lastKms.lineName} (${lastKms.timestamp.split(' ')[1] || ''})` : 'Inicie inspección de líneas';
 
   // HS Tasks
-  const hsFlightsToday = data?.flights?.filter((f: any) => f.shiftId === activeShiftId && f.flightType === 'HS') || [];
+  const hsFlightsToday = data?.flights?.filter((f: any) => (activeShiftRecordUid ? f.shiftRecordUid === activeShiftRecordUid : f.shiftId === activeShiftId) && f.flightType === 'HS') || [];
   const hsCount = hsFlightsToday.length;
   const lastHs = hsFlightsToday[hsFlightsToday.length - 1];
   const hsText = hsCount > 0 ? `${hsCount} tarea${hsCount > 1 ? 's' : ''} registrada${hsCount > 1 ? 's' : ''}` : 'Sin tareas cargadas';
   const hsSubText = lastHs ? `Última: ${lastHs.pilot} (${lastHs.timestamp.split(' ')[1] || ''})` : 'Inicie control por horas';
 
   // Batteries & Detections (only KMS flight ids)
-  const activeFlightIds = (data?.flights?.filter((f: any) => f.shiftId === activeShiftId) || []).map((f: any) => f.id);
-  const activeDetections = data?.detections?.filter((d: any) => activeFlightIds.includes(d.flightId)) || [];
+  const activeFlightUids = (data?.flights?.filter((f: any) => activeShiftRecordUid ? f.shiftRecordUid === activeShiftRecordUid : f.shiftId === activeShiftId) || []).map((f: any) => f.recordUid).filter(Boolean);
+  const activeDetections = data?.detections?.filter((d: any) => d.flightRecordUid ? activeFlightUids.includes(d.flightRecordUid) : false) || [];
   const urgentCount = activeDetections.filter((d: any) => d.criticality === 'Urgente').length;
   const highCount = activeDetections.filter((d: any) => d.criticality === 'Alta').length;
   const detectionsText = activeDetections.length > 0 
@@ -1438,7 +1440,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               {actionMenu === 'KMS' ? <Plane size={16} /> : <Clock size={16} />} Agregar un vuelo nuevo
             </button>
             
-            <button onClick={() => { onCloseFlight && activeFlightId && onCloseFlight(activeFlightId); setActionMenu(null); }} style={{ padding: '1rem', background: 'rgba(239,68,68,0.1)', color: 'var(--neon-red)', border: '1px solid var(--neon-red)', borderRadius: '8px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', fontSize: '0.9rem' }}>
+            <button onClick={() => { onCloseFlight && activeFlightRecordUid && onCloseFlight(activeFlightRecordUid); setActionMenu(null); }} style={{ padding: '1rem', background: 'rgba(239,68,68,0.1)', color: 'var(--neon-red)', border: '1px solid var(--neon-red)', borderRadius: '8px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', fontSize: '0.9rem' }}>
               <Power size={16} /> Cerrar el vuelo
             </button>
             

@@ -43,7 +43,9 @@ function App() {
     syncIncomingData,
     getUnsyncedData,
     markDataAsSynced,
-    getAllData
+    getAllData, getControlRecordsState, applyControlRecordsState,
+    historicalView, historicalState, restoreHistoricalRecord,
+    permanentlyRemoveHistoricalRecord, resolveHistoricalConflict
   } = useDatabase();
   
   const [showExportModal, setShowExportModal] = useState(false);
@@ -72,6 +74,7 @@ function App() {
 
   // Historical Overrides for adding child records from RecordsExplorer
   const [historicalShiftId, setHistoricalShiftId] = useState<string | undefined>(undefined);
+  const [historicalShiftRecordUid, setHistoricalShiftRecordUid] = useState<string | undefined>(undefined);
   const [historicalFlightData, setHistoricalFlightData] = useState<any>(undefined);
 
   const [themeMode, setThemeMode] = useState<'hud' | 'boost'>(() => {
@@ -152,16 +155,17 @@ function App() {
     const latestShiftSnap = sortedShiftsSnap.length > 0 ? sortedShiftsSnap[sortedShiftsSnap.length - 1] : undefined;
     const hasActiveShiftSnap = !!(latestShiftSnap && latestShiftSnap.timestamp.split(' ')[0] === todayStr && latestShiftSnap.status !== 'closed');
     const activeShiftIdSnap = hasActiveShiftSnap ? latestShiftSnap?.id : undefined;
+    const activeShiftUidSnap = hasActiveShiftSnap ? latestShiftSnap?.recordUid : undefined;
 
-    const activeFlightsSnap = activeShiftIdSnap ? data.flights.filter(f => f.shiftId === activeShiftIdSnap && f.status !== 'closed') : [];
+    const activeFlightsSnap = activeShiftIdSnap ? data.flights.filter(f => (activeShiftUidSnap ? f.shiftRecordUid === activeShiftUidSnap : f.shiftId === activeShiftIdSnap) && f.status !== 'closed') : [];
     const latestFlightSnap = activeFlightsSnap.length > 0 ? activeFlightsSnap[activeFlightsSnap.length - 1] : undefined;
     const hasActiveFlightSnap = !!latestFlightSnap;
 
-    const shiftFlights = activeShiftIdSnap ? data.flights.filter(f => f.shiftId === activeShiftIdSnap) : [];
-    const shiftFlightIds = shiftFlights.map(f => f.id);
+    const shiftFlights = activeShiftIdSnap ? data.flights.filter(f => activeShiftUidSnap ? f.shiftRecordUid === activeShiftUidSnap : f.shiftId === activeShiftIdSnap) : [];
+    const shiftFlightIds = shiftFlights.map(f => f.recordUid);
     const kmsCount = shiftFlights.filter(f => f.flightType === 'KMS').length;
     const hsCount = shiftFlights.filter(f => f.flightType === 'HS').length;
-    const detectionsCount = data.detections.filter(d => shiftFlightIds.includes(d.flightId || '')).length;
+    const detectionsCount = data.detections.filter(d => shiftFlightIds.includes(d.flightRecordUid)).length;
 
     return {
       hasActiveShift: hasActiveShiftSnap,
@@ -223,7 +227,9 @@ function App() {
     getAllData,
     deviceName,
     () => lists.elements,
-    replaceKnowledgeBase
+    replaceKnowledgeBase,
+    getControlRecordsState,
+    applyControlRecordsState
   );
 
   // Merge hook-managed units state into local state for the dashboard
@@ -379,6 +385,7 @@ function App() {
   // ─── Determine active shift by date + status ───
   const activeLists = { ...lists };
   let activeShiftId: string | undefined;
+  let activeShiftRecordUid: string | undefined;
   
   const todayDateStr = formatDateDMY(new Date());
   
@@ -398,6 +405,7 @@ function App() {
 
     if (isToday && isNotClosed) {
       activeShiftId = latestShift.id;
+      activeShiftRecordUid = latestShift.recordUid;
       const assistants = latestShift.assistants || (latestShift.assistant ? [latestShift.assistant] : []);
       const activeCrew = [latestShift.coordinator, ...assistants].filter(Boolean);
       activeLists.pilots = activeCrew;
@@ -405,21 +413,24 @@ function App() {
   }
 
   const effectiveShiftId = historicalShiftId || activeShiftId;
+  const effectiveShiftRecordUid = historicalShiftRecordUid || activeShiftRecordUid;
 
   // ─── Determine active flight (must belong to active shift) ───
   let activeFlightId: string | undefined;
+  let activeFlightRecordUid: string | undefined;
   let activeFlightName: string | undefined;
   let activeFlightData: import('./types').FlightData | undefined;
   let activeFlightType: 'KMS' | 'HS' | undefined;
 
   if (data.flights.length > 0 && activeShiftId) {
     // Filter flights belonging to current active shift that are still open
-    const activeShiftFlights = data.flights.filter(f => f.shiftId === activeShiftId && f.status !== 'closed');
+    const activeShiftFlights = data.flights.filter(f => (activeShiftRecordUid ? f.shiftRecordUid === activeShiftRecordUid : f.shiftId === activeShiftId) && f.status !== 'closed');
     if (activeShiftFlights.length > 0) {
       // Sort to get the latest in case there are multiple open flights
       const sortedFlights = [...activeShiftFlights].sort((a, b) => getChronologicalTime(a.timestamp) - getChronologicalTime(b.timestamp));
       const latestFlight = sortedFlights[sortedFlights.length - 1];
       activeFlightId = latestFlight.id;
+      activeFlightRecordUid = latestFlight.recordUid;
       activeFlightType = latestFlight.flightType || 'KMS';
       activeFlightName = activeFlightType === 'HS' ? latestFlight.taskTypeAndLocation : latestFlight.lineName;
       activeFlightData = latestFlight;
@@ -453,12 +464,12 @@ function App() {
       if (!confirm) return false;
     }
     
-    await closeFlight(flight.id, closedTime, obs);
+    await closeFlight(flight.recordUid!, closedTime, obs);
     return true;
   };
 
-  const handleCloseFlight = async (id: string) => {
-    const flight = data.flights.find(f => f.id === id);
+  const handleCloseFlight = async (recordUid: string) => {
+    const flight = data.flights.find(f => f.recordUid === recordUid);
     if (flight) {
       await closeFlightWithPrompt(flight);
     }
@@ -467,7 +478,7 @@ function App() {
   const handleSaveFlight = async (flightData: import('./types').FlightData) => {
     if (activeShiftId) {
       // Close any active flights in the current shift
-      const activeFlights = data.flights.filter(f => f.shiftId === activeShiftId && f.status !== 'closed');
+      const activeFlights = data.flights.filter(f => (activeShiftRecordUid ? f.shiftRecordUid === activeShiftRecordUid : f.shiftId === activeShiftId) && f.status !== 'closed');
       for (const f of activeFlights) {
         let obs = '';
         const now = new Date();
@@ -479,10 +490,10 @@ function App() {
           );
           obs = result !== null ? result : '';
         }
-        await closeFlight(f.id, closedTime, obs);
+        await closeFlight(f.recordUid!, closedTime, obs);
       }
     }
-    await saveFlight({ ...flightData, status: 'active' });
+    await saveFlight({ ...flightData, shiftRecordUid: effectiveShiftRecordUid, status: 'active' });
   };
 
   const handleNewFlight = (type: 'KMS' | 'HS') => {
@@ -496,7 +507,7 @@ function App() {
     if (activeShiftId && latestShift) {
       const ok = await window.customConfirm('¿Estás seguro de cerrar la jornada actual?');
       if (ok) {
-        const activeFlights = data.flights.filter(f => f.shiftId === activeShiftId && f.status !== 'closed');
+        const activeFlights = data.flights.filter(f => (activeShiftRecordUid ? f.shiftRecordUid === activeShiftRecordUid : f.shiftId === activeShiftId) && f.status !== 'closed');
         for (const f of activeFlights) {
           let obs = '';
           const now = new Date();
@@ -508,16 +519,16 @@ function App() {
             );
             obs = result !== null ? result : '';
           }
-          await closeFlight(f.id, closedTime, obs);
+          await closeFlight(f.recordUid!, closedTime, obs);
         }
-        await closeShift(latestShift.id);
+        await closeShift(latestShift.recordUid!);
       }
     }
   };
 
   const handleReopenShift = () => {
     if (latestShift && hasTodayClosedShift) {
-      reopenShift(latestShift.id);
+      reopenShift(latestShift.recordUid!);
     }
   };
 
@@ -548,6 +559,8 @@ function App() {
             hasTodayClosedShift={hasTodayClosedShift}
             activeShiftId={activeShiftId}
             activeFlightId={activeFlightId}
+            activeShiftRecordUid={activeShiftRecordUid}
+            activeFlightRecordUid={activeFlightRecordUid}
             activeFlightName={activeFlightName}
             onEditShift={handleEditShift}
             onEditFlight={handleEditFlight}
@@ -582,7 +595,7 @@ function App() {
             key={isNewFlightRequested ? 'new-flight' : (effectiveFlightId || 'create-flight')}
             onSave={(data) => { handleSaveFlight(data); setIsNewFlightRequested(false); }}
             onUpdate={updateFlight}
-            onBack={() => { setIsNewFlightRequested(false); setHistoricalShiftId(undefined); setCurrentPage('dashboard'); }} 
+            onBack={() => { setIsNewFlightRequested(false); setHistoricalShiftId(undefined); setHistoricalShiftRecordUid(undefined); setCurrentPage('dashboard'); }}
             lists={activeLists} 
             activeShiftId={effectiveShiftId}
             editData={effectiveFlightId && activeFlightData && !isNewFlightRequested ? activeFlightData : undefined}
@@ -594,8 +607,8 @@ function App() {
       case 'batteries':
         return (
           <BatteriesDetectionsForm
-            onSaveBattery={saveBattery}
-            onSaveDetection={saveDetection}
+            onSaveBattery={(item) => saveBattery({ ...item, flightRecordUid: historicalFlightData?.recordUid || activeFlightData?.recordUid })}
+            onSaveDetection={(item) => saveDetection({ ...item, flightRecordUid: historicalFlightData?.recordUid || activeFlightData?.recordUid })}
             onBack={() => { setHistoricalFlightData(undefined); setCurrentPage('dashboard'); }}
             lists={activeLists}
             activeFlightId={effectiveFlightId}
@@ -658,6 +671,11 @@ function App() {
             data={data} 
             lists={lists}
             isServer={appRole === 'server'}
+            historicalView={historicalView}
+            historicalState={historicalState}
+            onRestoreHistorical={restoreHistoricalRecord}
+            onPermanentlyRemoveHistorical={permanentlyRemoveHistoricalRecord}
+            onResolveHistoricalConflict={resolveHistoricalConflict}
             onBack={() => setCurrentPage('dashboard')} 
             onUpdateShift={updateShift}
             onDeleteShift={deleteShift}
@@ -689,6 +707,7 @@ function App() {
             }}
             onAddNew={(action) => {
               setHistoricalShiftId(undefined);
+              setHistoricalShiftRecordUid(undefined);
               setHistoricalFlightData(undefined);
               if (action === 'shifts') {
                 setCurrentPage('shift');
@@ -713,6 +732,7 @@ function App() {
                 const t = type.trim().toUpperCase() || 'KMS';
                 if (t === 'KMS' || t === 'HS') {
                   setHistoricalShiftId(parentData.id);
+                  setHistoricalShiftRecordUid(parentData.recordUid);
                   setNewFlightType(t as 'KMS'|'HS');
                   setIsNewFlightRequested(true);
                   setCurrentPage('flight');

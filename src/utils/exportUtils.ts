@@ -341,11 +341,11 @@ export const exportToExcel = async (
 
   // 3. Populate KMS Sheet by iterating shifts & flights
   shiftsToExport.forEach((shift) => {
-    const kmsFlights = data.flights.filter(f => (shift.id === 'fallback-shift' || f.shiftId === shift.id) && (f.flightType === 'KMS' || !f.flightType))
+    const kmsFlights = data.flights.filter(f => (shift.id === 'fallback-shift' || (shift.recordUid ? f.shiftRecordUid === shift.recordUid : f.shiftId === shift.id)) && (f.flightType === 'KMS' || !f.flightType))
                                    .sort((a, b) => getChronologicalTime(a.timestamp) - getChronologicalTime(b.timestamp));
 
     kmsFlights.forEach((flight) => {
-      const detections = allDetectionsToExport.filter(d => d.flightId === flight.id)
+      const detections = allDetectionsToExport.filter(d => flight.recordUid ? d.flightRecordUid === flight.recordUid : d.flightId === flight.id)
                                               .sort((a, b) => getChronologicalTime(a.timestamp) - getChronologicalTime(b.timestamp));
       detections.forEach(d => processedDetectionIds.add(d.id));
       renderKMSFlightBlock(wsKMS, workbook, flight, shift, detections);
@@ -377,7 +377,7 @@ export const exportToExcel = async (
   // 4. Populate HS Sheet
   let totalHSDuration = 0;
   shiftsToExport.forEach((shift) => {
-    const hsFlights = data.flights.filter(f => f.shiftId === shift.id && f.flightType === 'HS')
+    const hsFlights = data.flights.filter(f => (shift.recordUid ? f.shiftRecordUid === shift.recordUid : f.shiftId === shift.id) && f.flightType === 'HS')
                                   .sort((a, b) => getChronologicalTime(a.timestamp) - getChronologicalTime(b.timestamp));
 
     hsFlights.forEach((flight) => {
@@ -563,8 +563,8 @@ export const exportBatteriesToExcel = async (
 ) => {
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('Baterías');
-  const flightMap = new Map(data.flights.filter(flight => !flight.isDeleted).map(flight => [flight.id, flight]));
-  const shiftMap = new Map(data.shifts.filter(shift => !shift.isDeleted).map(shift => [shift.id, shift]));
+  const flightMap = new Map(data.flights.filter(flight => !flight.isDeleted).map(flight => [flight.recordUid, flight]));
+  const shiftMap = new Map(data.shifts.filter(shift => !shift.isDeleted).map(shift => [shift.recordUid, shift]));
 
   const specDate = options?.specificDate ? new Date(options.specificDate + 'T00:00:00') : null;
   const start = options?.startDate ? new Date(options.startDate + 'T00:00:00') : null;
@@ -603,8 +603,8 @@ export const exportBatteriesToExcel = async (
   ];
 
   batteries.forEach(battery => {
-    const flight = battery.flightId ? flightMap.get(battery.flightId) : undefined;
-    const shift = flight?.shiftId ? shiftMap.get(flight.shiftId) : undefined;
+    const flight = battery.flightRecordUid ? flightMap.get(battery.flightRecordUid) : undefined;
+    const shift = flight?.shiftRecordUid ? shiftMap.get(flight.shiftRecordUid) : undefined;
     const shiftTimestamp = shift ? splitTimestamp(shift.timestamp) : { date: '—', time: '' };
     const batteryTimestamp = splitTimestamp(battery.timestamp);
     const flightName = flight

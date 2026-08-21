@@ -25,8 +25,29 @@ export interface ListsData {
 
 export const DEFAULT_LISTS: ListsData = PRELOADED_LISTS;
 
+export type HistoricalEntityType =
+  | 'shift'
+  | 'flight'
+  | 'battery'
+  | 'detection'
+  | 'vehicleChecklist'
+  | 'droneChecklist';
+
+export type HistoricalOriginalStatus = 'verified' | 'legacyBaseline' | 'unavailable';
+
+export type HistoricalCaptureSource = 'localCreation' | 'fieldSync' | 'legacyMigration';
+export type HistoricalEditorRole = 'control' | 'field';
+export type HistoricalChangeKind = 'directEdit' | 'descendantEdited' | 'descendantDeleted';
+export type HistoricalConflictStatus = 'none' | 'pending' | 'accepted' | 'rejected';
+
+export interface HistoricalRecordIdentity {
+  recordUid?: string;
+  sourceDeviceId?: string;
+  globalRelationStatus?: 'resolved' | 'unresolved' | 'ambiguous';
+}
+
 /* ─── Form Records ─── */
-export interface ShiftData {
+export interface ShiftData extends HistoricalRecordIdentity {
   id: string;
   timestamp: string;
   coordinator: string;
@@ -44,9 +65,10 @@ export interface ShiftData {
   isDeleted?: boolean;
 }
 
-export interface FlightData {
+export interface FlightData extends HistoricalRecordIdentity {
   id: string;
   shiftId?: string; // Foreign key
+  shiftRecordUid?: string;
   timestamp: string;
   pilot: string;
   lineName: string;
@@ -69,9 +91,10 @@ export interface FlightData {
   isDeleted?: boolean;
 }
 
-export interface BatteryData {
+export interface BatteryData extends HistoricalRecordIdentity {
   id: string;
   flightId?: string; // Foreign key
+  flightRecordUid?: string;
   timestamp: string;
   pilot: string;
   droneBatteryName: string;   // Alphanumeric ID, max 3 chars
@@ -84,9 +107,10 @@ export interface BatteryData {
   isDeleted?: boolean;
 }
 
-export interface DetectionData {
+export interface DetectionData extends HistoricalRecordIdentity {
   id: string;
   flightId?: string; // Foreign key
+  flightRecordUid?: string;
   timestamp: string;
   element: string;
   anomaly: string;
@@ -103,7 +127,7 @@ export interface DetectionData {
   isDeleted?: boolean;
 }
 
-export interface VehicleChecklistData {
+export interface VehicleChecklistData extends HistoricalRecordIdentity {
   id: string;
   timestamp: string;
   vehicleId: string;
@@ -143,7 +167,7 @@ export interface VehicleChecklistData {
   isDeleted?: boolean;
 }
 
-export interface DroneChecklistData {
+export interface DroneChecklistData extends HistoricalRecordIdentity {
   id: string;
   timestamp: string;
   pilot: string;
@@ -197,6 +221,87 @@ export interface AppData {
   checklists?: VehicleChecklistData[];
   droneChecklists?: DroneChecklistData[];
   knowledgeBase?: ElementEntry[];
+}
+
+export type HistoricalRecordPayload =
+  | ShiftData
+  | FlightData
+  | BatteryData
+  | DetectionData
+  | VehicleChecklistData
+  | DroneChecklistData;
+
+export interface HistoricalOriginalRecord {
+  recordUid: string;
+  entityType: HistoricalEntityType;
+  legacyId: string;
+  sourceDeviceId?: string;
+  originalStatus: Exclude<HistoricalOriginalStatus, 'unavailable'>;
+  capturedFrom: HistoricalCaptureSource;
+  capturedAt: number;
+  payload: HistoricalRecordPayload;
+}
+
+export interface HistoricalOverrideRecord {
+  recordUid: string;
+  entityType: HistoricalEntityType;
+  legacyId: string;
+  sourceDeviceId?: string;
+  originalStatus: HistoricalOriginalStatus;
+  capturedFrom: HistoricalCaptureSource;
+  updatedAt: number;
+  editorRole?: HistoricalEditorRole;
+  editorDeviceId?: string;
+  changeKind?: HistoricalChangeKind;
+  conflictStatus?: HistoricalConflictStatus;
+  payload: HistoricalRecordPayload;
+}
+
+export interface HistoricalTrashRecord {
+  recordUid: string;
+  entityType: HistoricalEntityType;
+  legacyId: string;
+  sourceDeviceId?: string;
+  originalStatus: HistoricalOriginalStatus;
+  capturedFrom: HistoricalCaptureSource;
+  deletedAt: number;
+  deletionKind: 'direct' | 'cascade' | 'legacyTombstone';
+  active?: boolean;
+  restoredAt?: number;
+  permanentlyRemovedAt?: number;
+  payload: HistoricalRecordPayload;
+}
+
+export interface HistoricalConflictRecord {
+  recordUid: string;
+  entityType: HistoricalEntityType;
+  legacyId: string;
+  sourceDeviceId?: string;
+  editorRole: 'field';
+  editorDeviceId?: string;
+  changeKind: 'directEdit';
+  conflictStatus: Exclude<HistoricalConflictStatus, 'none'>;
+  receivedAt: number;
+  resolvedAt?: number;
+  resolution?: 'acceptedField' | 'keptControl';
+  payload: HistoricalRecordPayload;
+}
+
+export interface HistoricalArchive {
+  schemaVersion: 1 | 2;
+  generation: number;
+  createdAt: string;
+  originals: HistoricalOriginalRecord[];
+  currentOverrides: HistoricalOverrideRecord[];
+  trash: HistoricalTrashRecord[];
+  conflicts: HistoricalConflictRecord[];
+  operationalState?: AppData;
+  knowledgeBase?: ElementEntry[];
+  metadata: {
+    application: 'Hermes 2.0';
+    checksumAlgorithm: 'SHA-256';
+    contentChecksum: string;
+  };
 }
 
 /* ─── Sync Configuration ─── */

@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { 
   ArrowLeft, Search, Calendar, Edit2, Trash2, 
-  Download, LayoutDashboard, Plane, Cpu, AlertTriangle, Save, X, ShieldCheck, Printer, Filter
+  Download, LayoutDashboard, Plane, Cpu, AlertTriangle, Save, X, ShieldCheck, Printer, Filter,
+  Eye, GitCompare, ArchiveRestore
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import PrintableChecklistBatch from './PrintableChecklistBatch';
@@ -10,6 +11,8 @@ import type {
 } from '../types';
 import { exportBatteriesToExcel, exportToExcel } from '../utils/exportUtils';
 import { parseLocalTimestampToDate } from '../utils/dateUtils';
+import type { HistoricalRecordState, HistoricalViewState } from '../utils/historicalView';
+import { getHistoricalDifferences } from '../utils/historicalView';
 
 interface RecordsExplorerProps {
   data: AppData;
@@ -30,6 +33,11 @@ interface RecordsExplorerProps {
   isServer?: boolean;
   onAddNew?: (action: string) => void;
   onAddChildRecord?: (table: string, parentData: any) => void;
+  historicalView: HistoricalViewState;
+  historicalState: Map<string, HistoricalRecordState>;
+  onRestoreHistorical: (recordUid: string) => Promise<{ ok: boolean; message?: string }>;
+  onPermanentlyRemoveHistorical: (recordUid: string) => Promise<void>;
+  onResolveHistoricalConflict: (recordUid: string, resolution: 'acceptField' | 'keepControl') => Promise<void>;
 }
 
 type RecordType = 'shifts' | 'flights' | 'batteries' | 'detections' | 'checklists';
@@ -53,11 +61,13 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
   const [endDate, setEndDate] = useState('');
   const [editingRecord, setEditingRecord] = useState<{ type: RecordType, data: any } | null>(null);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
+  const [showTrash, setShowTrash] = useState(false);
+  const [historyModal, setHistoryModal] = useState<{ mode: 'original' | 'changes' | 'conflict'; item: any } | null>(null);
 
 
   // Helper maps for related entities lookup
-  const flightMap = useMemo(() => new Map(props.data.flights.map(f => [f.id, f])), [props.data.flights]);
-  const shiftMap = useMemo(() => new Map(props.data.shifts.map(s => [s.id, s])), [props.data.shifts]);
+  const flightMap = useMemo(() => new Map(props.data.flights.map(f => [f.recordUid, f])), [props.data.flights]);
+  const shiftMap = useMemo(() => new Map(props.data.shifts.map(s => [s.recordUid, s])), [props.data.shifts]);
 
   const handleTableChange = (tabId: RecordType) => {
     setActiveTable(tabId);
@@ -184,13 +194,13 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
       let shift: ShiftData | undefined;
 
       if (activeTable === 'flights') {
-        shift = shiftMap.get(item.shiftId || '');
+        shift = shiftMap.get(item.shiftRecordUid);
       } else if (activeTable === 'batteries') {
-        flight = flightMap.get(item.flightId || '');
-        if (flight) shift = shiftMap.get(flight.shiftId || '');
+        flight = flightMap.get(item.flightRecordUid);
+        if (flight) shift = shiftMap.get(flight.shiftRecordUid);
       } else if (activeTable === 'detections') {
-        flight = flightMap.get(item.flightId || '');
-        if (flight) shift = shiftMap.get(flight.shiftId || '');
+        flight = flightMap.get(item.flightRecordUid);
+        if (flight) shift = shiftMap.get(flight.shiftRecordUid);
       }
 
       // Specific field search logic
@@ -260,7 +270,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
   const handleDelete = async (id: string) => {
     const ok1 = await window.customConfirm('¿Estás seguro de eliminar este registro? (Paso 1 de 2)');
     if (!ok1) return;
-    const ok2 = await window.customConfirm('⚠️ ATENCIÓN: Esta acción es irreversible y borrará los datos permanentemente. ¿Realmente deseas eliminar el registro? (Paso 2 de 2)');
+    const ok2 = await window.customConfirm('Esta acción moverá el registro y su descendencia aplicable a la Papelera sin destruir el original histórico. ¿Deseas continuar? (Paso 2 de 2)');
     if (!ok2) return;
     if (activeTable === 'shifts') props.onDeleteShift(id);
     if (activeTable === 'flights') props.onDeleteFlight(id);
@@ -280,6 +290,23 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
 
   const isFilterActive = dateMode === 'specific' ? !!specificDate : (!!startDate && !!endDate);
 
+  const getRecordState = (item: any) => item.recordUid ? props.historicalState.get(item.recordUid) : undefined;
+  const historyBadge = (item: any) => {
+    const state = getRecordState(item);
+    if (state?.conflict?.conflictStatus === 'pending') return 'Conflicto pendiente';
+    if (state?.override || state?.descendantEdited || state?.descendantDeleted || item.isEdited) return 'Editado';
+    return 'Original';
+  };
+  const HistoryActions = ({ item }: { item: any }) => {
+    const state = getRecordState(item);
+    return <>
+      <button onClick={() => setHistoryModal({ mode: 'original', item })} className="records-history-action"><Eye size={16} /> Ver original</button>
+      {(state?.override || item.isEdited) && <button onClick={() => setHistoryModal({ mode: 'changes', item })} className="records-history-action"><GitCompare size={16} /> Ver cambios</button>}
+      {state?.conflict?.conflictStatus === 'pending' && <button onClick={() => setHistoryModal({ mode: 'conflict', item })} className="records-history-action records-history-conflict"><AlertTriangle size={16} /> Revisar conflicto</button>}
+    </>;
+  };
+  const activeTrash = props.historicalView.trash.filter(entry => entry.active !== false && !entry.restoredAt);
+
   return (
     <div className="container" style={{ maxWidth: '1300px', paddingBottom: '5rem' }}>
       {/* Hide UI when printing bulk checklists */}
@@ -290,6 +317,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
           <button onClick={props.onBack} className="btn-3d" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: '#000', color: 'var(--primary)', border: '1px solid var(--primary)', padding: '1rem 2rem' }}>
             <ArrowLeft size={20} /> VOLVER AL MENÚ
           </button>
+          {props.isServer && <button onClick={() => setShowTrash(true)} className="btn-3d records-trash-open"><Trash2 size={20} /> PAPELERA ({activeTrash.length})</button>}
         </div>
         <div className="records-header-title" style={{ textAlign: 'right' }}>
           <h2 style={{ fontSize: '2.5rem', fontWeight: 900, margin: 0, color: 'var(--text-primary)', textTransform: 'uppercase' }}>Historial Técnico</h2>
@@ -658,9 +686,10 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
               ) : (
                 <>
                   {filteredData.map(item => (
-                    <tr key={item.id} style={{ borderBottom: '1px solid var(--border-input)', transition: 'background 0.2s ease' }}>
+                    <tr key={item.recordUid || `${activeTable}-${item.id}`} style={{ borderBottom: '1px solid var(--border-input)', transition: 'background 0.2s ease' }}>
                   <td style={{ padding: '1.2rem', fontSize: '0.95rem', color: 'var(--primary)', fontWeight: 700 }}>
                     {item.timestamp}
+                    <span className={`records-history-badge ${historyBadge(item) === 'Conflicto pendiente' ? 'is-conflict' : ''}`}>{historyBadge(item)}</span>
                     {item.isEdited && (
                       <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--primary)', marginTop: '4px', fontWeight: 600 }}>
                         ✍️ Editado: {item.editedTimestamp}
@@ -753,6 +782,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
 
                   <td style={{ padding: '1.2rem', textAlign: 'right' }}>
                     <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+                      <HistoryActions item={item} />
                       <button 
                         onClick={() => {
                           if (activeTable === 'checklists' && props.onViewChecklist) {
@@ -775,7 +805,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
                       </button>
                       {props.isServer && (
                         <button 
-                          onClick={() => handleDelete(item.id)}
+                          onClick={() => handleDelete(item.recordUid)}
                           style={{ background: 'rgba(255,0,0,0.1)', border: '1px solid #FF0000', borderRadius: '4px', color: '#FF0000', padding: '10px', cursor: 'pointer' }}
                           title="Eliminar"
                         >
@@ -811,7 +841,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
             </div>
           ) : (
             filteredData.map(item => (
-              <div key={item.id} className="history-card" style={{ borderLeft: `4px solid ${
+              <div key={item.recordUid || `${activeTable}-${item.id}`} className="history-card" style={{ borderLeft: `4px solid ${
                 activeTable === 'detections'
                   ? (() => {
                       const cc: Record<string, string> = { 'Muy Baja': 'var(--neon-cyan)', Baja: 'var(--neon-green)', Media: 'var(--primary)', Alta: 'var(--neon-orange)', Urgente: 'var(--neon-red)' };
@@ -830,6 +860,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
                     </div>
                     <div className="history-card-subtitle">
                       {item.timestamp}
+                      <span className={`records-history-badge ${historyBadge(item) === 'Conflicto pendiente' ? 'is-conflict' : ''}`}>{historyBadge(item)}</span>
                       {item.isEdited && <span style={{ display: 'block', color: 'var(--primary)', fontSize: '0.7rem' }}>✍️ Editado: {item.editedTimestamp}</span>}
                     </div>
                   </div>
@@ -1004,6 +1035,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
                 </div>
 
                 <div className="history-card-footer">
+                  <HistoryActions item={item} />
                   <button 
                     onClick={() => {
                       if (activeTable === 'checklists' && props.onViewChecklist) {
@@ -1079,7 +1111,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
                   )}
                   {props.isServer && (
                     <button 
-                      onClick={() => handleDelete(item.id)}
+                      onClick={() => handleDelete(item.recordUid)}
                       style={{ 
                         background: 'rgba(255,0,0,0.1)', 
                         border: '1px solid #FF0000', 
@@ -1105,6 +1137,60 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
         </div>
       </div>
 
+      <AnimatePresence>
+        {showTrash && (
+          <div className="records-edit-overlay records-history-overlay">
+            <motion.div className="glass records-history-modal" initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.97 }}>
+              <div className="records-history-modal-header"><h2>Papelera histórica</h2><button onClick={() => setShowTrash(false)}><X size={22} /></button></div>
+              {activeTrash.length === 0 ? <p>No hay registros restaurables en la Papelera.</p> : activeTrash.map(entry => (
+                <div key={entry.recordUid} className="records-trash-item">
+                  <div><strong>{entry.entityType}</strong><span>{entry.legacyId}</span>{entry.permanentlyRemovedAt && <em>Retirado definitivamente de la proyección restaurable</em>}</div>
+                  {!entry.permanentlyRemovedAt && <div className="records-trash-actions">
+                    <button onClick={() => setHistoryModal({ mode: 'changes', item: entry.payload })}><GitCompare size={17} /> Ver cambios</button>
+                    <button onClick={async () => { const result = await props.onRestoreHistorical(entry.recordUid); await window.customAlert(result.ok ? 'Registro restaurado.' : result.message || 'No se pudo restaurar.'); }}><ArchiveRestore size={17} /> Restaurar</button>
+                    <button onClick={async () => {
+                      if (!await window.customConfirm('¿Retirar definitivamente este registro de la proyección restaurable? El original histórico se conservará. (Paso 1 de 2)')) return;
+                      if (!await window.customConfirm('Confirma el retiro definitivo operativo. La evidencia histórica no será destruida. (Paso 2 de 2)')) return;
+                      await props.onPermanentlyRemoveHistorical(entry.recordUid);
+                    }} className="danger"><Trash2 size={17} /> Retirar definitivamente</button>
+                  </div>}
+                </div>
+              ))}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {historyModal && (() => {
+          const state = getRecordState(historyModal.item);
+          const original = state?.original;
+          const differences = getHistoricalDifferences(original?.payload, historyModal.item);
+          return (
+            <div className="records-edit-overlay records-history-overlay">
+              <motion.div className="glass records-history-modal" initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.97 }}>
+                <div className="records-history-modal-header"><h2>{historyModal.mode === 'original' ? 'Original histórico' : historyModal.mode === 'changes' ? 'Cambios vigentes' : 'Conflicto pendiente'}</h2><button onClick={() => setHistoryModal(null)}><X size={22} /></button></div>
+                {historyModal.mode === 'original' && (!original
+                  ? <p>Original histórico no disponible.</p>
+                  : <><p>{original.originalStatus === 'legacyBaseline' ? 'Primer estado histórico conocido (legacy baseline).' : 'Original verificado e inmutable.'}</p><pre>{JSON.stringify(original.payload, null, 2)}</pre></>)}
+                {historyModal.mode === 'changes' && (!original
+                  ? <p>Original histórico no disponible; no es posible fabricar una comparación.</p>
+                  : differences.length === 0 ? <p>No hay diferencias de contenido.</p> : <div className="records-diff-list">{differences.map(change => <div key={change.field}><strong>{change.field}</strong><span>Original: {JSON.stringify(change.original ?? '')}</span><span>Vigente: {JSON.stringify(change.current ?? '')}</span></div>)}</div>)}
+                {historyModal.mode === 'conflict' && state?.conflict && <>
+                  <h3>Original histórico</h3>{original ? <pre>{JSON.stringify(original.payload, null, 2)}</pre> : <p>Original histórico no disponible.</p>}
+                  <h3>Versión vigente de Control</h3><pre>{JSON.stringify(state.override?.payload || historyModal.item, null, 2)}</pre>
+                  <h3>Versión recibida desde Campo</h3><pre>{JSON.stringify(state.conflict.payload, null, 2)}</pre>
+                  <div className="records-conflict-actions">
+                    <button onClick={async () => { await props.onResolveHistoricalConflict(state.conflict!.recordUid, 'acceptField'); setHistoryModal(null); }}>Aceptar cambio de Campo</button>
+                    <button onClick={async () => { await props.onResolveHistoricalConflict(state.conflict!.recordUid, 'keepControl'); setHistoryModal(null); }}>Mantener versión actual</button>
+                  </div>
+                </>}
+              </motion.div>
+            </div>
+          );
+        })()}
+      </AnimatePresence>
+
       {/* Edit Modal */}
       <AnimatePresence>
         {editingRecord && (
@@ -1123,6 +1209,27 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
       {activeTable === 'checklists' && (
         <PrintableChecklistBatch data={filteredData as any} />
       )}
+
+      <style>{`
+        .records-trash-open, .records-history-action { min-height:48px; display:inline-flex; align-items:center; justify-content:center; gap:.4rem; padding:.65rem .8rem; white-space:normal; }
+        .records-trash-open { background:#000; color:#ff6b6b; border:1px solid #ff6b6b; }
+        .records-history-action { background:rgba(255,255,255,.05); color:var(--text-primary); border:1px solid var(--border-input); border-radius:8px; }
+        .records-history-conflict { color:#ffb020; border-color:#ffb020; }
+        .records-history-badge { display:block; width:max-content; max-width:100%; margin-top:.35rem; padding:.2rem .45rem; border-radius:999px; background:rgba(0,242,255,.12); color:#00f2ff; font-size:.7rem; overflow-wrap:anywhere; }
+        .records-history-badge.is-conflict { background:rgba(255,176,32,.14); color:#ffb020; }
+        .records-history-overlay { position:fixed; inset:0; z-index:2500; padding:1rem; display:flex; align-items:center; justify-content:center; background:rgba(15,23,42,.82); overflow-y:auto; overflow-x:hidden; }
+        .records-history-modal { width:min(760px,100%); max-height:calc(100dvh - 2rem); overflow-y:auto; overflow-x:hidden; padding:1.5rem; overflow-wrap:anywhere; }
+        .records-history-modal-header { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; }
+        .records-history-modal-header h2 { min-width:0; margin:0 0 1rem; overflow-wrap:anywhere; }
+        .records-history-modal-header button { flex:0 0 48px; min-height:48px; }
+        .records-history-modal pre { max-width:100%; padding:1rem; white-space:pre-wrap; overflow-wrap:anywhere; background:#070b14; border-radius:8px; }
+        .records-trash-item, .records-diff-list > div { display:grid; gap:.6rem; padding:1rem 0; border-bottom:1px solid var(--border-input); min-width:0; }
+        .records-trash-item > div:first-child { display:grid; min-width:0; overflow-wrap:anywhere; }
+        .records-trash-actions, .records-conflict-actions { display:flex; flex-wrap:wrap; gap:.75rem; }
+        .records-trash-actions button, .records-conflict-actions button { min-height:48px; padding:.7rem 1rem; flex:1 1 220px; }
+        .records-trash-actions .danger { color:#ff6b6b; }
+        @media (max-width:600px) { .records-trash-open { width:100%; } .records-history-action { width:100%; } .records-history-modal { padding:1rem; } }
+      `}</style>
 
 
     </div>

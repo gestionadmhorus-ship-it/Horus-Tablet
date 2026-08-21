@@ -9,6 +9,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // ─── Data Storage Path (Physical disk, safe from browser cache cleans) ───
 const dataDir = path.join(os.homedir(), 'Documents', 'Horus_Datos');
 const dataFilePath = path.join(dataDir, 'horus_base_de_datos.json');
+const historicalFilePath = path.join(dataDir, 'horus_historico.json');
+const historicalPreviousFilePath = path.join(dataDir, 'horus_historico.previous.json');
 
 // Ensure data directory exists on startup
 if (!fs.existsSync(dataDir)) {
@@ -38,6 +40,42 @@ ipcMain.handle('horus:writeData', (_event, payload: string) => {
     return { success: true };
   } catch (err) {
     console.error('Error writing Horus data:', err);
+    return { success: false, error: String(err) };
+  }
+});
+
+ipcMain.handle('horus:readHistoricalData', () => {
+  const read = (filePath: string) => {
+    if (!fs.existsSync(filePath)) return null;
+    return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+  };
+  try {
+    return { success: true, data: read(historicalFilePath), previous: read(historicalPreviousFilePath) };
+  } catch (err) {
+    return { success: false, error: String(err) };
+  }
+});
+
+ipcMain.handle('horus:writeHistoricalData', (_event, payload: string, rotateCurrent: boolean) => {
+  const temporaryPath = `${historicalFilePath}.tmp`;
+  try {
+    const handle = fs.openSync(temporaryPath, 'w');
+    try {
+      fs.writeFileSync(handle, payload, 'utf-8');
+      fs.fsyncSync(handle);
+    } finally {
+      fs.closeSync(handle);
+    }
+    if (rotateCurrent && fs.existsSync(historicalFilePath)) {
+      if (fs.existsSync(historicalPreviousFilePath)) fs.unlinkSync(historicalPreviousFilePath);
+      fs.renameSync(historicalFilePath, historicalPreviousFilePath);
+    } else if (fs.existsSync(historicalFilePath)) {
+      fs.unlinkSync(historicalFilePath);
+    }
+    fs.renameSync(temporaryPath, historicalFilePath);
+    return { success: true };
+  } catch (err) {
+    try { if (fs.existsSync(temporaryPath)) fs.unlinkSync(temporaryPath); } catch {}
     return { success: false, error: String(err) };
   }
 });

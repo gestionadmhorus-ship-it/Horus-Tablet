@@ -5,5 +5,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 contextBridge.exposeInMainWorld('horusNative', {
   readData: () => ipcRenderer.invoke('horus:readData'),
   writeData: (payload: string) => ipcRenderer.invoke('horus:writeData', payload),
+  readHistoricalData: () => ipcRenderer.invoke('horus:readHistoricalData'),
+  writeHistoricalData: (payload: string, rotateCurrent: boolean) => ipcRenderer.invoke('horus:writeHistoricalData', payload, rotateCurrent),
   platform: process.platform,
 });

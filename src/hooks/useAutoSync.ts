@@ -73,6 +73,23 @@ const isValidKnowledgeBase = (value: unknown): value is ElementEntry[] => {
   return true;
 };
 
+const attachSourceDeviceId = (payload: AppData, sourceDeviceId: string): AppData => {
+  const identify = (items: any[] | undefined) => items?.map(item => ({
+    ...item,
+    sourceDeviceId: item.sourceDeviceId || sourceDeviceId
+  }));
+
+  return {
+    ...payload,
+    shifts: identify(payload.shifts) || [],
+    flights: identify(payload.flights) || [],
+    batteries: identify(payload.batteries) || [],
+    detections: identify(payload.detections) || [],
+    checklists: identify(payload.checklists || (payload as any).vehicleChecklists),
+    droneChecklists: identify(payload.droneChecklists)
+  };
+};
+
 export function useAutoSync(
   role: AppRole | null,
   getUnsyncedData: () => Promise<AppData>,
@@ -83,7 +100,9 @@ export function useAutoSync(
   getAllData?: () => Promise<AppData>,
   deviceName?: string,
   getKnowledgeBase?: () => ElementEntry[],
-  replaceKnowledgeBase?: (elements: ElementEntry[]) => Promise<void>
+  replaceKnowledgeBase?: (elements: ElementEntry[]) => Promise<void>,
+  getControlRecordsState?: (sourceDeviceId: string) => Promise<AppData>,
+  applyControlRecordsState?: (data: AppData) => Promise<{ applied: number; protectedLocal: number }>
 ) {
   const [syncStatus, setSyncStatus] = useState<string>('Inicializando red...');
   const [isSyncing, setIsSyncing] = useState(false);
@@ -109,6 +128,8 @@ export function useAutoSync(
   const getAllDataRef = useRef(getAllData);
   const getKnowledgeBaseRef = useRef(getKnowledgeBase);
   const replaceKnowledgeBaseRef = useRef(replaceKnowledgeBase);
+  const getControlRecordsStateRef = useRef(getControlRecordsState);
+  const applyControlRecordsStateRef = useRef(applyControlRecordsState);
 
   useEffect(() => {
     getUnsyncedDataRef.current = getUnsyncedData;
@@ -119,7 +140,9 @@ export function useAutoSync(
     getAllDataRef.current = getAllData;
     getKnowledgeBaseRef.current = getKnowledgeBase;
     replaceKnowledgeBaseRef.current = replaceKnowledgeBase;
-  }, [getUnsyncedData, markDataAsSynced, onDataReceived, getStatusSnapshot, onStatusUpdate, getAllData, getKnowledgeBase, replaceKnowledgeBase]);
+    getControlRecordsStateRef.current = getControlRecordsState;
+    applyControlRecordsStateRef.current = applyControlRecordsState;
+  }, [getUnsyncedData, markDataAsSynced, onDataReceived, getStatusSnapshot, onStatusUpdate, getAllData, getKnowledgeBase, replaceKnowledgeBase, getControlRecordsState, applyControlRecordsState]);
 
   // ── Ticker that marks stale units as disconnected (server-side) ──
   useEffect(() => {
@@ -245,10 +268,25 @@ export function useAutoSync(
                 conn.send({
                   type: 'STATUS_ACK',
                   serverVersion: localStorage.getItem('horus_current_version') || 'v2.0.0',
-                  isLinked: !isBlocked
+                  isLinked: !isBlocked,
+                  recordsStateSupported: true
                 });
               } catch (err) {
                 console.error('Error sending STATUS_ACK:', err);
+              }
+              return;
+            }
+
+            if (data.type === 'RECORDS_STATE_REQUEST') {
+              const senderDeviceId = typeof data.deviceId === 'string' ? data.deviceId : undefined;
+              if (!senderDeviceId || !getControlRecordsStateRef.current) return;
+              const blockedList: string[] = JSON.parse(localStorage.getItem('horus_blocked_clients') || '[]');
+              if (blockedList.includes(senderDeviceId)) return;
+              try {
+                conn.send({ type: 'RECORDS_STATE_PAYLOAD', payload: await getControlRecordsStateRef.current(senderDeviceId) });
+              } catch (error) {
+                console.error('Error preparing Control records state:', error);
+                conn.send({ type: 'RECORDS_STATE_ERROR' });
               }
               return;
             }
@@ -350,7 +388,7 @@ export function useAutoSync(
               setIsSyncing(true);
               setSyncStatus('🤝 Recibiendo datos de una Unidad...');
               try {
-                await onDataReceivedRef.current(data.payload);
+                await onDataReceivedRef.current(attachSourceDeviceId(data.payload, senderDeviceId));
                 conn.send({ type: 'SYNC_ACK' });
                 setSyncStatus('✅ Datos recibidos y guardados con éxito.');
                 setTimeout(() => {
@@ -444,6 +482,21 @@ export function useAutoSync(
               try { conn.close(); } catch {}
             }, 4000);
 
+            const requestKnowledgeBase = async () => {
+              if (!getKnowledgeBaseRef.current || !replaceKnowledgeBaseRef.current) {
+                try { conn.close(); } catch {}
+                return;
+              }
+              const fingerprint = await getKnowledgeBaseFingerprint(getKnowledgeBaseRef.current());
+              closeTimeout = setTimeout(() => { try { conn.close(); } catch {} }, 4000);
+              conn.send({
+                type: 'KNOWLEDGE_BASE_REQUEST',
+                deviceId: localStorage.getItem('horus_device_id') || 'dev-unknown',
+                deviceName,
+                fingerprint
+              });
+            };
+
             conn.on('open', () => {
               conn.send({ 
                 type: 'STATUS_UPDATE', 
@@ -478,25 +531,35 @@ export function useAutoSync(
                   setSyncStatus(`⚠️ Versión Central distinta (${serverVer}). Por favor actualiza.`);
                 }
                 
-                if (!getKnowledgeBaseRef.current || !replaceKnowledgeBaseRef.current) {
-                  try { conn.close(); } catch {}
+                if (resp.recordsStateSupported === true) {
+                  closeTimeout = setTimeout(() => { try { conn.close(); } catch {} }, 8000);
+                  conn.send({
+                    type: 'RECORDS_STATE_REQUEST',
+                    deviceId: localStorage.getItem('horus_device_id') || 'dev-unknown',
+                    deviceName
+                  });
                   return;
                 }
 
                 try {
-                  const fingerprint = await getKnowledgeBaseFingerprint(getKnowledgeBaseRef.current());
-                  closeTimeout = setTimeout(() => {
-                    try { conn.close(); } catch {}
-                  }, 4000);
-                  conn.send({
-                    type: 'KNOWLEDGE_BASE_REQUEST',
-                    deviceId: localStorage.getItem('horus_device_id') || 'dev-unknown',
-                    deviceName,
-                    fingerprint
-                  });
+                  await requestKnowledgeBase();
                 } catch (error) {
                   console.error('Error requesting Knowledge Base:', error);
                   setSyncStatus('Error al actualizar Base de Conocimiento');
+                  try { conn.close(); } catch {}
+                }
+              } else if (resp && resp.type === 'RECORDS_STATE_PAYLOAD') {
+                clearTimeout(closeTimeout);
+                try {
+                  if (!applyControlRecordsStateRef.current || !resp.payload) throw new Error('Aplicación de estado de Control no disponible.');
+                  const result = await applyControlRecordsStateRef.current(resp.payload);
+                  if (result.protectedLocal > 0) {
+                    setSyncStatus(`Cambios locales protegidos: ${result.protectedLocal}. No fueron sobrescritos por Control.`);
+                  }
+                  await requestKnowledgeBase();
+                } catch (error) {
+                  console.error('Error applying Control records state:', error);
+                  setSyncStatus('Error al aplicar registros vigentes de Control');
                   try { conn.close(); } catch {}
                 }
               } else if (resp && resp.type === 'KNOWLEDGE_BASE_PAYLOAD') {
