@@ -439,7 +439,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
       client: clientFilter === 'all' ? undefined : clientFilter,
       scope: getCurrentExcelScope(),
       completeJourney: !!preloadedShiftKey,
-      delivery: 'share' as const
+      delivery: props.isFieldUnit ? 'prepare-local' as const : 'share' as const
     };
     const context = getExcelExportContext(props.data, exportOptions);
     if (context.recordCount === 0) {

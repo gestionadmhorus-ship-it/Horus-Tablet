@@ -10,7 +10,7 @@ export interface ExcelExportOptions {
   startDate?: string;
   endDate?: string;
   client?: string;
-  delivery?: 'download' | 'share';
+  delivery?: 'download' | 'share' | 'prepare-local';
   completeJourney?: boolean;
   scope?: {
     table: 'shifts' | 'flights' | 'detections';
@@ -659,8 +659,9 @@ export const exportToExcel = async (
       const { Filesystem, Directory } = await import('@capacitor/filesystem');
       const base64Data = arrayBufferToBase64(buffer);
       const isShare = options?.delivery === 'share';
+      const isPreparedLocal = options?.delivery === 'prepare-local';
       const writeResult = await Filesystem.writeFile({
-        path: `${isShare ? 'Horus_Exportaciones' : 'Horus_Datos'}/${fileName}`,
+        path: `${isShare || isPreparedLocal ? 'Horus_Exportaciones' : 'Horus_Datos'}/${fileName}`,
         data: base64Data,
         directory: isShare ? Directory.Cache : Directory.Documents,
         recursive: true
@@ -674,6 +675,13 @@ export const exportToExcel = async (
           files: [writeResult.uri],
           dialogTitle: 'Preparar correo o compartir reporte'
         });
+      } else if (isPreparedLocal) {
+        await window.customAlert(
+          `Reporte preparado correctamente.\n\n` +
+          `Archivo:\n${fileName}\n\n` +
+          `Guardado en:\nAlmacenamiento interno > Documents > Horus_Exportaciones\n\n` +
+          `Abra Mis Archivos, seleccione el reporte y use Compartir para enviarlo.`
+        );
       } else {
         await window.customAlert(
           `📊 REPORTE EXCEL GENERADO\n\n` +
