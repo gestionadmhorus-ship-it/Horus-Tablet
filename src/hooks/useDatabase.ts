@@ -405,7 +405,9 @@ export function useDatabase() {
 
     await db.transaction('rw', [db.operationalShifts, db.operationalFlights, db.shifts, db.flights, db.historicalOriginals, db.historicalOverrides], async () => {
       const previousOwnShifts = await db.operationalShifts
-        .filter(shift => !shift.isDeleted && shift.status === 'active' && shift.originDeviceId === originDeviceId)
+        .filter(shift => !shift.isDeleted
+          && shift.status === 'active'
+          && (shift.sourceDeviceId === originDeviceId || shift.originDeviceId === originDeviceId))
         .toArray();
 
       for (const shift of previousOwnShifts) {
@@ -678,24 +680,24 @@ export function useDatabase() {
             return JSON.stringify(rest);
           };
 
-          if (controlIsAuthoritative && incomingTime <= localTime) continue;
-
-          if (controlIsAuthoritative && comparable(currentOverride.payload) !== comparable(identifiedItem)) {
-            const previousConflict = await db.historicalConflicts.get(identifiedItem.recordUid!);
-            if (!previousConflict || comparable(previousConflict.payload) !== comparable(identifiedItem)) {
-              await db.historicalConflicts.put({
-                recordUid: identifiedItem.recordUid!,
-                entityType,
-                legacyId: identifiedItem.id,
-                sourceDeviceId: identifiedItem.sourceDeviceId,
-                editorRole: 'field',
-                editorDeviceId: identifiedItem.sourceDeviceId,
-                changeKind: 'directEdit',
-                conflictStatus: 'pending',
-                receivedAt: Date.now(),
-                payload: identifiedItem
-              });
-              await db.historicalOverrides.update(identifiedItem.recordUid!, { conflictStatus: 'pending' });
+          if (controlIsAuthoritative) {
+            if (comparable(currentOverride.payload) !== comparable(identifiedItem)) {
+              const previousConflict = await db.historicalConflicts.get(identifiedItem.recordUid!);
+              if (!previousConflict || comparable(previousConflict.payload) !== comparable(identifiedItem)) {
+                await db.historicalConflicts.put({
+                  recordUid: identifiedItem.recordUid!,
+                  entityType,
+                  legacyId: identifiedItem.id,
+                  sourceDeviceId: identifiedItem.sourceDeviceId,
+                  editorRole: 'field',
+                  editorDeviceId: identifiedItem.sourceDeviceId,
+                  changeKind: 'directEdit',
+                  conflictStatus: 'pending',
+                  receivedAt: Date.now(),
+                  payload: identifiedItem
+                });
+                await db.historicalOverrides.update(identifiedItem.recordUid!, { conflictStatus: 'pending' });
+              }
             }
             continue;
           }

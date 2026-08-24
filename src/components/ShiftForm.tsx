@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Save, ArrowLeft } from 'lucide-react';
 import type { ShiftData, ListsData } from '../types';
 import { generateId } from '../utils/idGenerator';
@@ -6,8 +6,8 @@ import { SearchableSelect } from './SearchableSelect';
 import { formatTimestamp } from '../utils/dateUtils';
 
 interface ShiftFormProps {
-  onSave: (data: ShiftData) => void;
-  onUpdate?: (data: ShiftData) => void;
+  onSave: (data: ShiftData) => void | Promise<void>;
+  onUpdate?: (data: ShiftData) => void | Promise<void>;
   onBack: () => void;
   lists: ListsData;
   editData?: ShiftData;
@@ -56,6 +56,7 @@ const ShiftForm: React.FC<ShiftFormProps> = ({ onSave, onUpdate, onBack, lists, 
 
   const [expandedSection, setExpandedSection] = useState<string | null>('client');
   const [isSaving, setIsSaving] = useState(false);
+  const saveLockRef = useRef(false);
 
   const toggleSection = (section: string) => {
     setExpandedSection(prev => prev === section ? null : section);
@@ -63,7 +64,8 @@ const ShiftForm: React.FC<ShiftFormProps> = ({ onSave, onUpdate, onBack, lists, 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isSaving) return;
+    if (saveLockRef.current) return;
+    saveLockRef.current = true;
     setIsSaving(true);
     
     try {
@@ -82,7 +84,7 @@ const ShiftForm: React.FC<ShiftFormProps> = ({ onSave, onUpdate, onBack, lists, 
 
     if (isEditMode && editData && onUpdate) {
       // Update existing record, keep original ID and timestamp
-      onUpdate({
+      await onUpdate({
         ...editData,
         client: formData.client.trim() || undefined,
         coordinator: formData.coordinator,
@@ -102,11 +104,12 @@ const ShiftForm: React.FC<ShiftFormProps> = ({ onSave, onUpdate, onBack, lists, 
         drone: formData.drone,
         status: 'active'
       };
-      onSave(newData);
+      await onSave(newData);
       await window.customAlert('✅ Datos de Jornada guardados con éxito');
     }
       onBack();
     } finally {
+      saveLockRef.current = false;
       setIsSaving(false);
     }
   };

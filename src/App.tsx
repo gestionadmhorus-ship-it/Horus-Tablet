@@ -30,6 +30,7 @@ declare global {
 
 function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
+  const [explorerInitialDeviceId, setExplorerInitialDeviceId] = useState<string | null>(null);
   const { 
     fullData: data, 
     lists, 
@@ -66,6 +67,14 @@ function App() {
       localStorage.setItem('horus_device_id', devId);
     }
     return name;
+  });
+  const [localDeviceId] = useState(() => {
+    let id = localStorage.getItem('horus_device_id');
+    if (!id) {
+      id = 'dev-' + Math.random().toString(36).substring(2, 11) + '-' + Date.now().toString(36);
+      localStorage.setItem('horus_device_id', id);
+    }
+    return id;
   });
   
   const [appRole, setAppRole] = useState<AppRole | null>(() => {
@@ -147,11 +156,9 @@ function App() {
   const getStatusSnapshot = useCallback((): Omit<UnitStatus, 'deviceId' | 'deviceName' | 'connected' | 'lastSeen'> => {
     // Compute derived values inline from the current closure
     const todayStr = formatDateDMY(new Date());
-    const sortedShiftsSnap = [...data.shifts].sort((a, b) => {
-      const ta = new Date(a.timestamp).getTime() || 0;
-      const tb = new Date(b.timestamp).getTime() || 0;
-      return ta - tb;
-    });
+    const sortedShiftsSnap = data.shifts
+      .filter(shift => shift.sourceDeviceId === localDeviceId || shift.originDeviceId === localDeviceId)
+      .sort((a, b) => getChronologicalTime(a.timestamp) - getChronologicalTime(b.timestamp));
     const latestShiftSnap = sortedShiftsSnap.length > 0 ? sortedShiftsSnap[sortedShiftsSnap.length - 1] : undefined;
     const hasActiveShiftSnap = !!(latestShiftSnap && latestShiftSnap.timestamp.split(' ')[0] === todayStr && latestShiftSnap.status !== 'closed');
     const activeShiftIdSnap = hasActiveShiftSnap ? latestShiftSnap?.id : undefined;
@@ -181,7 +188,7 @@ function App() {
       detectionsCount,
       appVersion: localStorage.getItem('horus_current_version') || 'v2.0.0',
     };
-  }, [data]);
+  }, [data, localDeviceId]);
 
   const [unitsStatus, setUnitsStatus] = useState<Map<string, UnitStatus>>(() => new Map());
 
@@ -395,7 +402,10 @@ function App() {
   const todayDateStr = formatDateDMY(new Date());
   
   // Sort shifts chronologically before finding the latest
-  const sortedShifts = [...data.shifts].sort((a, b) => getChronologicalTime(a.timestamp) - getChronologicalTime(b.timestamp));
+  const shiftsInOperationalContext = appRole === 'client'
+    ? data.shifts.filter(shift => shift.sourceDeviceId === localDeviceId || shift.originDeviceId === localDeviceId)
+    : data.shifts;
+  const sortedShifts = [...shiftsInOperationalContext].sort((a, b) => getChronologicalTime(a.timestamp) - getChronologicalTime(b.timestamp));
   const latestShift = sortedShifts.length > 0 ? sortedShifts[sortedShifts.length - 1] : undefined;
 
   // Check if the latest shift is from today but closed (for "Reabrir" button)
@@ -551,8 +561,9 @@ function App() {
         return (
           <Dashboard
             data={data}
-            onNavigate={(page) => {
+            onNavigate={(page, deviceId) => {
               setIsNewFlightRequested(false);
+              if (page === 'explorer') setExplorerInitialDeviceId(deviceId || null);
               setCurrentPage(page);
             }}
             onSettings={() => setShowSettings(true)}
@@ -598,7 +609,7 @@ function App() {
         return (
           <FlightForm 
             key={isNewFlightRequested ? 'new-flight' : (effectiveFlightId || 'create-flight')}
-            onSave={(data) => { handleSaveFlight(data); setIsNewFlightRequested(false); }}
+            onSave={async (data) => { await handleSaveFlight(data); setIsNewFlightRequested(false); }}
             onUpdate={updateFlight}
             onBack={() => { setIsNewFlightRequested(false); setHistoricalShiftId(undefined); setHistoricalShiftRecordUid(undefined); setCurrentPage('dashboard'); }}
             lists={activeLists} 
@@ -676,6 +687,10 @@ function App() {
             data={data} 
             lists={lists}
             isServer={appRole === 'server'}
+            isFieldUnit={appRole === 'client'}
+            ownDeviceId={appRole === 'client' ? localDeviceId : undefined}
+            unitsStatus={unitsStatus}
+            initialDeviceId={explorerInitialDeviceId}
             historicalView={historicalView}
             historicalState={historicalState}
             onRestoreHistorical={restoreHistoricalRecord}
@@ -762,8 +777,9 @@ function App() {
         return (
           <Dashboard
             data={data}
-            onNavigate={(page) => {
+            onNavigate={(page, deviceId) => {
               setIsNewFlightRequested(false);
+              if (page === 'explorer') setExplorerInitialDeviceId(deviceId || null);
               setCurrentPage(page);
             }}
             onSettings={() => setShowSettings(true)}

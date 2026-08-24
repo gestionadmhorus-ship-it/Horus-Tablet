@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Save, ArrowLeft, Printer, ShieldCheck } from 'lucide-react';
 import type { VehicleChecklistData, ListsData } from '../types';
 import { generateId } from '../utils/idGenerator';
@@ -6,8 +6,8 @@ import { SearchableSelect } from './SearchableSelect';
 import { formatDateDMY, formatTimestamp, getChronologicalTime } from '../utils/dateUtils';
 
 interface VehicleChecklistFormProps {
-  onSave: (data: VehicleChecklistData) => void;
-  onUpdate?: (data: VehicleChecklistData) => void;
+  onSave: (data: VehicleChecklistData) => void | Promise<void>;
+  onUpdate?: (data: VehicleChecklistData) => void | Promise<void>;
   onBack: () => void;
   lists: ListsData;
   history: VehicleChecklistData[];
@@ -51,6 +51,7 @@ const VehicleChecklistForm: React.FC<VehicleChecklistFormProps> = ({ onSave, onU
 
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isSaving, setIsSaving] = useState(false);
+  const saveLockRef = useRef(false);
 
   // Update clock every second for accurate timestamp
   useEffect(() => {
@@ -106,7 +107,7 @@ const VehicleChecklistForm: React.FC<VehicleChecklistFormProps> = ({ onSave, onU
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isSaving) return;
+    if (saveLockRef.current) return;
     
     // Dynamic mapping of keys to human-readable labels from checkGroups
     const checkLabels: Record<string, string> = {};
@@ -150,10 +151,11 @@ const VehicleChecklistForm: React.FC<VehicleChecklistFormProps> = ({ onSave, onU
         : `⚠️ UNIDAD CON NOVEDADES\n\n¿Confirmas registrar la inspección con novedades en los ítems desmarcados?`;
     }
 
-    const confirmed = await window.customConfirm(confirmMessage);
-    if (confirmed) {
+    saveLockRef.current = true;
+    try {
+      const confirmed = await window.customConfirm(confirmMessage);
+      if (confirmed) {
       setIsSaving(true);
-      try {
         if (isEditMode && editData && onUpdate) {
           const updatedData: VehicleChecklistData = {
           ...editData,
@@ -164,7 +166,7 @@ const VehicleChecklistForm: React.FC<VehicleChecklistFormProps> = ({ onSave, onU
           expirations: formData.expirations,
           observations: formData.observations
         };
-        onUpdate(updatedData);
+        await onUpdate(updatedData);
         await window.customAlert('✅ Checklist Vehicular actualizado con éxito');
       } else {
         const newData: VehicleChecklistData = {
@@ -177,13 +179,14 @@ const VehicleChecklistForm: React.FC<VehicleChecklistFormProps> = ({ onSave, onU
           expirations: formData.expirations,
           observations: formData.observations
         };
-        onSave(newData);
+        await onSave(newData);
         await window.customAlert('✅ Checklist Vehicular guardado con éxito');
         }
         onBack();
-      } finally {
-        setIsSaving(false);
       }
+    } finally {
+        saveLockRef.current = false;
+        setIsSaving(false);
     }
   };
 

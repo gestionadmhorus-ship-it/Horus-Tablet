@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { 
   ArrowLeft, Search, Calendar, Edit2, Trash2, 
   Download, LayoutDashboard, Plane, Cpu, AlertTriangle, Save, X, ShieldCheck, Printer, Filter,
@@ -7,9 +7,9 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import PrintableChecklistBatch from './PrintableChecklistBatch';
 import type { 
-  ShiftData, FlightData, BatteryData, DetectionData, AppData, ListsData 
+  ShiftData, FlightData, BatteryData, DetectionData, AppData, ListsData, UnitStatus
 } from '../types';
-import { exportBatteriesToExcel, exportToExcel, getExcelExportContext } from '../utils/exportUtils';
+import { exportBatteriesToExcel, exportToExcel, getExcelExportContext, getExportRecordKey, getRelevantOpenShiftsForExcelExport } from '../utils/exportUtils';
 import { getChronologicalTime, parseLocalTimestampToDate } from '../utils/dateUtils';
 import type { HistoricalRecordState, HistoricalViewState } from '../utils/historicalView';
 import { getHistoricalDifferences } from '../utils/historicalView';
@@ -31,6 +31,10 @@ interface RecordsExplorerProps {
   onViewChecklist?: (item: any) => void;
   onSyncReceived?: (incomingData: AppData) => Promise<void>;
   isServer?: boolean;
+  isFieldUnit?: boolean;
+  ownDeviceId?: string;
+  unitsStatus?: Map<string, UnitStatus>;
+  initialDeviceId?: string | null;
   onAddNew?: (action: string) => void;
   onAddChildRecord?: (table: string, parentData: any) => void;
   historicalView: HistoricalViewState;
@@ -42,6 +46,25 @@ interface RecordsExplorerProps {
 
 type RecordType = 'shifts' | 'flights' | 'batteries' | 'detections' | 'checklists';
 const LEGACY_CLIENT_VALUE = '__legacy_without_client__';
+
+const uniqueByLegacyIdentity = <T extends { id: string; sourceDeviceId?: string }>(items: T[]) => {
+  const grouped = new Map<string, T[]>();
+  items.forEach(item => {
+    const key = `${item.sourceDeviceId || ''}:${item.id}`;
+    grouped.set(key, [...(grouped.get(key) || []), item]);
+  });
+  return new Map(Array.from(grouped.entries())
+    .filter(([, matches]) => matches.length === 1)
+    .map(([key, matches]) => [key, matches[0]]));
+};
+
+const uniqueByLegacyId = <T extends { id: string }>(items: T[]) => {
+  const grouped = new Map<string, T[]>();
+  items.forEach(item => grouped.set(item.id, [...(grouped.get(item.id) || []), item]));
+  return new Map(Array.from(grouped.entries())
+    .filter(([, matches]) => matches.length === 1)
+    .map(([id, matches]) => [id, matches[0]]));
+};
 
 const toDateInputValue = (timestamp: string): string => {
   const date = parseLocalTimestampToDate(timestamp);
@@ -58,7 +81,20 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
     return `${year}-${month}-${day}`;
   };
 
+  const shiftDeviceIds = Array.from(new Set(props.data.shifts
+    .filter(shift => !shift.isDeleted && !!shift.sourceDeviceId)
+    .map(shift => shift.sourceDeviceId!)));
+  const knownUnitIds = new Set([
+    ...props.data.shifts, ...props.data.flights, ...props.data.batteries, ...props.data.detections,
+    ...(props.data.checklists || []), ...(props.data.droneChecklists || [])
+  ].map(record => record.sourceDeviceId).filter((id): id is string => !!id));
+  props.unitsStatus?.forEach(unit => knownUnitIds.add(unit.deviceId));
+  const initialContextDeviceId = props.ownDeviceId || (props.initialDeviceId && knownUnitIds.has(props.initialDeviceId)
+    ? props.initialDeviceId
+    : null);
+  const initialUnitFilter = initialContextDeviceId || (shiftDeviceIds.length === 1 ? shiftDeviceIds[0] : 'all');
   const initialClosedShift = [...props.data.shifts]
+    .filter(shift => initialUnitFilter !== 'all' && shift.sourceDeviceId === initialUnitFilter)
     .filter(shift => !shift.isDeleted && shift.status === 'closed')
     .sort((a, b) => getChronologicalTime(b.timestamp) - getChronologicalTime(a.timestamp))[0];
   const initialClosedDate = initialClosedShift ? toDateInputValue(initialClosedShift.timestamp) : '';
@@ -67,6 +103,8 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
   const [checklistSubtype, setChecklistSubtype] = useState<'vehicle' | 'drone'>('vehicle');
   const [searchTerm, setSearchTerm] = useState('');
   const [searchField, setSearchField] = useState('all');
+  const [unitFilter, setUnitFilter] = useState(initialUnitFilter);
+  const [preloadedShiftKey, setPreloadedShiftKey] = useState<string | null>(() => initialClosedShift ? getExportRecordKey(initialClosedShift) : null);
   const [clientFilter, setClientFilter] = useState(() => initialClosedShift
     ? (initialClosedShift.client?.trim() || LEGACY_CLIENT_VALUE)
     : 'all');
@@ -78,13 +116,31 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [showTrash, setShowTrash] = useState(false);
   const [historyModal, setHistoryModal] = useState<{ mode: 'original' | 'changes' | 'conflict'; item: any } | null>(null);
+  const automaticInitializationApplied = useRef(props.data.shifts.length > 0);
 
 
   // Helper maps for related entities lookup
   const flightMap = useMemo(() => new Map(props.data.flights.filter(f => !!f.recordUid).map(f => [f.recordUid!, f])), [props.data.flights]);
-  const legacyFlightMap = useMemo(() => new Map(props.data.flights.map(f => [f.id, f])), [props.data.flights]);
+  const legacyFlightMap = useMemo(() => uniqueByLegacyIdentity(props.data.flights), [props.data.flights]);
+  const legacyFlightIdMap = useMemo(() => uniqueByLegacyId(props.data.flights), [props.data.flights]);
   const shiftMap = useMemo(() => new Map(props.data.shifts.filter(s => !!s.recordUid).map(s => [s.recordUid!, s])), [props.data.shifts]);
-  const legacyShiftMap = useMemo(() => new Map(props.data.shifts.map(s => [s.id, s])), [props.data.shifts]);
+  const legacyShiftMap = useMemo(() => uniqueByLegacyIdentity(props.data.shifts), [props.data.shifts]);
+  const legacyShiftIdMap = useMemo(() => uniqueByLegacyId(props.data.shifts), [props.data.shifts]);
+  const unitOptions = useMemo(() => {
+    const names = new Map<string, string>();
+    props.unitsStatus?.forEach(unit => names.set(unit.deviceId, unit.deviceName));
+    const allRecords = [
+      ...props.data.shifts, ...props.data.flights, ...props.data.batteries, ...props.data.detections,
+      ...(props.data.checklists || []), ...(props.data.droneChecklists || [])
+    ];
+    allRecords.forEach(record => {
+      if (record.sourceDeviceId && record.deviceName && !names.has(record.sourceDeviceId)) names.set(record.sourceDeviceId, record.deviceName);
+    });
+    const ids = Array.from(new Set(allRecords.map(record => record.sourceDeviceId).filter((id): id is string => !!id)));
+    props.unitsStatus?.forEach(unit => { if (!ids.includes(unit.deviceId)) ids.push(unit.deviceId); });
+    return ids.map(id => ({ id, label: names.get(id) || `Unidad ${id.slice(-8)}` }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'es'));
+  }, [props.data, props.unitsStatus]);
   const clientOptions = useMemo(() => Array.from(new Set(
     props.data.shifts.filter(shift => !shift.isDeleted).map(shift => shift.client?.trim()).filter((value): value is string => !!value)
   )).sort((a, b) => a.localeCompare(b, 'es')), [props.data.shifts]);
@@ -92,30 +148,79 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
 
   const resolveFlight = (item: any): FlightData | undefined => item.flightRecordUid
     ? flightMap.get(item.flightRecordUid)
-    : legacyFlightMap.get(item.flightId);
+    : (item.sourceDeviceId
+      ? legacyFlightMap.get(`${item.sourceDeviceId}:${item.flightId || ''}`)
+      : legacyFlightIdMap.get(item.flightId || ''));
 
   const resolveShiftFromFlight = (flight: FlightData | undefined): ShiftData | undefined => {
     if (!flight) return undefined;
-    return flight.shiftRecordUid ? shiftMap.get(flight.shiftRecordUid) : legacyShiftMap.get(flight.shiftId || '');
+    return flight.shiftRecordUid ? shiftMap.get(flight.shiftRecordUid) : (flight.sourceDeviceId
+      ? legacyShiftMap.get(`${flight.sourceDeviceId}:${flight.shiftId || ''}`)
+      : legacyShiftIdMap.get(flight.shiftId || ''));
   };
 
   const resolveShift = (item: any): ShiftData | undefined => {
     if (activeTable === 'shifts') return item as ShiftData;
     if (activeTable === 'flights') return item.shiftRecordUid
       ? shiftMap.get(item.shiftRecordUid)
-      : legacyShiftMap.get(item.shiftId);
+      : (item.sourceDeviceId
+        ? legacyShiftMap.get(`${item.sourceDeviceId}:${item.shiftId || ''}`)
+        : legacyShiftIdMap.get(item.shiftId || ''));
     return resolveShiftFromFlight(resolveFlight(item));
   };
+
+  const resolveRecordUnit = (item: any): string | undefined => item.sourceDeviceId || resolveShift(item)?.sourceDeviceId;
+  const belongsToPreloadedShift = (item: any): boolean => {
+    if (!preloadedShiftKey) return true;
+    const shift = resolveShift(item);
+    return !!shift && getExportRecordKey(shift) === preloadedShiftKey;
+  };
+
+  const releasePreloadedShift = () => setPreloadedShiftKey(null);
+
+  const handleUnitChange = (sourceDeviceId: string) => {
+    setUnitFilter(sourceDeviceId);
+    setSearchField('all');
+    setSearchTerm('');
+    setStartDate('');
+    setEndDate('');
+    if (sourceDeviceId === 'all') {
+      setPreloadedShiftKey(null);
+      setClientFilter('all');
+      setDateMode('specific');
+      setSpecificDate(getTodayDateString());
+      return;
+    }
+    const latestClosedShift = [...props.data.shifts]
+      .filter(shift => !shift.isDeleted && shift.status === 'closed' && shift.sourceDeviceId === sourceDeviceId)
+      .sort((a, b) => getChronologicalTime(b.timestamp) - getChronologicalTime(a.timestamp))[0];
+    setPreloadedShiftKey(latestClosedShift ? getExportRecordKey(latestClosedShift) : null);
+    setClientFilter(latestClosedShift ? (latestClosedShift.client?.trim() || LEGACY_CLIENT_VALUE) : 'all');
+    setDateMode('specific');
+    setSpecificDate(latestClosedShift ? toDateInputValue(latestClosedShift.timestamp) : getTodayDateString());
+  };
+
+  useEffect(() => {
+    if (automaticInitializationApplied.current || props.data.shifts.length === 0) return;
+    automaticInitializationApplied.current = true;
+    const availableDeviceIds = Array.from(new Set(props.data.shifts
+      .filter(shift => !shift.isDeleted && !!shift.sourceDeviceId)
+      .map(shift => shift.sourceDeviceId!)));
+    if (props.ownDeviceId) {
+      handleUnitChange(props.ownDeviceId);
+      return;
+    }
+    const requestedDeviceIsValid = !!props.initialDeviceId && (
+      availableDeviceIds.includes(props.initialDeviceId)
+      || Array.from(props.unitsStatus?.values() || []).some(unit => unit.deviceId === props.initialDeviceId)
+    );
+    handleUnitChange(requestedDeviceIsValid ? props.initialDeviceId! : (availableDeviceIds.length === 1 ? availableDeviceIds[0] : 'all'));
+  }, [props.data.shifts]);
 
   const handleTableChange = (tabId: RecordType) => {
     setActiveTable(tabId);
     setSearchField('all');
     setSearchTerm('');
-    setClientFilter('all');
-    setDateMode('specific');
-    setSpecificDate(getTodayDateString());
-    setStartDate('');
-    setEndDate('');
   };
 
   const getSearchFieldOptions = () => {
@@ -209,17 +314,27 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
     const end = endDate ? new Date(endDate + 'T23:59:59') : null;
 
     return list.filter(item => {
+      const isPreloadedJourneyScope = activeTable !== 'checklists' && !!preloadedShiftKey;
+      if (unitFilter !== 'all') {
+        const itemUnit = activeTable === 'checklists' ? item.sourceDeviceId : resolveRecordUnit(item);
+        if (itemUnit !== unitFilter) return false;
+      }
+      if (activeTable !== 'checklists' && preloadedShiftKey && !belongsToPreloadedShift(item)) return false;
+
       // 1. Date Filter
-      const itemDate = parseLocalTimestampToDate(item.timestamp);
+      const operationalTimestamp = activeTable === 'checklists'
+        ? item.timestamp
+        : (resolveShift(item)?.timestamp || item.timestamp);
+      const itemDate = parseLocalTimestampToDate(operationalTimestamp);
       if (!itemDate) return false;
 
-      if (dateMode === 'specific') {
+      if (!isPreloadedJourneyScope && dateMode === 'specific') {
         if (!specDateObj) return false;
         const sameYear = itemDate.getFullYear() === specDateObj.getFullYear();
         const sameMonth = itemDate.getMonth() === specDateObj.getMonth();
         const sameDay = itemDate.getDate() === specDateObj.getDate();
         if (!sameYear || !sameMonth || !sameDay) return false;
-      } else {
+      } else if (!isPreloadedJourneyScope) {
         if (!start || !end) return false;
         if (itemDate < start || itemDate > end) return false;
       }
@@ -293,13 +408,13 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
 
       return false;
     }).sort((a, b) => b.timestamp.localeCompare(a.timestamp));
-  }, [props.data, activeTable, checklistSubtype, searchTerm, searchField, clientFilter, dateMode, specificDate, startDate, endDate, flightMap, legacyFlightMap, shiftMap, legacyShiftMap]);
+  }, [props.data, activeTable, checklistSubtype, searchTerm, searchField, unitFilter, preloadedShiftKey, clientFilter, dateMode, specificDate, startDate, endDate, flightMap, legacyFlightMap, legacyFlightIdMap, shiftMap, legacyShiftMap, legacyShiftIdMap]);
 
   const getCurrentExcelScope = () => {
     if (activeTable !== 'shifts' && activeTable !== 'flights' && activeTable !== 'detections') return undefined;
     return {
       table: activeTable,
-      keys: filteredData.map(item => item.recordUid || item.id)
+      keys: filteredData.map(item => getExportRecordKey(item))
     };
   };
 
@@ -310,15 +425,12 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
       startDate,
       endDate,
       client: clientFilter === 'all' ? undefined : clientFilter,
-      scope: getCurrentExcelScope()
+      scope: getCurrentExcelScope(),
+      completeJourney: !!preloadedShiftKey
     });
   };
 
   const handlePrepareEmail = async () => {
-    if (props.data.shifts.some(shift => !shift.isDeleted && shift.status !== 'closed')) {
-      await window.customAlert('Hay una Jornada abierta. Debe cerrarse antes de preparar el correo.');
-      return;
-    }
     const exportOptions = {
       dateMode,
       specificDate,
@@ -326,11 +438,17 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
       endDate,
       client: clientFilter === 'all' ? undefined : clientFilter,
       scope: getCurrentExcelScope(),
+      completeJourney: !!preloadedShiftKey,
       delivery: 'share' as const
     };
     const context = getExcelExportContext(props.data, exportOptions);
     if (context.recordCount === 0) {
       await window.customAlert('No hay registros para preparar el correo con los filtros seleccionados.');
+      return;
+    }
+    const relevantOpenShifts = getRelevantOpenShiftsForExcelExport(props.data, exportOptions);
+    if (relevantOpenShifts.length > 0) {
+      await window.customAlert('Hay una Jornada abierta entre los registros del reporte. Debe cerrarse antes de preparar el correo.');
       return;
     }
     const confirmed = await window.customConfirm(
@@ -349,7 +467,9 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
       specificDate,
       startDate,
       endDate,
-      client: clientFilter === 'all' ? undefined : clientFilter
+      client: clientFilter === 'all' ? undefined : clientFilter,
+      keys: activeTable === 'batteries' ? filteredData.map(item => getExportRecordKey(item)) : undefined,
+      completeJourney: !!preloadedShiftKey
     });
   };
 
@@ -507,10 +627,19 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
         borderRadius: '16px',
         boxShadow: 'var(--shadow-glow)'
       }}>
+        {!props.isFieldUnit && (
+          <div style={{ flex: '1 1 220px', minWidth: 0 }}>
+            <label>Unidad</label>
+            <select value={unitFilter} onChange={e => handleUnitChange(e.target.value)} style={{ width: '100%', minHeight: '48px' }}>
+              <option value="all">Todas las Unidades</option>
+              {unitOptions.map(unit => <option key={unit.id} value={unit.id}>{unit.label}</option>)}
+            </select>
+          </div>
+        )}
         {activeTable !== 'checklists' && (
           <div style={{ flex: '1 1 220px', minWidth: 0 }}>
             <label>Cliente</label>
-            <select value={clientFilter} onChange={e => setClientFilter(e.target.value)} style={{ width: '100%', minHeight: '48px' }}>
+            <select value={clientFilter} onChange={e => { releasePreloadedShift(); setClientFilter(e.target.value); }} style={{ width: '100%', minHeight: '48px' }}>
               <option value="all">Todos los clientes</option>
               {clientOptions.map(client => <option key={client} value={client}>{client}</option>)}
               {hasLegacyClientRecords && <option value={LEGACY_CLIENT_VALUE}>Sin cliente histórico</option>}
@@ -522,7 +651,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
           <div className="records-search-row" style={{ display: 'flex', gap: '0.5rem' }}>
             <select
               value={searchField}
-              onChange={e => setSearchField(e.target.value)}
+              onChange={e => { releasePreloadedShift(); setSearchField(e.target.value); }}
               style={{
                 width: '100%',
                 maxWidth: '170px',
@@ -545,7 +674,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
                 type="text" 
                 placeholder="Escribe para buscar..." 
                 value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
+                onChange={e => { releasePreloadedShift(); setSearchTerm(e.target.value); }}
                 style={{ paddingLeft: '45px' }}
               />
             </div>
@@ -557,7 +686,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
           <label>Filtro de Fecha</label>
           <div className="records-date-toggle" style={{ display: 'flex', background: 'var(--bg-input)', padding: '4px', borderRadius: '8px', border: '1px solid var(--border-input)' }}>
             <button
-              onClick={() => setDateMode('specific')}
+              onClick={() => { releasePreloadedShift(); setDateMode('specific'); }}
               style={{
                 flex: 1,
                 padding: '0.8rem',
@@ -575,7 +704,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
               Día Específico
             </button>
             <button
-              onClick={() => setDateMode('range')}
+              onClick={() => { releasePreloadedShift(); setDateMode('range'); }}
               style={{
                 flex: 1,
                 padding: '0.8rem',
@@ -604,7 +733,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
               <input 
                 type="date" 
                 value={specificDate}
-                onChange={e => setSpecificDate(e.target.value)}
+                onChange={e => { releasePreloadedShift(); setSpecificDate(e.target.value); }}
                 style={{ 
                   paddingLeft: '45px',
                   color: 'var(--text-primary)',
@@ -627,7 +756,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
                 <input 
                   type="date" 
                   value={startDate}
-                  onChange={e => setStartDate(e.target.value)}
+                  onChange={e => { releasePreloadedShift(); setStartDate(e.target.value); }}
                   style={{ 
                     paddingLeft: '45px',
                     color: 'var(--text-primary)',
@@ -645,7 +774,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
                 <input 
                   type="date" 
                   value={endDate}
-                  onChange={e => setEndDate(e.target.value)}
+                  onChange={e => { releasePreloadedShift(); setEndDate(e.target.value); }}
                   style={{ 
                     paddingLeft: '45px',
                     color: 'var(--text-primary)',
@@ -666,7 +795,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
               <Printer size={18} /> IMPRIMIR LOTES
             </button>
           )}
-          {activeTable !== 'checklists' && (
+          {activeTable !== 'checklists' && activeTable !== 'batteries' && (
             <button 
               onClick={handleExportFiltered} 
               disabled={filteredData.length === 0}
@@ -685,7 +814,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
               <Download size={16} /> EXPORTAR
             </button>
           )}
-          {activeTable !== 'checklists' && (
+          {activeTable !== 'checklists' && activeTable !== 'batteries' && (
             <button
               onClick={handlePrepareEmail}
               disabled={filteredData.length === 0}
@@ -707,7 +836,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
           {activeTable === 'batteries' && (
             <button
               onClick={handleExportBatteries}
-              disabled={!isFilterActive || props.data.batteries.length === 0}
+              disabled={!isFilterActive || filteredData.length === 0}
               className="btn-3d records-action-button"
               style={{
                 width: '100%',
@@ -716,8 +845,8 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '0.75rem',
-                opacity: !isFilterActive || props.data.batteries.length === 0 ? 0.5 : 1,
-                cursor: !isFilterActive || props.data.batteries.length === 0 ? 'not-allowed' : 'pointer'
+                opacity: !isFilterActive || filteredData.length === 0 ? 0.5 : 1,
+                cursor: !isFilterActive || filteredData.length === 0 ? 'not-allowed' : 'pointer'
               }}
             >
               <Download size={16} /> REPORTE BATERÍAS

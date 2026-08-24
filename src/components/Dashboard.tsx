@@ -7,7 +7,7 @@ import type { UnitStatus } from '../types';
 
 interface DashboardProps {
   data?: any;
-  onNavigate: (page: string) => void;
+  onNavigate: (page: string, deviceId?: string) => void;
   onSettings: () => void;
   hasActiveShift: boolean;
   hasActiveFlight: boolean;
@@ -1281,6 +1281,24 @@ const Dashboard: React.FC<DashboardProps> = ({
                         ) : (
                           <span className="unit-no-shift" style={{ marginTop: '0.6rem', fontSize: '1.05rem' }}>Sin jornada activa</span>
                         )}
+                        <button
+                          type="button"
+                          onClick={() => onNavigate('explorer', unit.deviceId)}
+                          style={{
+                            width: '100%',
+                            minHeight: '48px',
+                            marginTop: '0.65rem',
+                            padding: '0.75rem 1rem',
+                            borderRadius: '8px',
+                            border: '1px solid var(--primary)',
+                            background: 'rgba(0, 242, 255, 0.06)',
+                            color: 'var(--primary)',
+                            fontWeight: 800,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Ver Registros
+                        </button>
                       </div>
                     );
                   })}

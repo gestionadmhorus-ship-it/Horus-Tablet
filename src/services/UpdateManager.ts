@@ -76,6 +76,9 @@ export class UpdateManager {
       return;
     }
 
+    const previousVersion = this.getCurrentVersion();
+    let versionMetadataUpdated = false;
+
     try {
       // 1. Descarga el .zip desde GitHub
       const versionData = await CapacitorUpdater.download({
@@ -83,13 +86,23 @@ export class UpdateManager {
         version: newVersion,
       });
 
-      // 2. Registra la nueva versión en la memoria
+      // 2. Prepara el metadato antes de set(): una activación correcta destruye
+      // el contexto JavaScript y no garantiza ejecutar código posterior.
       localStorage.setItem('horus_current_version', newVersion);
+      versionMetadataUpdated = true;
 
-      // 3. Aplica y reinicia la app al instante
+      // 3. Aplica y reinicia la app al instante; si rechaza, el catch restaura
+      // la versión anterior declarada.
       await CapacitorUpdater.set({ id: versionData.id });
       
     } catch (error) {
+      if (versionMetadataUpdated) {
+        try {
+          localStorage.setItem('horus_current_version', previousVersion);
+        } catch (restoreError) {
+          console.error('No se pudo restaurar el metadato de versión anterior:', restoreError);
+        }
+      }
       console.error('Error crítico al aplicar el parche:', error);
       throw error;
     }

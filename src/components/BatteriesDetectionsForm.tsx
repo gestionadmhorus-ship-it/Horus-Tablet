@@ -10,8 +10,8 @@ import { SearchableSelect } from './SearchableSelect';
 import { formatTime24h, formatDateDMY, formatTimestamp } from '../utils/dateUtils';
 
 interface BatteriesDetectionsFormProps {
-  onSaveBattery: (data: BatteryData) => void;
-  onSaveDetection: (data: DetectionData) => void;
+  onSaveBattery: (data: BatteryData) => void | Promise<void>;
+  onSaveDetection: (data: DetectionData) => void | Promise<void>;
   onBack: () => void;
   lists: ListsData;
   activeFlightId?: string;
@@ -212,6 +212,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
 }) => {
   const [activePanel, setActivePanel] = useState<ActivePanel>('batteries');
   const [isSaving, setIsSaving] = useState(false);
+  const saveLockRef = useRef(false);
   const isLinkedTablet = localStorage.getItem('horus_sync_role') === 'client'
     && !!localStorage.getItem('horus_target_server_id')?.trim();
 
@@ -298,34 +299,37 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
   /* ─── Save handlers ─── */
   const handleSaveBattery = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isSaving) return;
+    if (saveLockRef.current) return;
+    saveLockRef.current = true;
     setIsSaving(true);
 
     try {
       const now = new Date();
-      onSaveBattery({ id: generateId('BAT'), flightId: activeFlightId, timestamp: formatTimestamp(now), ...batteryData });
+      await onSaveBattery({ id: generateId('BAT'), flightId: activeFlightId, timestamp: formatTimestamp(now), ...batteryData });
       await window.customAlert('✅ Baterías guardadas con éxito');
       setBatteryData({ pilot: '', droneBatteryName: '', controlBatteryName: '' });
       setActivePanel('detections');
     } finally {
+      saveLockRef.current = false;
       setIsSaving(false);
     }
   };
 
   const handleSaveDetection = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isSaving) return;
+    if (saveLockRef.current) return;
 
     if (!criticality) {
       await window.customAlert('⚠️ Por favor selecciona un nivel de criticidad antes de guardar.');
       return;
     }
 
+    saveLockRef.current = true;
     setIsSaving(true);
     try {
       const saveTime = fixedTime || new Date();
       const generatedFileName = formatTime24h(saveTime).replace(/:/g, '');
-      onSaveDetection({
+      await onSaveDetection({
         id: generateId('DET'),
         flightId: activeFlightId,
         timestamp: formatTimestamp(saveTime),
@@ -342,6 +346,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
       setCriticality(''); setAccessStatus('Buena'); setObservations('');
       setFixedTime(null); // Reset fixed time back to real-time clock
     } finally {
+      saveLockRef.current = false;
       setIsSaving(false);
     }
   };

@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Check, ShieldAlert, Wifi, Cpu, Play } from 'lucide-react';
 import type { DroneChecklistData, ListsData } from '../types';
 import { SearchableSelect } from './SearchableSelect';
 import { formatTimestamp } from '../utils/dateUtils';
 
 interface DroneChecklistFormProps {
-  onSave: (data: DroneChecklistData) => void;
-  onUpdate?: (data: DroneChecklistData) => void;
+  onSave: (data: DroneChecklistData) => void | Promise<void>;
+  onUpdate?: (data: DroneChecklistData) => void | Promise<void>;
   onBack: () => void;
   lists: ListsData;
   history: DroneChecklistData[];
@@ -27,6 +27,7 @@ export const DroneChecklistForm: React.FC<DroneChecklistFormProps> = ({
   // Paso / Fase activa en la vista
   const [activeStep, setActiveStep] = useState(1);
   const [isSaving, setIsSaving] = useState(false);
+  const saveLockRef = useRef(false);
 
   // Estado inicial de casillas
   const [checks, setChecks] = useState({
@@ -95,8 +96,6 @@ export const DroneChecklistForm: React.FC<DroneChecklistFormProps> = ({
   };
 
   const handleSave = async () => {
-    if (isSaving) return;
-    
     if (!pilot) {
       window.customAlert('Por favor, selecciona el piloto a cargo.');
       return;
@@ -106,6 +105,8 @@ export const DroneChecklistForm: React.FC<DroneChecklistFormProps> = ({
       return;
     }
 
+    if (saveLockRef.current) return;
+    saveLockRef.current = true;
     setIsSaving(true);
     try {
 
@@ -121,12 +122,13 @@ export const DroneChecklistForm: React.FC<DroneChecklistFormProps> = ({
     };
 
       if (editData && onUpdate) {
-        onUpdate(payload);
+        await onUpdate(payload);
       } else {
-        onSave(payload);
+        await onSave(payload);
       }
       onBack();
     } finally {
+      saveLockRef.current = false;
       setIsSaving(false);
     }
   };

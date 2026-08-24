@@ -221,7 +221,11 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ lists, onUpdate, onClose,
       tempPeer.on('open', () => {
         const conn = tempPeer.connect(targetServerId);
         conn.on('open', () => {
-          conn.send({ type: 'DISCONNECT', deviceName });
+          conn.send({
+            type: 'DISCONNECT',
+            deviceId: localStorage.getItem('horus_device_id') || undefined,
+            deviceName
+          });
           setTimeout(() => { clearTimeout(giveUp); tempPeer.destroy(); doUnbind(); }, 600);
         });
         conn.on('error', () => { clearTimeout(giveUp); tempPeer.destroy(); doUnbind(); });

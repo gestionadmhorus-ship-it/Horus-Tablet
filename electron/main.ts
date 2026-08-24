@@ -35,10 +35,19 @@ ipcMain.handle('horus:readData', () => {
 
 // WRITE: Save data snapshot to physical disk after every change
 ipcMain.handle('horus:writeData', (_event, payload: string) => {
+  const temporaryPath = `${dataFilePath}.tmp`;
   try {
-    fs.writeFileSync(dataFilePath, payload, 'utf-8');
+    const handle = fs.openSync(temporaryPath, 'w');
+    try {
+      fs.writeFileSync(handle, payload, 'utf-8');
+      fs.fsyncSync(handle);
+    } finally {
+      fs.closeSync(handle);
+    }
+    fs.renameSync(temporaryPath, dataFilePath);
     return { success: true };
   } catch (err) {
+    try { if (fs.existsSync(temporaryPath)) fs.unlinkSync(temporaryPath); } catch {}
     console.error('Error writing Horus data:', err);
     return { success: false, error: String(err) };
   }

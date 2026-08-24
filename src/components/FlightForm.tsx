@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Save, ArrowLeft } from 'lucide-react';
 import type { FlightData, ListsData } from '../types';
 import { INSPECTION_CATEGORIES } from '../types';
@@ -7,8 +7,8 @@ import { SearchableSelect } from './SearchableSelect';
 import { formatTimestamp } from '../utils/dateUtils';
 
 interface FlightFormProps {
-  onSave: (data: FlightData) => void;
-  onUpdate?: (data: FlightData) => void;
+  onSave: (data: FlightData) => void | Promise<void>;
+  onUpdate?: (data: FlightData) => void | Promise<void>;
   onBack: () => void;
   lists: ListsData;
   activeShiftId?: string;
@@ -40,6 +40,7 @@ const FlightForm: React.FC<FlightFormProps> = ({
 
   const [expandedSection, setExpandedSection] = useState<string | null>('sec1');
   const [isSaving, setIsSaving] = useState(false);
+  const saveLockRef = useRef(false);
 
   const toggleSection = (section: string) => {
     setExpandedSection(prev => prev === section ? null : section);
@@ -47,14 +48,15 @@ const FlightForm: React.FC<FlightFormProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isSaving) return;
+    if (saveLockRef.current) return;
+    saveLockRef.current = true;
     setIsSaving(true);
     
     try {
       const now = new Date();
     
     if (isEditMode && editData && onUpdate) {
-      onUpdate({
+      await onUpdate({
         ...editData,
         ...formData
       });
@@ -73,11 +75,12 @@ const FlightForm: React.FC<FlightFormProps> = ({
         flightType,
         ...formData
       };
-      onSave(newData);
+      await onSave(newData);
       await window.customAlert('✅ Registro de Vuelo guardado con éxito');
     }
       onBack();
     } finally {
+      saveLockRef.current = false;
       setIsSaving(false);
     }
   };

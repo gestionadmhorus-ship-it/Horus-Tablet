@@ -485,7 +485,10 @@ export function useAutoSync(
         setSyncStatus('🔄 Conectando con Central...');
         const name = deviceName || localStorage.getItem('horus_device_name') || 'Unknown';
         const sanitizedName = name.replace(/[^a-zA-Z0-9-_]/g, '');
-        const clientPeerId = `horus-tablet-peer-${sanitizedName}`;
+        const stableDeviceId = localStorage.getItem('horus_device_id');
+        const clientPeerId = stableDeviceId
+          ? `horus-tablet-peer-${stableDeviceId}`
+          : `horus-tablet-peer-${sanitizedName}`;
         const peer = new Peer(clientPeerId, { debug: 1 });
         peerRef.current = peer;
 
@@ -724,7 +727,8 @@ export function useAutoSync(
             unsynced.flights.length > 0 || 
             unsynced.batteries.length > 0 || 
             unsynced.detections.length > 0 || 
-            (unsynced.checklists && unsynced.checklists.length > 0);
+            (unsynced.checklists && unsynced.checklists.length > 0) ||
+            (unsynced.droneChecklists && unsynced.droneChecklists.length > 0);
           
           if (!hasData) {
             setSyncStatus('✅ Sin datos pendientes.');

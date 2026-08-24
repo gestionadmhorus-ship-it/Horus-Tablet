@@ -11,6 +11,7 @@ export interface ExcelExportOptions {
   endDate?: string;
   client?: string;
   delivery?: 'download' | 'share';
+  completeJourney?: boolean;
   scope?: {
     table: 'shifts' | 'flights' | 'detections';
     keys: string[];
@@ -26,6 +27,9 @@ export interface ExcelExportContext {
   subject: string;
   body: string;
 }
+
+export const getExportRecordKey = (record: { id: string; recordUid?: string; sourceDeviceId?: string }): string =>
+  record.recordUid || `${record.sourceDeviceId ? `device:${record.sourceDeviceId}` : 'legacy'}:${record.id}`;
 
 const resolveShiftsToExport = (data: AppData, options?: ExcelExportOptions): any[] => {
   let shifts = [...data.shifts]
@@ -56,10 +60,13 @@ const resolveShiftsToExport = (data: AppData, options?: ExcelExportOptions): any
 
   if (options?.scope?.table === 'shifts') {
     const keys = new Set(options.scope.keys);
-    shifts = shifts.filter(shift => keys.has(shift.recordUid || shift.id));
+    shifts = shifts.filter(shift => keys.has(getExportRecordKey(shift)));
   }
 
-  if (shifts.length === 0 && data.flights.some(flight => !flight.isDeleted) && !options?.client) {
+  if (shifts.length === 0
+    && !data.shifts.some(shift => !shift.isDeleted)
+    && data.flights.some(flight => !flight.isDeleted)
+    && !options?.client) {
     shifts = [{
       id: 'fallback-shift',
       timestamp: data.flights.find(flight => !flight.isDeleted)?.timestamp || data.detections.find(detection => !detection.isDeleted)?.timestamp || '',
@@ -74,26 +81,52 @@ const resolveShiftsToExport = (data: AppData, options?: ExcelExportOptions): any
   return shifts;
 };
 
-const belongsToShift = (flight: any, shift: any): boolean => shift.id === 'fallback-shift'
-  || (shift.recordUid ? flight.shiftRecordUid === shift.recordUid : flight.shiftId === shift.id);
+const belongsToShift = (flight: any, shift: any, allShifts: any[]): boolean => {
+  if (shift.id === 'fallback-shift') return true;
+  if (flight.shiftRecordUid) return !!shift.recordUid && flight.shiftRecordUid === shift.recordUid;
+  if (!flight.shiftId || flight.shiftId !== shift.id) return false;
+  if (flight.sourceDeviceId && shift.sourceDeviceId) return flight.sourceDeviceId === shift.sourceDeviceId;
 
-const recordKey = (record: any): string => record.recordUid || record.id;
+  // A legacy relation without complete provenance is safe only when the parent is unique.
+  const candidates = allShifts.filter(candidate => !candidate.isDeleted
+    && candidate.id === flight.shiftId
+    && (!flight.sourceDeviceId || !candidate.sourceDeviceId || candidate.sourceDeviceId === flight.sourceDeviceId));
+  return candidates.length === 1 && candidates[0] === shift;
+};
+
+const belongsToFlight = (child: any, flight: any, allFlights: any[]): boolean => {
+  if (child.flightRecordUid) return !!flight.recordUid && child.flightRecordUid === flight.recordUid;
+  if (!child.flightId || child.flightId !== flight.id) return false;
+  if (child.sourceDeviceId && flight.sourceDeviceId) return child.sourceDeviceId === flight.sourceDeviceId;
+  const candidates = allFlights.filter(candidate => !candidate.isDeleted
+    && candidate.id === child.flightId
+    && (!child.sourceDeviceId || !candidate.sourceDeviceId || candidate.sourceDeviceId === child.sourceDeviceId));
+  return candidates.length === 1 && candidates[0] === flight;
+};
+
+const resolveParentFlight = (child: any, data: AppData): any | undefined =>
+  data.flights.find(flight => !flight.isDeleted && belongsToFlight(child, flight, data.flights));
+
+const resolveParentShift = (flight: any, data: AppData): any | undefined =>
+  flight && data.shifts.find(shift => !shift.isDeleted && belongsToShift(flight, shift, data.shifts));
+
+const recordKey = (record: any): string => getExportRecordKey(record);
 
 const resolveFlightsToExport = (data: AppData, shifts: any[], options?: ExcelExportOptions): any[] => {
-  let flights = data.flights.filter(flight => !flight.isDeleted && shifts.some(shift => belongsToShift(flight, shift)));
+  let flights = data.flights.filter(flight => !flight.isDeleted && shifts.some(shift => belongsToShift(flight, shift, data.shifts)));
   if (options?.scope?.table === 'flights') {
     const keys = new Set(options.scope.keys);
     flights = flights.filter(flight => keys.has(recordKey(flight)));
   } else if (options?.scope?.table === 'detections') {
     const detectionKeys = new Set(options.scope.keys);
     const selectedDetections = data.detections.filter(detection => detectionKeys.has(recordKey(detection)));
-    const flightKeys = new Set(selectedDetections.flatMap(detection => [detection.flightRecordUid, detection.flightId].filter(Boolean)));
-    flights = flights.filter(flight => flightKeys.has(flight.recordUid) || flightKeys.has(flight.id));
+    flights = flights.filter(flight => selectedDetections.some(detection => belongsToFlight(detection, flight, data.flights)));
   }
   return flights;
 };
 
 const isTimestampInExportRange = (timestamp: string, options?: ExcelExportOptions): boolean => {
+  if (options?.completeJourney) return true;
   if (!options?.dateMode) return true;
   const date = parseLocalTimestampToDate(timestamp);
   if (!date) return true;
@@ -109,14 +142,18 @@ const isTimestampInExportRange = (timestamp: string, options?: ExcelExportOption
 };
 
 const resolveDetectionsToExport = (data: AppData, flights: any[], options?: ExcelExportOptions): any[] => {
-  let detections = data.detections.filter(detection => !detection.isDeleted && isTimestampInExportRange(detection.timestamp, options));
+  let detections = data.detections.filter(detection => {
+    if (detection.isDeleted) return false;
+    const parentFlight = resolveParentFlight(detection, data);
+    if (!parentFlight) return isTimestampInExportRange(detection.timestamp, options);
+    return flights.some(flight => recordKey(flight) === recordKey(parentFlight));
+  });
   if (options?.scope?.table === 'detections') {
     const keys = new Set(options.scope.keys);
     return detections.filter(detection => keys.has(recordKey(detection)));
   }
   if (options?.client || options?.scope) {
-    const flightKeys = new Set(flights.flatMap(flight => [flight.recordUid, flight.id].filter(Boolean)));
-    detections = detections.filter(detection => flightKeys.has(detection.flightRecordUid) || flightKeys.has(detection.flightId));
+    detections = detections.filter(detection => flights.some(flight => belongsToFlight(detection, flight, data.flights)));
   }
   return detections;
 };
@@ -131,10 +168,10 @@ export const getExcelExportContext = (data: AppData, options?: ExcelExportOption
   const flights = resolveFlightsToExport(data, shifts, options);
   const detections = resolveDetectionsToExport(data, flights, options);
   const contextShifts = options?.scope && options.scope.table !== 'shifts'
-    ? shifts.filter(shift => flights.some(flight => belongsToShift(flight, shift)))
+    ? shifts.filter(shift => flights.some(flight => belongsToShift(flight, shift, data.shifts)))
     : shifts;
 
-  const dates = [...contextShifts.map(shift => shift.timestamp), ...flights.map(flight => flight.timestamp), ...detections.map(detection => detection.timestamp)]
+  const dates = contextShifts.map(shift => shift.timestamp)
     .map(parseLocalTimestampToDate)
     .filter((date): date is Date => !!date)
     .sort((a, b) => a.getTime() - b.getTime());
@@ -161,6 +198,15 @@ export const getExcelExportContext = (data: AppData, options?: ExcelExportOption
   const body = `Se adjuntan los registros correspondientes a los filtros seleccionados en Hermes 2.0.\n\nPeríodo: ${period}\nCliente(s): ${clients}\nLínea(s): ${lines || 'No aplica'}\nRegistros: ${recordCount}`;
 
   return { period, clients, lines, recordCount, fileName, subject, body };
+};
+
+export const getRelevantOpenShiftsForExcelExport = (data: AppData, options?: ExcelExportOptions) => {
+  const shifts = resolveShiftsToExport(data, options);
+  const flights = resolveFlightsToExport(data, shifts, options);
+  const relevantShifts = options?.scope && options.scope.table !== 'shifts'
+    ? shifts.filter(shift => flights.some(flight => belongsToShift(flight, shift, data.shifts)))
+    : shifts;
+  return relevantShifts.filter(shift => shift.id !== 'fallback-shift' && shift.status === 'active');
 };
 
 const splitTimestamp = (timestamp: string): { date: string; time: string } => {
@@ -244,7 +290,7 @@ export const exportToExcel = async (
     shift: any,
     detectionsList: any[]
   ) => {
-    const { date: startDay } = splitTimestamp(flight.timestamp || shift.timestamp || '');
+    const { date: startDay } = splitTimestamp(shift.timestamp || flight.timestamp || '');
     const origenVal = flight.deviceName || shift.deviceName || 'Local';
     const clientVal = shift.client || 'Sin cliente histórico';
     const lineVal = flight.lineName || 'Detecciones Tácticas';
@@ -443,19 +489,19 @@ export const exportToExcel = async (
 
   // 3. Populate KMS Sheet by iterating shifts & flights
   shiftsToExport.forEach((shift) => {
-    const kmsFlights = flightsToExport.filter(f => belongsToShift(f, shift) && (f.flightType === 'KMS' || !f.flightType))
+    const kmsFlights = flightsToExport.filter(f => belongsToShift(f, shift, data.shifts) && (f.flightType === 'KMS' || !f.flightType))
                                    .sort((a, b) => getChronologicalTime(a.timestamp) - getChronologicalTime(b.timestamp));
 
     kmsFlights.forEach((flight) => {
-      const detections = allDetectionsToExport.filter(d => flight.recordUid ? d.flightRecordUid === flight.recordUid : d.flightId === flight.id)
+      const detections = allDetectionsToExport.filter(d => belongsToFlight(d, flight, data.flights))
                                               .sort((a, b) => getChronologicalTime(a.timestamp) - getChronologicalTime(b.timestamp));
-      detections.forEach(d => processedDetectionIds.add(d.id));
+      detections.forEach(d => processedDetectionIds.add(recordKey(d)));
       renderKMSFlightBlock(wsKMS, workbook, flight, shift, detections);
     });
   });
 
   // Catch any remaining detections that were not linked to a flight or shift (Fail-safe)
-  const remainingDetections = allDetectionsToExport.filter(d => !processedDetectionIds.has(d.id));
+  const remainingDetections = allDetectionsToExport.filter(d => !processedDetectionIds.has(recordKey(d)));
   if (remainingDetections.length > 0) {
     const firstDet = remainingDetections[0];
     const virtualFlight = {
@@ -479,11 +525,11 @@ export const exportToExcel = async (
   // 4. Populate HS Sheet
   let totalHSDuration = 0;
   shiftsToExport.forEach((shift) => {
-    const hsFlights = flightsToExport.filter(f => belongsToShift(f, shift) && f.flightType === 'HS')
+    const hsFlights = flightsToExport.filter(f => belongsToShift(f, shift, data.shifts) && f.flightType === 'HS')
                                   .sort((a, b) => getChronologicalTime(a.timestamp) - getChronologicalTime(b.timestamp));
 
     hsFlights.forEach((flight) => {
-      const { date: startDay } = splitTimestamp(flight.timestamp);
+      const { date: startDay } = splitTimestamp(shift.timestamp || flight.timestamp);
       const detallesVal = `${flight.taskTypeAndLocation || 'Sin nombre'}${flight.details ? ` - ${flight.details}` : ''}`;
       
       // Row 1: Title
@@ -679,28 +725,32 @@ export const exportBatteriesToExcel = async (
     startDate?: string;
     endDate?: string;
     client?: string;
+    keys?: string[];
+    completeJourney?: boolean;
   }
 ) => {
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('Baterías');
-  const flightMap = new Map(data.flights.filter(flight => !flight.isDeleted).map(flight => [flight.recordUid, flight]));
-  const shiftMap = new Map(data.shifts.filter(shift => !shift.isDeleted).map(shift => [shift.recordUid, shift]));
 
   const specDate = options?.specificDate ? new Date(options.specificDate + 'T00:00:00') : null;
   const start = options?.startDate ? new Date(options.startDate + 'T00:00:00') : null;
   const end = options?.endDate ? new Date(options.endDate + 'T23:59:59') : null;
+  const selectedKeys = options?.keys ? new Set(options.keys) : undefined;
 
   const batteries = data.batteries
     .filter(battery => {
       if (battery.isDeleted) return false;
+      if (selectedKeys && !selectedKeys.has(getExportRecordKey(battery))) return false;
+      if (selectedKeys) return true;
+      const flight = resolveParentFlight(battery, data);
+      const shift = resolveParentShift(flight, data);
       if (options?.client) {
-        const flight = battery.flightRecordUid ? flightMap.get(battery.flightRecordUid) : undefined;
-        const shift = flight?.shiftRecordUid ? shiftMap.get(flight.shiftRecordUid) : undefined;
         if (options.client === '__legacy_without_client__' ? !!shift?.client?.trim() : shift?.client !== options.client) return false;
       }
+      if (options?.completeJourney) return true;
       if (!options?.dateMode) return true;
 
-      const batteryDate = parseLocalTimestampToDate(battery.timestamp);
+      const batteryDate = parseLocalTimestampToDate(shift?.timestamp || battery.timestamp);
       if (!batteryDate) return false;
 
       if (options.dateMode === 'specific') {
@@ -728,8 +778,8 @@ export const exportBatteriesToExcel = async (
   ];
 
   batteries.forEach(battery => {
-    const flight = battery.flightRecordUid ? flightMap.get(battery.flightRecordUid) : undefined;
-    const shift = flight?.shiftRecordUid ? shiftMap.get(flight.shiftRecordUid) : undefined;
+    const flight = resolveParentFlight(battery, data);
+    const shift = resolveParentShift(flight, data);
     const shiftTimestamp = shift ? splitTimestamp(shift.timestamp) : { date: '—', time: '' };
     const batteryTimestamp = splitTimestamp(battery.timestamp);
     const flightName = flight
@@ -757,7 +807,21 @@ export const exportBatteriesToExcel = async (
   worksheet.views = [{ state: 'frozen', ySplit: 1 }];
   worksheet.autoFilter = { from: 'A1', to: 'J1' };
 
-  const dateStr = new Date().toISOString().split('T')[0];
+  const operationalDates = batteries
+    .map(battery => {
+      const flight = resolveParentFlight(battery, data);
+      const shift = resolveParentShift(flight, data);
+      return parseLocalTimestampToDate(shift?.timestamp || battery.timestamp);
+    })
+    .filter((date): date is Date => !!date)
+    .sort((a, b) => a.getTime() - b.getTime());
+  const firstOperationalDate = operationalDates[0];
+  const lastOperationalDate = operationalDates[operationalDates.length - 1];
+  const dateStr = !firstOperationalDate
+    ? 'Sin_fecha'
+    : firstOperationalDate.toDateString() === lastOperationalDate.toDateString()
+      ? formatDateDMY(firstOperationalDate).replaceAll('/', '-')
+      : `${formatDateDMY(firstOperationalDate).replaceAll('/', '-')}_al_${formatDateDMY(lastOperationalDate).replaceAll('/', '-')}`;
   const fileName = `Reporte_Baterias_${dateStr}.xlsx`;
   const buffer = await workbook.xlsx.writeBuffer();
 
