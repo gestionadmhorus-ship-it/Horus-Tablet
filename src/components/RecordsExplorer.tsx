@@ -443,16 +443,20 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
     };
     const context = getExcelExportContext(props.data, exportOptions);
     if (context.recordCount === 0) {
-      await window.customAlert('No hay registros para preparar el correo con los filtros seleccionados.');
+      await window.customAlert(props.isFieldUnit
+        ? 'No hay registros para exportar con los filtros seleccionados.'
+        : 'No hay registros para preparar el correo con los filtros seleccionados.');
       return;
     }
     const relevantOpenShifts = getRelevantOpenShiftsForExcelExport(props.data, exportOptions);
     if (relevantOpenShifts.length > 0) {
-      await window.customAlert('Hay una Jornada abierta entre los registros del reporte. Debe cerrarse antes de preparar el correo.');
+      await window.customAlert(props.isFieldUnit
+        ? 'Hay una Jornada abierta entre los registros del reporte. Debe cerrarse antes de exportar el reporte.'
+        : 'Hay una Jornada abierta entre los registros del reporte. Debe cerrarse antes de preparar el correo.');
       return;
     }
     const confirmed = await window.customConfirm(
-      `Preparar correo con el reporte Excel:\n\n` +
+      `${props.isFieldUnit ? 'Exportar reporte Excel' : 'Preparar correo con el reporte Excel'}:\n\n` +
       `Período: ${context.period}\nCliente(s): ${context.clients}\n` +
       `Línea(s): ${context.lines || 'No aplica'}\nRegistros: ${context.recordCount}\n\n` +
       `Archivo: ${context.fileName}`
@@ -795,7 +799,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
               <Printer size={18} /> IMPRIMIR LOTES
             </button>
           )}
-          {activeTable !== 'checklists' && activeTable !== 'batteries' && (
+          {!props.isFieldUnit && activeTable !== 'checklists' && activeTable !== 'batteries' && (
             <button 
               onClick={handleExportFiltered} 
               disabled={filteredData.length === 0}
@@ -830,7 +834,8 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
                 cursor: filteredData.length === 0 ? 'not-allowed' : 'pointer'
               }}
             >
-              <Mail size={16} /> PREPARAR CORREO
+              {props.isFieldUnit ? <Download size={16} /> : <Mail size={16} />}
+              {props.isFieldUnit ? 'EXPORTAR REPORTE' : 'PREPARAR CORREO'}
             </button>
           )}
           {activeTable === 'batteries' && (
