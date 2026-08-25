@@ -20,6 +20,7 @@ interface BatteriesDetectionsFormProps {
 }
 
 type ActivePanel = 'batteries' | 'detections';
+type DetectionStep = 'element' | 'anomaly' | 'criticality' | 'access' | 'observations';
 
 /* ─── Helper: select or text fallback ─── */
 const SmartSelect: React.FC<{
@@ -231,6 +232,42 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
   const [accessStatus, setAccessStatus] = useState('Buena');
   const [observations, setObservations] = useState('');
 
+  /* Presentation-only state for the progressive detection flow. */
+  const [detectionStep, setDetectionStep] = useState<DetectionStep>('element');
+  const [isClockExpanded, setIsClockExpanded] = useState(false);
+  const [keyboardInset, setKeyboardInset] = useState(0);
+  const detectionStepRefs = useRef<Partial<Record<DetectionStep, HTMLDivElement | null>>>({});
+
+  const moveToDetectionStep = (step: DetectionStep) => {
+    setDetectionStep(step);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        detectionStepRefs.current[step]?.scrollIntoView({
+          behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+          block: 'start'
+        });
+      });
+    });
+  };
+
+  useEffect(() => {
+    if (activePanel !== 'detections' || !window.visualViewport) {
+      setKeyboardInset(0);
+      return;
+    }
+    const viewport = window.visualViewport;
+    const updateKeyboardInset = () => {
+      setKeyboardInset(Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop));
+    };
+    updateKeyboardInset();
+    viewport.addEventListener('resize', updateKeyboardInset);
+    viewport.addEventListener('scroll', updateKeyboardInset);
+    return () => {
+      viewport.removeEventListener('resize', updateKeyboardInset);
+      viewport.removeEventListener('scroll', updateKeyboardInset);
+    };
+  }, [activePanel]);
+
   /* ─── Time Sync logic ─── */
   useEffect(() => {
     if (activePanel !== 'detections' || fixedTime !== null) return;
@@ -344,6 +381,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
       await window.customAlert('✅ Detección guardada con éxito');
       setSelectedElement(''); setSelectedAnomaly(''); setRecommendation('');
       setCriticality(''); setAccessStatus('Buena'); setObservations('');
+      setDetectionStep('element'); setIsClockExpanded(false);
       setFixedTime(null); // Reset fixed time back to real-time clock
     } finally {
       saveLockRef.current = false;
@@ -467,7 +505,11 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
 
         {/* ────── DETECTIONS PANEL ────── */}
         {activePanel === 'detections' && (
-          <form onSubmit={handleSaveDetection} className="form-scroll-container detections-form" style={{ padding: '1.2rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <form
+            onSubmit={handleSaveDetection}
+            className="form-scroll-container detections-form detections-progressive-flow"
+            style={{ padding: '1.2rem', paddingBottom: `calc(1.2rem + ${keyboardInset}px)`, display: 'flex', flexDirection: 'column', gap: '1rem' }}
+          >
             <div className="detections-heading" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
               <div style={{ background: 'rgba(0,255,136,0.1)', padding: '0.6rem', borderRadius: '10px', color: 'var(--accent)' }}><AlertTriangle size={24} /></div>
               <div style={{ textAlign: 'center' }}>
@@ -477,85 +519,21 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
             </div>
 
             {/* ─ Sincronización de Hora / Ajustes ─ */}
-            <div className="detections-clock" style={{
-              background: 'var(--card-bg)',
-              border: '1px solid var(--glass-border)',
-              borderRadius: '12px',
-              padding: '1rem',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '0.75rem',
-              boxShadow: 'var(--shadow-glow)'
-            }}>
-              <div className="detections-clock-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div className="detections-clock-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Clock size={18} color="var(--text-secondary)" />
-                  <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', fontWeight: 800, letterSpacing: '1px' }}>HORA REGISTRO DETECCIÓN</span>
+            <div className={`detections-clock ${isClockExpanded ? 'expanded' : 'compact'}`}>
+              <div className="detections-clock-compact-row">
+                <Clock size={18} color="var(--text-secondary)" />
+                <span className="detections-clock-label">Hora</span>
+                <strong>{formatTime24h(fixedTime || currentTime)}</strong>
+                <span>{formatDateDMY(fixedTime || currentTime)}</span>
+                <button type="button" onClick={() => setIsClockExpanded(expanded => !expanded)}>
+                  {isClockExpanded ? 'Cerrar' : 'Ajustar'}
+                </button>
+              </div>
+              {isClockExpanded && (
+              <div className="detections-clock-controls">
+                <div className={`detections-clock-status ${fixedTime !== null ? 'fixed' : 'live'}`}>
+                  {fixedTime !== null ? <><Lock size={12} /> HORA FIJADA</> : <>TIEMPO REAL</>}
                 </div>
-                {fixedTime !== null ? (
-                  <span className="detections-clock-status" style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.25rem',
-                    fontSize: '0.75rem',
-                    color: '#FFD600',
-                    fontWeight: 'bold',
-                    background: 'rgba(255,214,0,0.1)',
-                    padding: '3px 8px',
-                    borderRadius: '6px',
-                    border: '1px solid rgba(255,214,0,0.3)'
-                  }}>
-                    <Lock size={12} /> HORA FIJADA
-                  </span>
-                ) : (
-                  <span className="detections-clock-status" style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.25rem',
-                    fontSize: '0.75rem',
-                    color: '#00ff88',
-                    fontWeight: 'bold',
-                    background: 'rgba(0,255,136,0.1)',
-                    padding: '3px 8px',
-                    borderRadius: '6px',
-                    border: '1px solid rgba(0,255,136,0.3)'
-                  }}>
-                    <span style={{
-                      width: '6px',
-                      height: '6px',
-                      background: '#00ff88',
-                      borderRadius: '50%',
-                      display: 'inline-block'
-                    }}></span>
-                    TIEMPO REAL
-                  </span>
-                )}
-              </div>
-
-              <div className="detections-clock-value" style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                background: 'rgba(0, 0, 0, 0.4)',
-                border: '1px solid rgba(255, 255, 255, 0.05)',
-                borderRadius: '8px',
-                padding: '0.5rem 1rem'
-              }}>
-                <span style={{
-                  fontSize: '1.5rem',
-                  fontFamily: 'monospace',
-                  fontWeight: 900,
-                  color: fixedTime !== null ? '#FFD600' : 'white',
-                  textShadow: fixedTime !== null ? '0 0 10px rgba(255,214,0,0.3)' : 'none'
-                }}>
-                  {formatTime24h(fixedTime || currentTime)}
-                </span>
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
-                  {formatDateDMY(fixedTime || currentTime)}
-                </span>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.25rem' }}>
                 <button
                   type="button"
                   onClick={handleToggleFixTime}
@@ -617,18 +595,20 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
                   />
                 </div>
               </div>
+              )}
             </div>
 
-            {/* ─ Elemento y Anomalía (Lado a lado) ─ */}
             <div className="detections-knowledge-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
-              {/* ─ Elemento ─ */}
-              <div>
+              <div ref={node => { detectionStepRefs.current.element = node; }} className={`detections-progressive-step ${detectionStep === 'element' ? 'active' : ''}`} onFocus={() => setDetectionStep('element')}>
                 {elementNames.length > 0 ? (
                   <SearchableSelect
                     label="Elemento"
                     options={elementNames}
                     value={selectedElement}
-                    onChange={handleElementChange}
+                    onChange={value => {
+                      handleElementChange(value);
+                      moveToDetectionStep('anomaly');
+                    }}
                     required
                     placeholder="-- Seleccionar Elemento --"
                   />
@@ -647,25 +627,21 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
                 )}
               </div>
 
-              {/* ─ Anomalía (filtrada por elemento) ─ */}
-              <div>
+              <div ref={node => { detectionStepRefs.current.anomaly = node; }} className={`detections-progressive-step ${detectionStep === 'anomaly' ? 'active' : ''}`} onFocus={() => setDetectionStep('anomaly')}>
                 {!selectedElement ? (
                   <>
                     <label>Anomalía / Detección</label>
-                    <input
-                      type="text"
-                      disabled
-                      value=""
-                      placeholder="Selecciona un elemento primero..."
-                      style={{ opacity: 0.4, cursor: 'not-allowed' }}
-                    />
+                    <input type="text" disabled value="" placeholder="Selecciona un elemento primero..." style={{ opacity: 0.4, cursor: 'not-allowed' }} />
                   </>
                 ) : filteredAnomalies.length > 0 ? (
                   <SearchableSelect
                     label="Anomalía / Detección"
                     options={filteredAnomalies}
                     value={selectedAnomaly}
-                    onChange={handleAnomalyChange}
+                    onChange={value => {
+                      handleAnomalyChange(value);
+                      moveToDetectionStep('criticality');
+                    }}
                     required
                     placeholder="-- Seleccionar Anomalía --"
                   />
@@ -697,10 +673,8 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
               </div>
             )}
 
-            {/* ─ Criticidad & Estado de Acceso (En la misma fila / distintas columnas) ─ */}
             <div className="detections-options-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.25rem', width: '100%' }}>
-              {/* ─ Columna 1: Criticidad (Falla de Equipo) ─ */}
-              <div>
+              <div ref={node => { detectionStepRefs.current.criticality = node; }} className={`detections-progressive-step ${detectionStep === 'criticality' ? 'active' : ''}`} onFocus={() => setDetectionStep('criticality')}>
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#E2E8F0', fontSize: '0.85rem' }}>
                   Criticidad (Falla de Equipo)
                 </label>
@@ -722,7 +696,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
                         <button
                           key={crit}
                           type="button"
-                          onClick={() => setCriticality(crit)}
+                          onClick={() => { setCriticality(crit); moveToDetectionStep('access'); }}
                           className="detections-option-button"
                           style={{
                             flex: '1 1 calc(33.33% - 0.5rem)',
@@ -753,8 +727,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
                 )}
               </div>
 
-              {/* ─ Columna 2: Estado de Acceso a Traza (Camino/Terreno) ─ */}
-              <div>
+              <div ref={node => { detectionStepRefs.current.access = node; }} className={`detections-progressive-step ${detectionStep === 'access' ? 'active' : ''}`} onFocus={() => setDetectionStep('access')}>
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#38BDF8', fontSize: '0.85rem' }}>
                   🗺️ Estado de Acceso a Traza
                 </label>
@@ -769,7 +742,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
                       <button
                         key={status.value}
                         type="button"
-                        onClick={() => setAccessStatus(status.value)}
+                        onClick={() => { setAccessStatus(status.value); moveToDetectionStep('observations'); }}
                         className="detections-option-button"
                         style={{
                           flex: 1,
@@ -799,12 +772,16 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
               </div>
             </div>
 
-
-
-            {/* ─ Observaciones ─ */}
-            <div>
+            <div ref={node => { detectionStepRefs.current.observations = node; }} className={`detections-progressive-step ${detectionStep === 'observations' ? 'active' : ''}`} onFocus={() => setDetectionStep('observations')}>
               <label>Observaciones</label>
-              <textarea className="detections-observations" rows={3} placeholder="Detalles adicionales..." value={observations} onChange={e => setObservations(e.target.value)} />
+              <textarea
+                className="detections-observations"
+                rows={3}
+                placeholder="Detalles adicionales..."
+                value={observations}
+                onChange={e => setObservations(e.target.value)}
+                onFocus={() => setTimeout(() => detectionStepRefs.current.observations?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }), 180)}
+              />
             </div>
 
             <div className="detections-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -956,6 +933,80 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
           max-width: 100%;
           overflow-x: hidden;
         }
+        .detections-progressive-flow {
+          scroll-padding-top: max(0.75rem, env(safe-area-inset-top));
+          transition: padding-bottom 0.15s ease;
+        }
+        .detections-progressive-step {
+          width: 100%;
+          scroll-margin-top: max(0.75rem, env(safe-area-inset-top));
+        }
+        .detections-progressive-step.active {
+          padding: clamp(0.8rem, 2.5vw, 1.1rem);
+          border: 1px solid rgba(0, 242, 255, 0.28);
+          border-radius: 12px;
+          background: rgba(0, 242, 255, 0.045);
+          box-shadow: 0 0 18px rgba(0, 242, 255, 0.06);
+        }
+        .detections-clock-compact-row > button {
+          min-height: 48px;
+          padding: 0.65rem 0.9rem;
+          border: 1px solid var(--primary);
+          border-radius: 8px;
+          background: rgba(0, 242, 255, 0.08);
+          color: var(--primary);
+          font-weight: 800;
+          cursor: pointer;
+        }
+        .detections-clock {
+          padding: 0.65rem 0.8rem;
+          border: 1px solid var(--glass-border);
+          border-radius: 12px;
+          background: var(--card-bg);
+          box-shadow: var(--shadow-glow);
+        }
+        .detections-clock-compact-row {
+          display: grid;
+          grid-template-columns: auto auto minmax(88px, auto) minmax(0, 1fr) auto;
+          align-items: center;
+          gap: 0.65rem;
+        }
+        .detections-clock-compact-row strong {
+          color: white;
+          font-family: monospace;
+          font-size: 1.15rem;
+        }
+        .detections-clock-compact-row > span:not(.detections-clock-label) {
+          color: var(--text-secondary);
+          font-family: monospace;
+          font-size: 0.78rem;
+        }
+        .detections-clock-label {
+          color: var(--text-secondary);
+          font-size: 0.75rem;
+          font-weight: 800;
+          text-transform: uppercase;
+        }
+        .detections-clock-controls {
+          display: flex;
+          flex-direction: column;
+          gap: 0.75rem;
+          margin-top: 0.75rem;
+          padding-top: 0.75rem;
+          border-top: 1px solid var(--glass-border);
+        }
+        .detections-clock-status {
+          width: fit-content;
+          display: inline-flex;
+          align-items: center;
+          gap: 0.3rem;
+          padding: 0.25rem 0.5rem;
+          border-radius: 6px;
+          font-size: 0.72rem;
+          font-weight: 800;
+        }
+        .detections-clock-status.fixed { color: #FFD600; background: rgba(255,214,0,0.1); }
+        .detections-clock-status.live { color: #00ff88; background: rgba(0,255,136,0.1); }
         .detections-heading,
         .detections-clock-header,
         .detections-clock-title,
@@ -1127,6 +1178,16 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
           padding: 1.2rem !important;
         }
         @media (max-width: 600px) {
+          .detections-progressive-flow {
+            padding-inline: 0.75rem !important;
+          }
+          .detections-clock-compact-row {
+            grid-template-columns: auto minmax(0, 1fr) auto;
+          }
+          .detections-clock-label,
+          .detections-clock-compact-row > span:not(.detections-clock-label) {
+            display: none;
+          }
           .detections-clock-header,
           .detections-clock-value,
           .detections-footer {
@@ -1154,6 +1215,17 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
           .detections-save.btn-3d {
             width: 100% !important;
             max-width: 100% !important;
+          }
+        }
+        @media (orientation: landscape) and (max-height: 520px) {
+          .detections-heading p { display: none; }
+          .detections-progressive-step.active { padding: 0.65rem; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .detections-progressive-flow,
+          .detections-progressive-flow * {
+            scroll-behavior: auto !important;
+            transition-duration: 0.01ms !important;
           }
         }
       `}</style>
