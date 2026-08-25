@@ -905,7 +905,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
                 {activeTable === 'shifts' && <><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Coordinador</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Asistentes</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Vehículo</th></>}
                 {activeTable === 'flights' && <><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Piloto</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Línea</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Obs.</th></>}
                 {activeTable === 'batteries' && <><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Piloto</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>ID Dron</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>ID RC</th></>}
-                {activeTable === 'detections' && <><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Elemento</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Anomalía</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Criticidad</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Acceso Traza</th></>}
+                {activeTable === 'detections' && <><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Elemento</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Anomalía</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Criticidad</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Acceso Traza</th><th style={{ padding: '1.2rem', color: 'var(--text-primary)' }}>Observaciones</th></>}
                 {activeTable === 'checklists' && (
                   checklistSubtype === 'drone' ? (
                     <>
@@ -1002,6 +1002,9 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
                             </span>
                           );
                         })()}
+                      </td>
+                      <td style={{ padding: '1.2rem', maxWidth: '320px', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', color: 'var(--text-primary)' }}>
+                        {item.observations?.trim() || 'Sin observaciones'}
                       </td>
                     </>
                   )}
@@ -1248,6 +1251,10 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
                       <div className="history-card-item">
                         <span className="history-card-label">Archivo:</span>
                         <span className="history-card-value" style={{ fontSize: '0.8rem', wordBreak: 'break-all' }}>{item.fileName}</span>
+                      </div>
+                      <div className="history-card-item">
+                        <span className="history-card-label">Observaciones:</span>
+                        <span className="history-card-value" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{item.observations?.trim() || 'Sin observaciones'}</span>
                       </div>
                     </>
                   )}
