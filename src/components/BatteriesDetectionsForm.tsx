@@ -237,7 +237,24 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
   const [detectionStep, setDetectionStep] = useState<DetectionStep>('element');
   const [isClockExpanded, setIsClockExpanded] = useState(false);
   const [keyboardInset, setKeyboardInset] = useState(0);
+  const detectionFormStartRef = useRef<HTMLFormElement | null>(null);
   const detectionStepRefs = useRef<Partial<Record<DetectionStep, HTMLDivElement | null>>>({});
+
+  const scrollToDetectionFormStart = () => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const form = detectionFormStartRef.current;
+        if (!form) return;
+
+        const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+        form.scrollTo({ top: 0, behavior });
+        form.scrollIntoView({
+          behavior,
+          block: 'start'
+        });
+      });
+    });
+  };
 
   const moveToDetectionStep = (step: DetectionStep) => {
     setDetectionStep(step);
@@ -390,6 +407,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
       setDetectionStep('element'); setIsClockExpanded(false);
       setAdjustmentTime(null);
       setFixedTime(null); // Reset fixed time back to real-time clock
+      scrollToDetectionFormStart();
     } finally {
       saveLockRef.current = false;
       setIsSaving(false);
@@ -513,6 +531,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
         {/* ────── DETECTIONS PANEL ────── */}
         {activePanel === 'detections' && (
           <form
+            ref={detectionFormStartRef}
             onSubmit={handleSaveDetection}
             className="form-scroll-container detections-form detections-progressive-flow"
             style={{ padding: '1.2rem', paddingBottom: `calc(1.2rem + ${keyboardInset}px)`, display: 'flex', flexDirection: 'column', gap: '1rem' }}
