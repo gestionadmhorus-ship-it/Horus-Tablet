@@ -2,12 +2,12 @@ import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import {
   Save, ArrowLeft,
   Battery, AlertTriangle, ChevronRight, ChevronLeft, Info,
-  Clock, Lock, Unlock
+  Clock
 } from 'lucide-react';
 import type { BatteryData, DetectionData, ListsData } from '../types';
 import { generateId } from '../utils/idGenerator';
 import { SearchableSelect } from './SearchableSelect';
-import { formatTime24h, formatDateDMY, formatTimestamp } from '../utils/dateUtils';
+import { formatTime24h, formatTimestamp } from '../utils/dateUtils';
 
 interface BatteriesDetectionsFormProps {
   onSaveBattery: (data: BatteryData) => void | Promise<void>;
@@ -220,6 +220,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
   /* ─── Detection Time Sync state ─── */
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   const [fixedTime, setFixedTime] = useState<Date | null>(null);
+  const [adjustmentTime, setAdjustmentTime] = useState<Date | null>(null);
 
   /* ─── Battery state ─── */
   const [batteryData, setBatteryData] = useState({ pilot: '', droneBatteryName: '', controlBatteryName: '' });
@@ -279,24 +280,29 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
     return () => clearInterval(interval);
   }, [activePanel, fixedTime]);
 
-  const handleToggleFixTime = () => {
-    if (fixedTime === null) {
-      setFixedTime(new Date());
-    } else {
-      setFixedTime(null);
-      setCurrentTime(new Date());
-    }
+  const handleBeginTimeAdjustment = () => {
+    const baseTime = fixedTime ?? new Date();
+    setAdjustmentTime(new Date(baseTime.getTime()));
+    setIsClockExpanded(true);
   };
 
   const handleAdjustTime = (seconds: number) => {
-    setFixedTime(previousTime => {
-      const baseTime = previousTime ?? new Date();
-      return new Date(baseTime.getTime() + seconds * 1000);
+    setAdjustmentTime(previousTime => {
+      if (!previousTime) return previousTime;
+      return new Date(previousTime.getTime() + seconds * 1000);
     });
   };
 
   const handleTimeWheelInteractionStart = () => {
-    setFixedTime(previousTime => previousTime ?? new Date());
+    setAdjustmentTime(previousTime => previousTime ?? new Date());
+  };
+
+  const handleConfirmFixedTime = () => {
+    if (!adjustmentTime) return;
+    setFixedTime(new Date(adjustmentTime.getTime()));
+    setIsClockExpanded(false);
+    setAdjustmentTime(null);
+    moveToDetectionStep('element');
   };
 
 
@@ -382,6 +388,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
       setSelectedElement(''); setSelectedAnomaly(''); setRecommendation('');
       setCriticality(''); setAccessStatus('Buena'); setObservations('');
       setDetectionStep('element'); setIsClockExpanded(false);
+      setAdjustmentTime(null);
       setFixedTime(null); // Reset fixed time back to real-time clock
     } finally {
       saveLockRef.current = false;
@@ -521,22 +528,26 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
             {/* ─ Sincronización de Hora / Ajustes ─ */}
             <div className={`detections-clock ${isClockExpanded ? 'expanded' : 'compact'}`}>
               <div className="detections-clock-compact-row">
-                <Clock size={18} color="var(--text-secondary)" />
-                <span className="detections-clock-label">Hora</span>
-                <strong>{formatTime24h(fixedTime || currentTime)}</strong>
-                <span>{formatDateDMY(fixedTime || currentTime)}</span>
-                <button type="button" onClick={() => setIsClockExpanded(expanded => !expanded)}>
-                  {isClockExpanded ? 'Cerrar' : 'Ajustar'}
-                </button>
+                {fixedTime && !isClockExpanded ? (
+                  <div className="detections-clock-fixed-indicator">
+                    ✓ FIJADO · {formatTime24h(fixedTime)}
+                  </div>
+                ) : (
+                  <>
+                    <Clock size={18} color="var(--text-secondary)" />
+                    <span className="detections-clock-label">Hora</span>
+                    <strong>{formatTime24h(isClockExpanded && adjustmentTime ? adjustmentTime : currentTime)}</strong>
+                  </>
+                )}
+                {!isClockExpanded && (
+                  <button type="button" onClick={handleBeginTimeAdjustment}>AJUSTAR</button>
+                )}
               </div>
               {isClockExpanded && (
               <div className="detections-clock-controls">
-                <div className={`detections-clock-status ${fixedTime !== null ? 'fixed' : 'live'}`}>
-                  {fixedTime !== null ? <><Lock size={12} /> HORA FIJADA</> : <>TIEMPO REAL</>}
-                </div>
                 <button
                   type="button"
-                  onClick={handleToggleFixTime}
+                  onClick={handleConfirmFixedTime}
                   className="btn-3d detections-clock-toggle"
                   style={{
                     width: '100%',
@@ -548,22 +559,14 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '0.5rem',
-                    background: fixedTime !== null ? '#FF1744' : 'var(--primary)',
-                    color: fixedTime !== null ? 'white' : 'black',
+                    background: 'var(--primary)',
+                    color: 'black',
                     border: 'none',
                     borderRadius: '8px',
-                    boxShadow: fixedTime !== null ? '0 4px 12px rgba(255,23,68,0.2)' : '0 4px 12px rgba(16,185,129,0.2)'
+                    boxShadow: '0 4px 12px rgba(16,185,129,0.2)'
                   }}
                 >
-                  {fixedTime !== null ? (
-                    <>
-                      <Unlock size={16} /> LIBERAR RELOJ
-                    </>
-                  ) : (
-                    <>
-                      <Lock size={16} /> FIJAR HORA
-                    </>
-                  )}
+                  FIJAR
                 </button>
 
                 <div className="detections-time-adjustments" style={{
@@ -574,21 +577,21 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
                 }}>
                   <TimeWheel
                     label="HORAS"
-                    value={(fixedTime || currentTime).getHours()}
+                    value={(adjustmentTime || currentTime).getHours()}
                     range={24}
                     onInteractionStart={handleTimeWheelInteractionStart}
                     onDelta={steps => handleAdjustTime(steps * 3600)}
                   />
                   <TimeWheel
                     label="MINUTOS"
-                    value={(fixedTime || currentTime).getMinutes()}
+                    value={(adjustmentTime || currentTime).getMinutes()}
                     range={60}
                     onInteractionStart={handleTimeWheelInteractionStart}
                     onDelta={steps => handleAdjustTime(steps * 60)}
                   />
                   <TimeWheel
                     label="SEGUNDOS"
-                    value={(fixedTime || currentTime).getSeconds()}
+                    value={(adjustmentTime || currentTime).getSeconds()}
                     range={60}
                     onInteractionStart={handleTimeWheelInteractionStart}
                     onDelta={steps => handleAdjustTime(steps)}
@@ -997,7 +1000,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
           padding-top: 0.75rem;
           border-top: 1px solid var(--glass-border);
         }
-        .detections-clock-status {
+        .detections-clock-fixed-indicator {
           width: fit-content;
           display: inline-flex;
           align-items: center;
@@ -1006,9 +1009,9 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
           border-radius: 6px;
           font-size: 0.72rem;
           font-weight: 800;
+          color: #00ff88;
+          background: rgba(0,255,136,0.1);
         }
-        .detections-clock-status.fixed { color: #FFD600; background: rgba(255,214,0,0.1); }
-        .detections-clock-status.live { color: #00ff88; background: rgba(0,255,136,0.1); }
         .detections-heading,
         .detections-clock-header,
         .detections-clock-title,
@@ -1024,7 +1027,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
         .detections-heading h3,
         .detections-heading p,
         .detections-clock-title span,
-        .detections-clock-status,
+        .detections-clock-fixed-indicator,
         .detections-wrapping-text {
           white-space: normal;
           overflow-wrap: anywhere;
@@ -1034,7 +1037,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
         .detections-footer {
           gap: 0.75rem;
         }
-        .detections-clock-status {
+        .detections-clock-fixed-indicator {
           flex-wrap: wrap;
         }
         .detections-clock-toggle.btn-3d {
@@ -1196,7 +1199,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
             flex-direction: column;
             align-items: stretch !important;
           }
-          .detections-clock-status {
+          .detections-clock-fixed-indicator {
             align-self: flex-start;
           }
           .detections-knowledge-grid,
