@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronDown, X } from 'lucide-react';
+import { ChevronDown, Search, X } from 'lucide-react';
 
 interface SearchableSelectProps {
   label?: string;
@@ -9,6 +9,7 @@ interface SearchableSelectProps {
   placeholder?: string;
   required?: boolean;
   style?: React.CSSProperties;
+  deferSearch?: boolean;
 }
 
 export const SearchableSelect: React.FC<SearchableSelectProps> = ({
@@ -18,10 +19,12 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   onChange,
   placeholder = '-- Seleccionar --',
   required = false,
-  style
+  style,
+  deferSearch = false
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isSearchEditing, setIsSearchEditing] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -36,6 +39,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
     const handleClickOutside = (event: MouseEvent | TouchEvent) => {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
         setIsOpen(false);
+        setIsSearchEditing(false);
         // Reset search term to current selected value
         setSearchTerm(value);
       }
@@ -58,7 +62,9 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
     onChange(option);
     setSearchTerm(option);
     setIsOpen(false);
+    setIsSearchEditing(false);
     setHighlightedIndex(-1);
+    if (deferSearch) inputRef.current?.blur();
   };
 
   const handleClear = (e: React.MouseEvent) => {
@@ -66,10 +72,32 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
     onChange('');
     setSearchTerm('');
     setIsOpen(true);
+    setIsSearchEditing(!deferSearch);
     inputRef.current?.focus();
   };
 
+  const startDeferredSearch = () => {
+    inputRef.current?.blur();
+    setIsSearchEditing(true);
+    requestAnimationFrame(() => inputRef.current?.focus());
+  };
+
+  const closeWithoutSelection = () => {
+    inputRef.current?.blur();
+    setIsOpen(false);
+    setIsSearchEditing(false);
+    setSearchTerm(value);
+    setHighlightedIndex(-1);
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (deferSearch && isOpen && isSearchEditing && e.key === 'Enter') {
+      e.preventDefault();
+      setIsSearchEditing(false);
+      inputRef.current?.blur();
+      return;
+    }
+
     if (!isOpen) {
       if (e.key === 'ArrowDown' || e.key === 'Enter') {
         setIsOpen(true);
@@ -97,6 +125,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
       }
     } else if (e.key === 'Escape') {
       setIsOpen(false);
+      setIsSearchEditing(false);
       setSearchTerm(value);
     }
   };
@@ -114,11 +143,26 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
           type="text"
           value={searchTerm}
           onChange={(e) => {
+            if (deferSearch && !isSearchEditing) return;
             setSearchTerm(e.target.value);
             if (!isOpen) setIsOpen(true);
           }}
-          onFocus={() => setIsOpen(true)}
+          onFocus={() => {
+            if (deferSearch && !isOpen) {
+              setSearchTerm('');
+              setIsSearchEditing(false);
+            }
+            setIsOpen(true);
+          }}
+          onPointerDown={(e) => {
+            if (!deferSearch || isSearchEditing) return;
+            e.preventDefault();
+            if (!isOpen) setSearchTerm('');
+            setIsOpen(true);
+          }}
           onKeyDown={handleKeyDown}
+          inputMode={deferSearch ? (isSearchEditing ? 'search' : 'none') : undefined}
+          enterKeyHint={deferSearch ? 'search' : undefined}
           placeholder={placeholder}
           required={required && !value}
           style={{
@@ -210,13 +254,13 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
 
       {isOpen && (
         <div
-          className="glass searchable-select-menu"
+          className={`glass searchable-select-menu ${deferSearch ? 'searchable-select-menu-deferred' : ''}`}
           style={{
-            position: 'absolute',
-            top: 'calc(100% + 4px)',
+            position: deferSearch ? 'relative' : 'absolute',
+            top: deferSearch ? undefined : 'calc(100% + 4px)',
             left: 0,
             right: 0,
-            maxHeight: '220px',
+            maxHeight: deferSearch ? 'min(52vh, 420px)' : '220px',
             overflowY: 'auto',
             zIndex: 1000,
             border: '1px solid var(--glass-border)',
@@ -225,6 +269,23 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
             padding: '4px'
           }}
         >
+          {deferSearch && (
+            <div className="searchable-select-deferred-tools">
+              {isSearchEditing ? (
+                <span><Search size={17} /> Escribe y pulsa Buscar/Done</span>
+              ) : searchTerm ? (
+                <button type="button" onClick={startDeferredSearch}>
+                  <Search size={17} /> <span>{searchTerm}</span> <strong>Editar</strong>
+                </button>
+              ) : (
+                <button type="button" onClick={startDeferredSearch}>
+                  <Search size={17} /> Buscar
+                </button>
+              )}
+              <button type="button" onClick={closeWithoutSelection}>Cerrar</button>
+            </div>
+          )}
+          {deferSearch && searchTerm && !isSearchEditing && <div className="searchable-select-results-label">Coincidencias</div>}
           {filteredOptions.length > 0 ? (
             filteredOptions.map((option, idx) => {
               const isSelected = option === value;
@@ -279,6 +340,55 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
           max-width: 100%;
           padding: 4px !important;
           overflow-x: hidden;
+        }
+        .searchable-select-menu-deferred {
+          margin-top: 4px;
+          overscroll-behavior: contain;
+        }
+        .searchable-select-deferred-tools {
+          display: flex;
+          align-items: stretch;
+          justify-content: space-between;
+          gap: 8px;
+          padding: 4px;
+        }
+        .searchable-select-deferred-tools button,
+        .searchable-select-deferred-tools > span {
+          min-height: 48px;
+          min-width: 0;
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          padding: 10px 12px;
+          border: 1px solid var(--glass-border);
+          border-radius: 7px;
+          background: rgba(0, 242, 255, 0.08);
+          color: var(--primary);
+          font-weight: 800;
+        }
+        .searchable-select-deferred-tools button:first-child,
+        .searchable-select-deferred-tools > span:first-child {
+          flex: 1;
+        }
+        .searchable-select-deferred-tools button span {
+          min-width: 0;
+          overflow-wrap: anywhere;
+        }
+        .searchable-select-results-label {
+          padding: 8px 12px 4px;
+          color: var(--text-secondary);
+          font-size: 0.72rem;
+          font-weight: 800;
+          letter-spacing: 0.6px;
+          text-transform: uppercase;
+        }
+        @media (max-width: 430px) {
+          .searchable-select-deferred-tools {
+            flex-wrap: wrap;
+          }
+          .searchable-select-deferred-tools > * {
+            flex: 1 1 100%;
+          }
         }
       `}</style>
     </div>

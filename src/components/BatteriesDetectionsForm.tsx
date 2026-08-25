@@ -610,6 +610,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
                       moveToDetectionStep('anomaly');
                     }}
                     required
+                    deferSearch
                     placeholder="-- Seleccionar Elemento --"
                   />
                 ) : (
@@ -643,6 +644,7 @@ const BatteriesDetectionsForm: React.FC<BatteriesDetectionsFormProps> = ({
                       moveToDetectionStep('criticality');
                     }}
                     required
+                    deferSearch
                     placeholder="-- Seleccionar Anomalía --"
                   />
                 ) : (
