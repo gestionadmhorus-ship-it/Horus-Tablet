@@ -198,7 +198,8 @@ export function useDatabase() {
     table: any,
     item: T,
     entityType: HistoricalEntityType
-  ) => {
+  ): Promise<boolean> => {
+    let applied = false;
     const legacyTable = legacyTableForEntity(entityType);
     await db.transaction('rw', [table, legacyTable, db.historicalOriginals, db.historicalOverrides, db.historicalConflicts], async () => {
       const existing = item.recordUid
@@ -245,7 +246,9 @@ export function useDatabase() {
         conflictStatus: existingConflict?.conflictStatus === 'pending' ? 'pending' : 'none',
         payload: identifiedItem
       });
+      applied = true;
     });
+    return applied;
   };
 
   const preserveTrashState = async (
@@ -455,8 +458,13 @@ export function useDatabase() {
     };
   };
 
-  const updateShift = (item: ShiftData) => updateExistingRecord(db.operationalShifts, item, 'shift');
-  const closeShift = (recordUid: string) => patchOperationalProjection(db.operationalShifts, recordUid, { status: 'closed', lastModified: Date.now(), isSynced: false }, 'shift');
+  const updateShift = async (item: ShiftData) => { await updateExistingRecord(db.operationalShifts, item, 'shift'); };
+  const closeShift = (recordUid: string, closureEventId?: string) => patchOperationalProjection(db.operationalShifts, recordUid, {
+    status: 'closed',
+    ...(closureEventId ? { lastClosureEventId: closureEventId } : {}),
+    lastModified: Date.now(),
+    isSynced: false
+  }, 'shift');
   const reopenShift = (recordUid: string) => patchOperationalProjection(db.operationalShifts, recordUid, { status: 'active', lastModified: Date.now(), isSynced: false }, 'shift');
   const deleteShift = async (recordUid: string) => {
     await db.transaction('rw', [db.operationalShifts, db.operationalFlights, db.operationalBatteries, db.operationalDetections, db.shifts, db.flights, db.batteries, db.detections, db.historicalOriginals, db.historicalTrash], async () => {
@@ -491,14 +499,174 @@ export function useDatabase() {
   };
 
   const saveFlight = (item: FlightData) => addNewRecord(db.operationalFlights, item, 'flight');
-  const updateFlight = (item: FlightData) => updateExistingRecord(db.operationalFlights, item, 'flight');
-  const closeFlight = (recordUid: string, closedTimestamp: string, closingObservations: string) => patchOperationalProjection(db.operationalFlights, recordUid, {
+  const updateFlight = async (item: FlightData) => { await updateExistingRecord(db.operationalFlights, item, 'flight'); };
+  const closeFlight = (recordUid: string, closedTimestamp: string, closingObservations: string, closureEventId?: string) => patchOperationalProjection(db.operationalFlights, recordUid, {
     status: 'closed',
     closedTimestamp,
     closingObservations,
+    ...(closureEventId ? { shiftClosure: {
+      eventId: closureEventId,
+      closedTimestamp,
+      ...(closingObservations ? { closingObservations } : {})
+    } } : {}),
     lastModified: Date.now(),
     isSynced: false
   }, 'flight');
+
+  const closeShiftClosure = async (
+    shift: ShiftData,
+    flights: Array<{ flight: FlightData; closedTimestamp: string; closingObservations: string }>,
+    eventId: string,
+    eventAt: number
+  ): Promise<{ ok: boolean; reason?: 'CONFLICT' | 'INVALID' | 'ERROR'; message?: string }> => {
+    if (!shift.recordUid || flights.some(entry => !entry.flight.recordUid)) {
+      return { ok: false, reason: 'INVALID', message: 'La Jornada o uno de sus Vuelos no posee identidad global.' };
+    }
+    const closureFlightRecordUids = flights.map(entry => entry.flight.recordUid!);
+    if (new Set(closureFlightRecordUids).size !== closureFlightRecordUids.length) {
+      return { ok: false, reason: 'INVALID', message: 'El conjunto de Vuelos del cierre contiene identidades duplicadas.' };
+    }
+
+    const editorRole: HistoricalEditorRole = localStorage.getItem('horus_sync_role') === 'server' ? 'control' : 'field';
+    if (editorRole === 'field') {
+      const protectedRecords = await Promise.all([
+        db.historicalOverrides.get(shift.recordUid),
+        ...flights.map(entry => db.historicalOverrides.get(entry.flight.recordUid!))
+      ]);
+      if (protectedRecords.some(override => override?.editorRole === 'control')) {
+        return { ok: false, reason: 'CONFLICT', message: 'El cierre fue detenido porque Control protege la Jornada o uno de sus Vuelos. No se modificó ningún registro.' };
+      }
+    }
+
+    try {
+      await db.transaction('rw', [
+        db.operationalFlights, db.flights, db.operationalShifts, db.shifts,
+        db.historicalOriginals, db.historicalOverrides, db.historicalConflicts
+      ], async () => {
+        const currentShift = await db.operationalShifts.get(shift.recordUid!);
+        if (!currentShift || currentShift.status === 'closed') throw new Error('La Jornada ya no está activa.');
+
+        for (const entry of flights) {
+          const currentFlight = await db.operationalFlights.get(entry.flight.recordUid!);
+          if (!currentFlight || currentFlight.status === 'closed') throw new Error('Uno de los Vuelos ya no está activo.');
+          const belongsToShift = currentShift.recordUid
+            ? currentFlight.shiftRecordUid === currentShift.recordUid
+            : currentFlight.shiftId === currentShift.id;
+          if (!belongsToShift) throw new Error('Uno de los Vuelos ya no pertenece a la Jornada objetivo.');
+          const updatedFlight: FlightData = {
+            ...currentFlight,
+            status: 'closed',
+            closedTimestamp: entry.closedTimestamp,
+            closingObservations: entry.closingObservations,
+            shiftClosure: {
+              eventId,
+              closedTimestamp: entry.closedTimestamp,
+              ...(entry.closingObservations ? { closingObservations: entry.closingObservations } : {})
+            }
+          };
+          if (!await updateExistingRecord(db.operationalFlights, updatedFlight, 'flight')) {
+            throw new Error('Control protegió uno de los Vuelos durante el cierre.');
+          }
+        }
+
+        const updatedShift: ShiftData = {
+          ...currentShift,
+          status: 'closed',
+          lastClosureEventId: eventId,
+          lastClosureEventAt: eventAt,
+          lastClosureFlightRecordUids: closureFlightRecordUids
+        };
+        if (!await updateExistingRecord(db.operationalShifts, updatedShift, 'shift')) {
+          throw new Error('Control protegió la Jornada durante el cierre.');
+        }
+      });
+      return { ok: true };
+    } catch (error) {
+      return {
+        ok: false,
+        reason: error instanceof Error && error.message.includes('Control') ? 'CONFLICT' : 'ERROR',
+        message: error instanceof Error ? error.message : 'No se pudo completar atómicamente el cierre.'
+      };
+    }
+  };
+
+  const reopenShiftClosure = async (
+    shift: ShiftData,
+    flights: FlightData[],
+    legacyEventId?: string
+  ): Promise<{ ok: boolean; message?: string }> => {
+    if (!shift.recordUid) return { ok: false, message: 'La Jornada no posee identidad global.' };
+    if (flights.some(flight => !flight.recordUid)) return { ok: false, message: 'Uno de los Vuelos no posee identidad global.' };
+
+    const editorRole: HistoricalEditorRole = localStorage.getItem('horus_sync_role') === 'server' ? 'control' : 'field';
+    if (editorRole === 'field') {
+      const protectedRecords = await Promise.all([
+        db.historicalOverrides.get(shift.recordUid),
+        ...flights.map(flight => db.historicalOverrides.get(flight.recordUid!))
+      ]);
+      if (protectedRecords.some(override => override?.editorRole === 'control')) {
+        return { ok: false, message: 'La reapertura fue detenida porque existe una versión protegida por Control. No se modificó la Jornada ni sus Vuelos.' };
+      }
+    }
+
+    const undoneAt = Date.now();
+    const isLegacyReopen = !!legacyEventId;
+    const effectiveEventId = legacyEventId || shift.lastClosureEventId;
+    if (flights.some(flight => !(isLegacyReopen ? flight.closedTimestamp : flight.shiftClosure?.closedTimestamp || flight.closedTimestamp))) {
+      return { ok: false, message: 'No se puede documentar la reapertura: falta la hora de cierre de uno de los Vuelos.' };
+    }
+    try {
+      await db.transaction('rw', [
+        db.operationalFlights, db.flights, db.operationalShifts, db.shifts,
+        db.historicalOriginals, db.historicalOverrides, db.historicalConflicts
+      ], async () => {
+        for (const flight of flights) {
+          const existingClosure = flight.shiftClosure;
+          const closedTimestamp = (isLegacyReopen ? flight.closedTimestamp : existingClosure?.closedTimestamp || flight.closedTimestamp)!;
+          const closingObservations = isLegacyReopen
+            ? flight.closingObservations
+            : existingClosure?.closingObservations || flight.closingObservations;
+          const updatedFlight: FlightData = {
+            ...flight,
+            status: 'active',
+            closedTimestamp: undefined,
+            closingObservations: undefined,
+            shiftClosure: {
+              eventId: effectiveEventId || `legacy-${shift.recordUid}-${undoneAt}`,
+              closedTimestamp,
+              ...(closingObservations
+                ? { closingObservations }
+                : {}),
+              undoneAt
+            }
+          };
+          if (!await updateExistingRecord(db.operationalFlights, updatedFlight, 'flight')) {
+            throw new Error('Control protegió uno de los Vuelos; la Jornada no fue reabierta.');
+          }
+        }
+
+        const updatedShift: ShiftData = {
+          ...shift,
+          status: 'active',
+          ...(effectiveEventId ? { lastClosureEventId: effectiveEventId } : {}),
+          ...(isLegacyReopen ? { lastClosureEventAt: undefined } : {})
+        };
+        if (!await updateExistingRecord(db.operationalShifts, updatedShift, 'shift')) {
+          throw new Error('Control protegió la Jornada; no pudo completarse la reapertura.');
+        }
+      });
+    } catch (error) {
+      return { ok: false, message: error instanceof Error ? error.message : 'No se pudo completar atómicamente la reapertura.' };
+    }
+
+    const persistedShift = await db.operationalShifts.get(shift.recordUid);
+    const persistedFlights = await Promise.all(flights.map(flight => db.operationalFlights.get(flight.recordUid!)));
+    const coherent = persistedShift?.status === 'active'
+      && persistedFlights.every(flight => flight?.status === 'active' && !flight.closedTimestamp && !flight.closingObservations);
+    return coherent
+      ? { ok: true }
+      : { ok: false, message: 'La proyección resultante no es coherente; la reapertura no se considera completa.' };
+  };
   const deleteFlight = async (recordUid: string) => {
     await db.transaction('rw', [db.operationalFlights, db.operationalBatteries, db.operationalDetections, db.flights, db.batteries, db.detections, db.historicalOriginals, db.historicalTrash], async () => {
       const deletedAt = Date.now();
@@ -516,19 +684,19 @@ export function useDatabase() {
   };
 
   const saveBattery = (item: BatteryData) => addNewRecord(db.operationalBatteries, item, 'battery');
-  const updateBattery = (item: BatteryData) => updateExistingRecord(db.operationalBatteries, item, 'battery');
+  const updateBattery = async (item: BatteryData) => { await updateExistingRecord(db.operationalBatteries, item, 'battery'); };
   const deleteBattery = (recordUid: string) => deleteSingleRecord(db.operationalBatteries, recordUid, 'battery');
 
   const saveDetection = (item: DetectionData) => addNewRecord(db.operationalDetections, { ...item, accessStatus: item.accessStatus || 'Buena' }, 'detection');
-  const updateDetection = (item: DetectionData) => updateExistingRecord(db.operationalDetections, { ...item, accessStatus: item.accessStatus || 'Buena' }, 'detection');
+  const updateDetection = async (item: DetectionData) => { await updateExistingRecord(db.operationalDetections, { ...item, accessStatus: item.accessStatus || 'Buena' }, 'detection'); };
   const deleteDetection = (recordUid: string) => deleteSingleRecord(db.operationalDetections, recordUid, 'detection');
   
   const saveChecklist = (item: any) => addNewRecord(db.operationalVehicleChecklists, item, 'vehicleChecklist');
-  const updateChecklist = (item: any) => updateExistingRecord(db.operationalVehicleChecklists, item, 'vehicleChecklist');
+  const updateChecklist = async (item: any) => { await updateExistingRecord(db.operationalVehicleChecklists, item, 'vehicleChecklist'); };
   const deleteChecklist = (recordUid: string) => deleteSingleRecord(db.operationalVehicleChecklists, recordUid, 'vehicleChecklist');
 
   const saveDroneChecklist = (item: DroneChecklistData) => addNewRecord(db.operationalDroneChecklists, item, 'droneChecklist');
-  const updateDroneChecklist = (item: DroneChecklistData) => updateExistingRecord(db.operationalDroneChecklists, item, 'droneChecklist');
+  const updateDroneChecklist = async (item: DroneChecklistData) => { await updateExistingRecord(db.operationalDroneChecklists, item, 'droneChecklist'); };
   const deleteDroneChecklist = (recordUid: string) => deleteSingleRecord(db.operationalDroneChecklists, recordUid, 'droneChecklist');
   
   const updateLists = async (newList: ListsData) => {
@@ -1212,7 +1380,7 @@ export function useDatabase() {
   return {
     fullData,
     lists,
-    saveShift, updateShift, closeShift, reopenShift, deleteShift,
+    saveShift, updateShift, closeShift, closeShiftClosure, reopenShift, reopenShiftClosure, deleteShift,
     saveFlight, updateFlight, closeFlight, deleteFlight,
     saveBattery, updateBattery, deleteBattery,
     saveDetection, updateDetection, deleteDetection,

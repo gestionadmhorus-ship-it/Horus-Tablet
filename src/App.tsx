@@ -34,7 +34,7 @@ function App() {
   const { 
     fullData: data, 
     lists, 
-    saveShift, updateShift, closeShift, reopenShift, deleteShift,
+    saveShift, updateShift, closeShiftClosure, reopenShiftClosure, deleteShift,
     saveFlight, updateFlight, closeFlight, deleteFlight,
     saveBattery, updateBattery, deleteBattery,
     saveDetection, updateDetection, deleteDetection,
@@ -523,6 +523,9 @@ function App() {
       const ok = await window.customConfirm('¿Estás seguro de cerrar la jornada actual?');
       if (ok) {
         const activeFlights = data.flights.filter(f => (activeShiftRecordUid ? f.shiftRecordUid === activeShiftRecordUid : f.shiftId === activeShiftId) && f.status !== 'closed');
+        const closureEventAt = Date.now();
+        const closureEventId = `${latestShift.recordUid}-${closureEventAt}-${Math.random().toString(36).slice(2, 10)}`;
+        const flightsToClose: Array<{ flight: import('./types').FlightData; closedTimestamp: string; closingObservations: string }> = [];
         for (const f of activeFlights) {
           let obs = '';
           const now = new Date();
@@ -534,17 +537,87 @@ function App() {
             );
             obs = result !== null ? result : '';
           }
-          await closeFlight(f.recordUid!, closedTime, obs);
+          flightsToClose.push({ flight: f, closedTimestamp: closedTime, closingObservations: obs });
         }
-        await closeShift(latestShift.recordUid!);
+        const result = await closeShiftClosure(latestShift, flightsToClose, closureEventId, closureEventAt);
+        if (!result.ok) await window.customAlert(result.message || 'No se pudo completar el cierre de Jornada.');
       }
     }
   };
 
-  const handleReopenShift = () => {
-    if (latestShift && hasTodayClosedShift) {
-      reopenShift(latestShift.recordUid!);
+  const handleReopenShift = async () => {
+    if (!latestShift || !hasTodayClosedShift) return;
+
+    const shiftFlights = data.flights.filter(f => latestShift.recordUid
+      ? f.shiftRecordUid === latestShift.recordUid
+      : f.shiftId === latestShift.id);
+    let flightsToReopen: import('./types').FlightData[] = [];
+    let legacyEventId: string | undefined;
+
+    const eventFlights = latestShift.lastClosureEventId
+      ? shiftFlights.filter(f => f.shiftClosure?.eventId === latestShift.lastClosureEventId)
+      : [];
+    const expectedClosureUids = Array.isArray(latestShift.lastClosureFlightRecordUids)
+      ? latestShift.lastClosureFlightRecordUids
+      : undefined;
+    const expectedClosureUidSet = new Set(expectedClosureUids || []);
+    const foundEventUidSet = new Set(eventFlights.map(f => f.recordUid).filter((uid): uid is string => !!uid));
+    const hasExactClosureFlightSet = !!expectedClosureUids
+      && expectedClosureUidSet.size === expectedClosureUids.length
+      && foundEventUidSet.size === eventFlights.length
+      && expectedClosureUidSet.size === foundEventUidSet.size
+      && [...expectedClosureUidSet].every(uid => foundEventUidSet.has(uid));
+    const hasCurrentClosureMetadata = latestShift.status === 'closed'
+      && !!latestShift.lastClosureEventId
+      && typeof latestShift.lastClosureEventAt === 'number'
+      && hasExactClosureFlightSet
+      && latestShift.lastClosureEventAt <= (latestShift.lastModified || 0)
+      && eventFlights.every(f => f.status === 'closed'
+        && !f.shiftClosure?.undoneAt
+        && !!f.closedTimestamp
+        && f.closedTimestamp === f.shiftClosure?.closedTimestamp);
+
+    if (hasCurrentClosureMetadata) {
+      flightsToReopen = eventFlights;
+    } else {
+      const shiftClosedAt = latestShift.lastModified || 0;
+      const plausible = shiftFlights
+        .filter(f => f.status === 'closed' && !!f.closedTimestamp)
+        .map(f => ({ flight: f, distance: shiftClosedAt && f.lastModified ? Math.abs(shiftClosedAt - f.lastModified) : Number.POSITIVE_INFINITY }))
+        .filter(candidate => candidate.distance <= 5 * 60 * 1000)
+        .sort((a, b) => a.distance - b.distance || getChronologicalTime(b.flight.timestamp) - getChronologicalTime(a.flight.timestamp));
+
+      const describe = (flight: import('./types').FlightData) =>
+        `${flight.flightType || 'Vuelo'} | ${flight.lineName || flight.taskTypeAndLocation || 'Sin nombre'} | inicio ${flight.timestamp} | cierre ${flight.closedTimestamp}`;
+
+      if (plausible.length === 1) {
+        const choice = await window.customChoice(
+          `Se encontró un Vuelo legacy asociado razonablemente al cierre:\n${describe(plausible[0].flight)}`,
+          ['REABRIR JORNADA Y VUELO', 'REABRIR SÓLO JORNADA']
+        );
+        if (choice === null) return;
+        if (choice === 'REABRIR JORNADA Y VUELO') flightsToReopen = [plausible[0].flight];
+      } else if (plausible.length > 1) {
+        const choices = plausible.map(({ flight }, index) => `${index + 1}. ${describe(flight)}`);
+        const choice = await window.customChoice(
+          'Hay varios Vuelos legacy plausibles. Selecciona explícitamente cuál reabrir, o reabre sólo la Jornada.',
+          [...choices, 'REABRIR SÓLO JORNADA']
+        );
+        if (choice === null) return;
+        const selectedIndex = choices.indexOf(choice);
+        if (selectedIndex >= 0) flightsToReopen = [plausible[selectedIndex].flight];
+      } else {
+        const choice = await window.customChoice(
+          'No existe un Vuelo legacy razonablemente identificable para este cierre.',
+          ['REABRIR SÓLO JORNADA']
+        );
+        if (choice === null) return;
+      }
+      if (flightsToReopen.length > 0) legacyEventId = `legacy-${latestShift.recordUid}-${Date.now()}`;
     }
+
+    const result = await reopenShiftClosure(latestShift, flightsToReopen, legacyEventId);
+    if (!result.ok) await window.customAlert(result.message || 'No se pudo completar la reapertura.');
   };
 
   const handleEditShift = () => {

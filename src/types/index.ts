@@ -67,6 +67,16 @@ export interface ShiftData extends HistoricalRecordIdentity {
   editedTimestamp?: string;
   lastModified?: number;
   isDeleted?: boolean;
+  lastClosureEventId?: string;
+  lastClosureEventAt?: number;
+  lastClosureFlightRecordUids?: string[];
+}
+
+export interface ShiftClosureMetadata {
+  eventId: string;
+  closedTimestamp: string;
+  closingObservations?: string;
+  undoneAt?: number;
 }
 
 export interface FlightData extends HistoricalRecordIdentity {
@@ -93,6 +103,7 @@ export interface FlightData extends HistoricalRecordIdentity {
   closingObservations?: string;
   lastModified?: number;
   isDeleted?: boolean;
+  shiftClosure?: ShiftClosureMetadata;
 }
 
 export interface BatteryData extends HistoricalRecordIdentity {
