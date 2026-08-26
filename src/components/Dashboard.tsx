@@ -1,6 +1,5 @@
 import React from 'react';
 import { LayoutDashboard, Plane, Cpu, Download, Clock, Settings, Pencil, RotateCcw, Power, ShieldCheck, RefreshCw, Radio, Wifi, WifiOff, CheckCircle, Table, FileJson } from 'lucide-react';
-import { motion } from 'framer-motion';
 import { UpdateManager } from '../services/UpdateManager';
 import { formatTime24h, formatDateDMY } from '../utils/dateUtils';
 import type { UnitStatus } from '../types';
@@ -40,7 +39,7 @@ interface DashboardProps {
 const Dashboard: React.FC<DashboardProps> = ({ 
   data, onNavigate, onSettings, hasActiveShift, hasActiveFlight, activeFlightType, onCloseShift, 
   onReopenShift, hasTodayClosedShift, activeShiftId, activeShiftRecordUid, activeFlightRecordUid,
-  onEditShift, onEditFlight, onNewFlight, onCloseFlight, deviceName, syncStatus, appRole,
+  activeFlightName, onEditShift, onEditFlight, onNewFlight, onCloseFlight, deviceName, syncStatus, appRole,
   currentTheme = 'hud', onChangeTheme, onForceSync, lastSyncTimestamp, unitsStatus,
   syncHistory = [], onExport, onRequestFullBackup
 }) => {
@@ -51,7 +50,6 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [loadingBackup, setLoadingBackup] = React.useState<string | null>(null);
   const isKMSActive = hasActiveFlight && activeFlightType === 'KMS';
   const isHSActive = hasActiveFlight && activeFlightType === 'HS';
-  const isBatteryEnabled = hasActiveFlight && activeFlightType === 'KMS';
 
   const handleForceSyncClick = async () => {
     if (isSyncingForced || !onForceSync) return;
@@ -79,20 +77,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   const shiftSubText = activeShift 
     ? `Móvil: ${activeShift.vehicle || '—'}` 
     : 'Registre base e integrantes';
-
-  // KMS Flights
-  const kmsFlightsToday = data?.flights?.filter((f: any) => (activeShiftRecordUid ? f.shiftRecordUid === activeShiftRecordUid : f.shiftId === activeShiftId) && f.flightType === 'KMS') || [];
-  const kmsCount = kmsFlightsToday.length;
-  const lastKms = kmsFlightsToday[kmsFlightsToday.length - 1];
-  const kmsText = kmsCount > 0 ? `${kmsCount} vuelo${kmsCount > 1 ? 's' : ''} registrado${kmsCount > 1 ? 's' : ''}` : 'Sin vuelos cargados';
-  const kmsSubText = lastKms ? `Último: ${lastKms.lineName} (${lastKms.timestamp.split(' ')[1] || ''})` : 'Inicie inspección de líneas';
-
-  // HS Tasks
-  const hsFlightsToday = data?.flights?.filter((f: any) => (activeShiftRecordUid ? f.shiftRecordUid === activeShiftRecordUid : f.shiftId === activeShiftId) && f.flightType === 'HS') || [];
-  const hsCount = hsFlightsToday.length;
-  const lastHs = hsFlightsToday[hsFlightsToday.length - 1];
-  const hsText = hsCount > 0 ? `${hsCount} tarea${hsCount > 1 ? 's' : ''} registrada${hsCount > 1 ? 's' : ''}` : 'Sin tareas cargadas';
-  const hsSubText = lastHs ? `Última: ${lastHs.pilot} (${lastHs.timestamp.split(' ')[1] || ''})` : 'Inicie control por horas';
+  const isReopenedShift = hasActiveShift && !!activeShift?.lastClosureEventId;
 
   // Batteries & Detections (only KMS flight ids)
   const activeFlightUids = (data?.flights?.filter((f: any) => activeShiftRecordUid ? f.shiftRecordUid === activeShiftRecordUid : f.shiftId === activeShiftId) || []).map((f: any) => f.recordUid).filter(Boolean);
@@ -108,36 +93,12 @@ const Dashboard: React.FC<DashboardProps> = ({
       ? 'Telemetría y fallas registradas'
       : 'Telemetría y registros de fallas';
 
-  // Checklists (Shift specific)
-  const vehicleChecklists = data?.checklists?.filter((c: any) => c.shiftId === activeShiftId) || [];
-  const droneChecklists = data?.droneChecklists?.filter((c: any) => c.shiftId === activeShiftId) || [];
-  const checklistText = `Vehículo: ${vehicleChecklists.length > 0 ? 'COMPLETO' : 'PENDIENTE'}`;
-  const checklistSubText = `Aeronave: ${droneChecklists.length > 0 ? 'COMPLETA' : 'PENDIENTE'}`;
-
-  // History count
-  const totalRecords = (data?.shifts?.length || 0) + (data?.flights?.length || 0) + (data?.detections?.length || 0);
-  const historyText = `${totalRecords} registro${totalRecords !== 1 ? 's' : ''} en memoria`;
-
-  // ─── SVG High-Tech Telemetry Sine Wave Generator ───
-  const renderTelemetryWave = (color: string = 'var(--primary)', dur: string = '4s') => (
-    <div className="telemetry-wave" style={{ position: 'absolute', top: '15px', right: '15px', height: '24px', width: '60px', opacity: 0.15, pointerEvents: 'none', overflow: 'hidden' }}>
-      <svg viewBox="0 0 60 24" style={{ width: '100%', height: '100%' }}>
-        <path
-          d="M0 12 C15 3, 15 21, 30 12 C45 3, 45 21, 60 12"
-          fill="none"
-          stroke={color}
-          strokeWidth="2"
-          strokeLinecap="round"
-        >
-          <animate
-            attributeName="d"
-            values="M0 12 C15 3, 15 21, 30 12 C45 3, 45 21, 60 12; M0 12 C15 21, 15 3, 30 12 C45 21, 45 3, 60 12; M0 12 C15 3, 15 21, 30 12 C45 3, 45 21, 60 12"
-            dur={dur}
-            repeatCount="indefinite"
-          />
-        </path>
-      </svg>
-    </div>
+  const todayText = formatDateDMY(currentTime);
+  const hasVehicleChecklistToday = !!activeShift?.vehicle && (data?.checklists || []).some((checklist: { vehicleId?: string; timestamp?: string }) =>
+    checklist.vehicleId === activeShift.vehicle && checklist.timestamp?.split(' ')[0] === todayText
+  );
+  const hasDroneChecklistToday = !!activeShift?.drone && (data?.droneChecklists || []).some((checklist: { droneId?: string; timestamp?: string }) =>
+    checklist.droneId === activeShift.drone && checklist.timestamp?.split(' ')[0] === todayText
   );
 
   return (
@@ -172,6 +133,13 @@ const Dashboard: React.FC<DashboardProps> = ({
           max-height: 980px;
           margin: 3vh auto;
           padding: 2.5rem;
+        }
+
+        .dashboard-container:not(.server-mode) {
+          height: auto;
+          min-height: 90vh;
+          max-height: none;
+          overflow: visible;
         }
         
         .dashboard-banner {
@@ -756,6 +724,210 @@ const Dashboard: React.FC<DashboardProps> = ({
             display: none;
           }
         }
+
+        .field-operation-panel {
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+          flex: 1 1 auto;
+          min-height: 0;
+          margin: 0.75rem 0;
+        }
+        .field-situation {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 1rem;
+          padding: 1rem 1.2rem;
+          border: 1px solid var(--border-input);
+          border-radius: 14px;
+          background: rgba(255, 255, 255, 0.025);
+        }
+        .field-situation-main {
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 0.25rem;
+        }
+        .field-situation-label,
+        .field-actions-label {
+          color: var(--text-secondary);
+          font-size: 0.68rem;
+          font-weight: 900;
+          letter-spacing: 1.4px;
+          text-transform: uppercase;
+        }
+        .field-situation-title {
+          margin: 0;
+          color: var(--text-primary);
+          font-size: 1.18rem;
+          font-weight: 900;
+          overflow-wrap: anywhere;
+        }
+        .field-situation-detail {
+          margin: 0;
+          color: var(--text-secondary);
+          font-size: 0.82rem;
+          font-weight: 600;
+          overflow-wrap: anywhere;
+        }
+        .field-situation-status {
+          flex: 0 0 auto;
+          padding: 0.45rem 0.7rem;
+          border: 1px solid rgba(16, 185, 129, 0.3);
+          border-radius: 999px;
+          color: var(--neon-green);
+          background: rgba(16, 185, 129, 0.07);
+          font-size: 0.7rem;
+          font-weight: 900;
+          letter-spacing: 0.7px;
+          text-transform: uppercase;
+        }
+        .field-situation-status.closed {
+          color: var(--primary);
+          border-color: rgba(217, 119, 6, 0.35);
+          background: rgba(217, 119, 6, 0.08);
+        }
+        .field-next-actions {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 1rem;
+        }
+        .field-next-actions.single {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .field-primary-action,
+        .field-secondary-action {
+          min-width: 0;
+          min-height: 56px;
+          border-radius: 12px;
+          cursor: pointer;
+          font: inherit;
+          font-weight: 900;
+          transition: transform 0.15s ease, border-color 0.2s ease, background 0.2s ease;
+        }
+        .field-primary-action {
+          display: flex;
+          align-items: center;
+          gap: 0.9rem;
+          padding: 1.15rem 1.25rem;
+          border: 1.5px solid var(--primary);
+          background: rgba(16, 185, 129, 0.08);
+          color: var(--text-primary);
+          text-align: left;
+          box-shadow: 0 8px 24px rgba(16, 185, 129, 0.08);
+        }
+        .field-primary-action strong,
+        .field-primary-action span {
+          display: block;
+          min-width: 0;
+          overflow-wrap: anywhere;
+        }
+        .field-secondary-action.checklist-summary {
+          align-items: flex-start;
+          flex-direction: column;
+          gap: 0.25rem;
+          text-align: left;
+        }
+        .field-secondary-action-title {
+          display: flex;
+          align-items: center;
+          gap: 0.45rem;
+        }
+        .field-checklist-status {
+          color: var(--text-secondary);
+          font-size: 0.68rem;
+          font-weight: 700;
+          line-height: 1.35;
+        }
+        .field-checklist-status .complete {
+          color: var(--neon-green);
+        }
+        .field-primary-action span {
+          margin-top: 0.2rem;
+          color: var(--text-secondary);
+          font-size: 0.76rem;
+          font-weight: 600;
+        }
+        .field-primary-action svg,
+        .field-secondary-action svg {
+          flex: 0 0 auto;
+        }
+        .field-primary-action:active,
+        .field-secondary-action:active {
+          transform: scale(0.98);
+        }
+        .field-secondary-section {
+          display: flex;
+          flex-direction: column;
+          gap: 0.55rem;
+        }
+        .field-secondary-actions {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+          gap: 0.65rem;
+        }
+        .field-secondary-action {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.45rem;
+          padding: 0.75rem;
+          border: 1px solid var(--border-input);
+          background: var(--bg-input);
+          color: var(--text-primary);
+          font-size: 0.76rem;
+          white-space: normal;
+          overflow-wrap: anywhere;
+        }
+        .field-secondary-action.danger {
+          color: var(--neon-red);
+          border-color: rgba(239, 68, 68, 0.35);
+          background: rgba(239, 68, 68, 0.06);
+        }
+        @media (max-width: 1024px) and (orientation: portrait), (max-width: 700px) {
+          .field-operation-panel {
+            flex: 0 0 auto;
+            margin: 0;
+          }
+          .field-secondary-actions {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+          .field-secondary-action:last-child:nth-child(odd) {
+            grid-column: 1 / -1;
+          }
+        }
+        @media (max-width: 600px) {
+          .field-situation {
+            align-items: flex-start;
+            flex-direction: column;
+          }
+          .field-next-actions {
+            grid-template-columns: minmax(0, 1fr);
+          }
+          .field-primary-action {
+            width: 100%;
+          }
+          .field-secondary-actions {
+            grid-template-columns: minmax(0, 1fr);
+          }
+          .field-secondary-action,
+          .field-secondary-action:last-child:nth-child(odd) {
+            grid-column: auto;
+            width: 100%;
+          }
+        }
+        @media (min-width: 701px) and (orientation: landscape) and (max-height: 700px) {
+          .field-operation-panel {
+            flex: 0 0 auto;
+          }
+          .field-situation {
+            padding: 0.75rem 1rem;
+          }
+          .field-primary-action {
+            padding: 0.85rem 1rem;
+          }
+        }
       `}} />
 
       {/* Modern Banner */}
@@ -896,32 +1068,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         </button>
       </div>
 
-      {/* Reopen shift banner */}
-      {appRole !== 'server' && !hasActiveShift && hasTodayClosedShift && (
-        <div className="dashboard-reopen-banner">
-          <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>⚠️ La jornada de hoy fue cerrada</span>
-          <button
-            onClick={onReopenShift}
-            style={{ 
-              background: 'rgba(217, 119, 6, 0.1)', 
-              border: '1px solid var(--primary)', 
-              color: 'var(--primary)', 
-              padding: '0.4rem 0.8rem', 
-              borderRadius: '6px', 
-              cursor: 'pointer', 
-              fontWeight: 'bold',
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '0.5rem', 
-              fontSize: '0.8rem'
-            }}
-          >
-            <RotateCcw size={13} /> Reabrir Jornada
-          </button>
-        </div>
-      )}
-
-      {/* Clock & Close Shift section */}
+      {/* Clock */}
       {appRole !== 'server' && (
         <div className="dashboard-clock-section">
         <div className="dashboard-clock-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem' }}>
@@ -929,234 +1076,138 @@ const Dashboard: React.FC<DashboardProps> = ({
           <span className="dashboard-clock-text">
             {formatDateDMY(currentTime)} | {formatTime24h(currentTime)}
           </span>
-          {hasActiveShift && (
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              onClick={onCloseShift}
-              className="dashboard-close-shift"
-              style={{
-                background: 'rgba(239, 68, 68, 0.1)',
-                border: '1px solid var(--neon-red)',
-                borderRadius: '6px',
-                color: 'var(--neon-red)',
-                cursor: 'pointer',
-                padding: '0.4rem 1rem',
-                fontSize: '0.78rem',
-                fontWeight: 700,
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-                marginLeft: '1.5rem',
-                transition: 'all 0.2s ease'
-              }}
-            >
-              <Power size={13} />
-              Cerrar Jornada
-            </motion.button>
-          )}
         </div>
       </div>
       )}
 
-      {/* Cards Grid */}
+      {/* Field: current situation, next action and secondary actions */}
       {appRole !== 'server' && (
-        <div className="dashboard-grid">
-        {/* ─── Inicio de Jornada ─── */}
-        <div style={{ position: 'relative' }} className="dashboard-card-shell col-span-2">
-          <motion.div
-            whileTap={{ scale: 0.98 }}
-            onClick={() => hasActiveShift ? onEditShift() : onNavigate('shift')}
-            className="dashboard-card"
-            style={{ width: '100%', cursor: 'pointer' }}
-          >
-            {renderTelemetryWave('var(--neon-cyan)', '5s')}
-            <div className="card-icon-wrapper">
-              <LayoutDashboard size={26} />
+        <main className="field-operation-panel">
+          <section className="field-situation" aria-label="Situación actual">
+            <div className="field-situation-main">
+              <span className="field-situation-label">Situación actual</span>
+              <h2 className="field-situation-title">
+                {hasTodayClosedShift && !hasActiveShift
+                  ? 'Jornada finalizada'
+                  : isKMSActive
+                    ? `KMS activo${activeFlightName ? ` · ${activeFlightName}` : ''}`
+                    : isHSActive
+                      ? `HS activo${activeFlightName ? ` · ${activeFlightName}` : ''}`
+                      : hasActiveShift
+                        ? `${isReopenedShift ? 'Jornada reabierta' : 'Jornada activa'} · Sin vuelo`
+                        : 'Sin jornada activa'}
+              </h2>
+              <p className="field-situation-detail">
+                {hasActiveShift
+                  ? `${shiftText} · ${shiftSubText}`
+                  : hasTodayClosedShift
+                    ? 'La jornada de hoy está cerrada. Puedes reabrirla o iniciar una nueva.'
+                    : 'Inicia la jornada para habilitar los vuelos KMS y HS.'}
+              </p>
             </div>
-            <div style={{ width: '100%' }}>
-              <h2 className="dashboard-card-title">Inicio de Jornada</h2>
-              <p className="dashboard-card-desc">Logística y personal de base.</p>
-              {hasActiveShift && (
-                <p className="dashboard-card-desc" style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0', fontWeight: 600 }}>
-                  {shiftSubText}
-                </p>
-              )}
-            </div>
-            
-            <div className="card-live-metric" style={{
-              color: hasActiveShift ? 'var(--neon-green)' : 'var(--text-secondary)',
-              borderColor: hasActiveShift ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.05)',
-              background: hasActiveShift ? 'rgba(16, 185, 129, 0.02)' : 'rgba(255, 255, 255, 0.02)'
-            }}>
-              {shiftText}
-            </div>
-          </motion.div>
-          
-          {hasActiveShift && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onEditShift(); }}
-              className="dashboard-edit-badge"
-              title="Editar Jornada Activa"
-            >
-              <Pencil size={14} />
-            </button>
-          )}
-        </div>
- 
-        {/* ─── Registro Vuelos KMS ─── */}
-        <div style={{ position: 'relative' }} className="dashboard-card-shell col-span-2">
-          <motion.div
-            className={`dashboard-card ${isKMSActive ? 'card-vuelo-activo' : ''}`}
-            onClick={() => hasActiveShift ? (isKMSActive ? setActionMenu('KMS') : onNewFlight('KMS')) : undefined}
-            style={{ 
-              width: '100%', 
-              cursor: hasActiveShift ? 'pointer' : 'default',
-              opacity: hasActiveShift ? 1 : 0.5
-            }}
-          >
-            {renderTelemetryWave(isKMSActive ? 'var(--neon-green)' : 'var(--primary)', '3s')}
-            <div className="card-icon-wrapper" style={{ color: isKMSActive ? 'var(--neon-green)' : 'var(--primary)' }}>
-              <Plane size={26} />
-            </div>
-            <div style={{ width: '100%' }}>
-              <h2 className="dashboard-card-title">Vuelos KMS</h2>
-              <p className="dashboard-card-desc">Inspección de líneas críticas.</p>
-              {hasActiveShift && (
-                <p className="dashboard-card-desc" style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {kmsSubText}
-                </p>
-              )}
-            </div>
+            <span className={`field-situation-status ${hasTodayClosedShift && !hasActiveShift ? 'closed' : ''}`}>
+              {hasTodayClosedShift && !hasActiveShift ? 'Finalizada' : isReopenedShift ? 'Reabierta' : hasActiveShift ? 'En operación' : 'Pendiente'}
+            </span>
+          </section>
 
-            <div className="card-live-metric">
-              {hasActiveShift ? (isKMSActive ? 'VUELO EN CURSO' : kmsText) : 'Jornada Requerida'}
-            </div>
-          </motion.div>
-          
+          <span className="field-actions-label">Siguiente acción</span>
+
           {!hasActiveShift && (
-            <div className="dashboard-req-badge">Requerido</div>
-          )}
-        </div>
-
-        {/* ─── Baterías & Detecciones ─── */}
-        <div style={{ position: 'relative' }} className="dashboard-card-shell col-span-2">
-          <motion.div
-            whileTap={isBatteryEnabled ? { scale: 0.98 } : {}}
-            onClick={() => isBatteryEnabled && onNavigate('batteries')}
-            className="dashboard-card"
-            style={{ 
-              width: '100%', 
-              cursor: isBatteryEnabled ? 'pointer' : 'default',
-              opacity: isBatteryEnabled ? 1 : 0.5
-            }}
-          >
-            {isBatteryEnabled && renderTelemetryWave('var(--neon-orange)', '6s')}
-            <div className="card-icon-wrapper" style={{ color: isBatteryEnabled ? 'var(--primary)' : 'var(--text-secondary)' }}>
-              <Cpu size={26} />
-            </div>
-            <div style={{ width: '100%' }}>
-              <h2 className="dashboard-card-title">Baterías & Anomalías</h2>
-              <p className="dashboard-card-desc">Telemetría y fallas detectadas.</p>
-              {isBatteryEnabled && (
-                <p className="dashboard-card-desc" style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0', fontWeight: 600 }}>
-                  {detectionsSubText}
-                </p>
+            <div className="field-next-actions single">
+              {hasTodayClosedShift && (
+                <button type="button" className="field-primary-action" onClick={onReopenShift}>
+                  <RotateCcw size={26} />
+                  <span><strong>REABRIR JORNADA</strong>Recuperar la operación cerrada hoy</span>
+                </button>
+              )}
+              {!hasTodayClosedShift && (
+                <button type="button" className="field-primary-action" onClick={() => onNavigate('shift')}>
+                  <LayoutDashboard size={26} />
+                  <span><strong>INICIAR JORNADA</strong>Definir cliente, equipo y movilidad</span>
+                </button>
               )}
             </div>
-            
-            <div className="card-live-metric" style={{
-              color: isBatteryEnabled && activeDetections.length > 0 ? (urgentCount > 0 ? 'var(--neon-red)' : 'var(--primary)') : 'var(--text-secondary)'
-            }}>
-              {isBatteryEnabled ? detectionsText : 'Vuelo KMS Requerido'}
-            </div>
-          </motion.div>
-          
-          {!isBatteryEnabled && (
-            <div className="dashboard-req-badge" style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--neon-red)', borderColor: 'rgba(239, 68, 68, 0.2)' }}>
-              {hasActiveFlight && activeFlightType === 'HS' ? 'SOLO KMS' : 'REQ: VUELO'}
+          )}
+
+          {hasActiveShift && !hasActiveFlight && (
+            <div className="field-next-actions">
+              <button type="button" className="field-primary-action" onClick={() => onNewFlight('KMS')}>
+                <Plane size={26} />
+                <span><strong>INICIAR KMS</strong>Inspección de líneas</span>
+              </button>
+              <button type="button" className="field-primary-action" onClick={() => onNewFlight('HS')}>
+                <Clock size={26} />
+                <span><strong>INICIAR HS</strong>Registro de tareas por horas</span>
+              </button>
             </div>
           )}
-        </div>
 
-        {/* ─── Registro Vuelos HS ─── */}
-        <div style={{ position: 'relative' }} className="dashboard-card-shell col-span-2">
-          <motion.div
-            className={`dashboard-card ${isHSActive ? 'card-vuelo-activo' : ''}`}
-            onClick={() => hasActiveShift ? (isHSActive ? setActionMenu('HS') : onNewFlight('HS')) : undefined}
-            style={{ 
-              width: '100%', 
-              cursor: hasActiveShift ? 'pointer' : 'default',
-              opacity: hasActiveShift ? 1 : 0.5
-            }}
-          >
-            {renderTelemetryWave(isHSActive ? 'var(--neon-green)' : 'var(--primary)', '4.5s')}
-            <div className="card-icon-wrapper" style={{ color: isHSActive ? 'var(--neon-green)' : 'var(--primary)' }}>
-              <Clock size={26} />
+          {isKMSActive && (
+            <div className="field-next-actions single">
+              <button type="button" className="field-primary-action" onClick={() => onNavigate('batteries')}>
+                <Cpu size={26} />
+                <span><strong>BATERÍAS Y DETECCIONES</strong>{detectionsText} · {detectionsSubText}</span>
+              </button>
             </div>
-            <div style={{ width: '100%' }}>
-              <h2 className="dashboard-card-title">Vuelos HS</h2>
-              <p className="dashboard-card-desc">Registro de tareas por horas.</p>
+          )}
+
+          {isHSActive && (
+            <div className="field-next-actions single">
+              <button type="button" className="field-primary-action" onClick={() => setActionMenu('HS')}>
+                <Clock size={26} />
+                <span><strong>GESTIONAR VUELO HS</strong>Editar, agregar otro vuelo o cerrar el actual</span>
+              </button>
+            </div>
+          )}
+
+          <section className="field-secondary-section" aria-label="Acciones secundarias">
+            <span className="field-actions-label">Acciones secundarias</span>
+            <div className="field-secondary-actions">
+              {!hasActiveShift && hasTodayClosedShift && (
+                <button type="button" className="field-secondary-action" onClick={() => onNavigate('shift')}>
+                  <LayoutDashboard size={17} /> Iniciar otra Jornada
+                </button>
+              )}
               {hasActiveShift && (
-                <p className="dashboard-card-desc" style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {hsSubText}
-                </p>
+                <button type="button" className="field-secondary-action" onClick={onEditShift}>
+                  <Pencil size={17} /> Editar Jornada
+                </button>
+              )}
+              {isKMSActive && (
+                <>
+                  <button type="button" className="field-secondary-action" onClick={() => setActionMenu('KMS')}>
+                    <Plane size={17} /> Gestionar KMS
+                  </button>
+                  <button type="button" className="field-secondary-action" onClick={() => onNewFlight('HS')}>
+                    <Clock size={17} /> Iniciar HS
+                  </button>
+                </>
+              )}
+              {isHSActive && (
+                <button type="button" className="field-secondary-action" onClick={() => onNewFlight('KMS')}>
+                  <Plane size={17} /> Iniciar KMS
+                </button>
+              )}
+              <button type="button" className="field-secondary-action checklist-summary" onClick={() => onNavigate('checklist')}>
+                <span className="field-secondary-action-title"><ShieldCheck size={17} /> Checklist</span>
+                {hasActiveShift && (
+                  <span className="field-checklist-status">
+                    Vehículo: <span className={hasVehicleChecklistToday ? 'complete' : ''}>{hasVehicleChecklistToday ? '✓ Registrado' : 'Pendiente'}</span>
+                    {' · '}Dron: <span className={hasDroneChecklistToday ? 'complete' : ''}>{hasDroneChecklistToday ? '✓ Registrado' : 'Pendiente'}</span>
+                  </span>
+                )}
+              </button>
+              <button type="button" className="field-secondary-action" onClick={() => onNavigate('explorer')}>
+                <Download size={17} /> Registros
+              </button>
+              {hasActiveShift && (
+                <button type="button" className="field-secondary-action danger" onClick={onCloseShift}>
+                  <Power size={17} /> Cerrar Jornada
+                </button>
               )}
             </div>
-
-            <div className="card-live-metric">
-              {hasActiveShift ? (isHSActive ? 'VUELO EN CURSO' : hsText) : 'Jornada Requerida'}
-            </div>
-          </motion.div>
-          
-          {!hasActiveShift && (
-            <div className="dashboard-req-badge">Requerido</div>
-          )}
-        </div>
-
-        {/* ─── Checklist Diario ─── */}
-        <motion.div
-          whileTap={{ scale: 0.98 }}
-          onClick={() => onNavigate('checklist')}
-          className="dashboard-card col-span-2"
-          style={{ cursor: 'pointer' }}
-        >
-          {renderTelemetryWave('var(--primary)', '7s')}
-          <div className="card-icon-wrapper">
-            <ShieldCheck size={26} />
-          </div>
-          <div style={{ width: '100%' }}>
-            <h2 className="dashboard-card-title">Checklist Diario</h2>
-            <p className="dashboard-card-desc">Inspecciones del vehículo y dron.</p>
-          </div>
-          
-          <div className="card-live-metric" style={{ fontSize: '0.68rem' }}>
-            {hasActiveShift ? `${checklistText} | ${checklistSubText}` : 'Jornada Requerida'}
-          </div>
-        </motion.div>
-
-        {/* ─── Explorar Historiales ─── */}
-        <motion.div
-          whileTap={{ scale: 0.98 }}
-          onClick={() => onNavigate('explorer')}
-          className="dashboard-card col-span-2"
-          style={{ cursor: 'pointer' }}
-        >
-          {renderTelemetryWave('var(--neon-cyan)', '8s')}
-          <div className="card-icon-wrapper">
-            <Download size={26} />
-          </div>
-          <div style={{ width: '100%' }}>
-            <h2 className="dashboard-card-title">Explorar Historiales</h2>
-            <p className="dashboard-card-desc">Auditoría, filtros y exportación.</p>
-          </div>
-          
-          <div className="card-live-metric">
-            {historyText}
-          </div>
-        </motion.div>
-        </div>
+          </section>
+        </main>
       )}
 
       {/* ─── SERVER DASHBOARD (PC/CONTROL) ─── */}
