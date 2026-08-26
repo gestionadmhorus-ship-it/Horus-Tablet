@@ -100,6 +100,42 @@ const Dashboard: React.FC<DashboardProps> = ({
   const hasDroneChecklistToday = !!activeShift?.drone && (data?.droneChecklists || []).some((checklist: { droneId?: string; timestamp?: string }) =>
     checklist.droneId === activeShift.drone && checklist.timestamp?.split(' ')[0] === todayText
   );
+  const normalizedSyncStatus = (syncStatus || '').toLowerCase();
+  const isSyncNormal = syncStatus?.includes('✅')
+    || normalizedSyncStatus.includes('en línea y escuchando');
+  const isSyncAbnormal = syncStatus?.includes('❌')
+    || syncStatus?.includes('⚠️')
+    || normalizedSyncStatus.includes('sin conexión')
+    || normalizedSyncStatus.includes('error')
+    || normalizedSyncStatus.includes('desvinculado')
+    || normalizedSyncStatus.includes('eliminado')
+    || normalizedSyncStatus.includes('versión central distinta')
+    || normalizedSyncStatus.includes('no hay control')
+    || normalizedSyncStatus.includes('nombre duplicado');
+  const isSyncActivity = !isSyncAbnormal && [
+    'inicializando',
+    'iniciando',
+    'conectando',
+    'enviando',
+    'recibiendo',
+    'sincronizando',
+    'solicitando'
+  ].some((signal) => normalizedSyncStatus.includes(signal));
+  const isSyncPending = !isSyncNormal
+    && !isSyncAbnormal
+    && !isSyncActivity
+    && normalizedSyncStatus.includes('datos pendientes');
+  const fieldSyncTone = !syncStatus
+    ? 'neutral'
+    : isSyncAbnormal
+      ? 'abnormal'
+      : isSyncActivity
+        ? 'activity'
+        : isSyncPending
+          ? 'pending'
+          : isSyncNormal
+            ? 'normal'
+            : 'neutral';
 
   return (
     <div className={`dashboard-container ${currentTheme === 'boost' ? 'boost-mode' : ''} ${appRole === 'server' ? 'server-mode' : ''}`}>
@@ -725,6 +761,204 @@ const Dashboard: React.FC<DashboardProps> = ({
           }
         }
 
+        .field-compact-header {
+          display: flex;
+          flex-direction: column;
+          gap: 0.55rem;
+          width: 100%;
+          padding: 0.75rem 0.85rem;
+          border: 1px solid var(--glass-border);
+          border-radius: 14px;
+          background: rgba(255, 255, 255, 0.025);
+          box-sizing: border-box;
+        }
+        .field-header-identity,
+        .field-header-sync,
+        .field-header-utilities {
+          min-width: 0;
+        }
+        .field-header-identity {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 0.65rem;
+        }
+        .field-header-brand,
+        .field-header-meta,
+        .field-sync-information,
+        .field-header-clock {
+          display: flex;
+          align-items: center;
+          min-width: 0;
+        }
+        .field-header-brand {
+          flex: 0 0 auto;
+          gap: 0.55rem;
+        }
+        .field-header-brand img {
+          width: auto;
+          height: 23px;
+          opacity: 0.9;
+        }
+        .field-header-brand strong {
+          color: var(--text-primary);
+          font-size: 1rem;
+          letter-spacing: 0.4px;
+          white-space: nowrap;
+        }
+        .field-header-meta {
+          justify-content: flex-end;
+          flex-wrap: wrap;
+          gap: 0.35rem;
+          color: var(--text-secondary);
+          font-size: 0.66rem;
+          font-weight: 800;
+        }
+        .field-role-chip,
+        .field-version-chip,
+        .field-terminal-name {
+          padding: 0.2rem 0.42rem;
+          border: 1px solid var(--border-input);
+          border-radius: 6px;
+          background: var(--bg-input);
+          overflow-wrap: anywhere;
+        }
+        .field-role-chip {
+          color: var(--neon-green);
+          border-color: rgba(16, 185, 129, 0.28);
+        }
+        .field-header-sync {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 0.65rem;
+          padding: 0.45rem 0.5rem 0.45rem 0.65rem;
+          border: 1px solid transparent;
+          border-radius: 10px;
+          background: rgba(255, 255, 255, 0.02);
+        }
+        .field-header-sync.normal,
+        .field-header-sync.neutral {
+          border-color: rgba(16, 185, 129, 0.14);
+        }
+        .field-header-sync.activity {
+          border-color: rgba(14, 165, 233, 0.35);
+          background: rgba(14, 165, 233, 0.06);
+        }
+        .field-header-sync.pending {
+          border-color: rgba(217, 119, 6, 0.38);
+          background: rgba(217, 119, 6, 0.07);
+        }
+        .field-header-sync.abnormal {
+          border-color: rgba(239, 68, 68, 0.45);
+          background: rgba(239, 68, 68, 0.08);
+        }
+        .field-sync-information {
+          flex: 1 1 auto;
+          gap: 0.55rem;
+        }
+        .field-sync-information > svg {
+          flex: 0 0 auto;
+          color: var(--text-secondary);
+        }
+        .field-header-sync.normal .field-sync-information > svg { color: var(--neon-green); }
+        .field-header-sync.activity .field-sync-information > svg { color: var(--neon-cyan); }
+        .field-header-sync.pending .field-sync-information > svg { color: var(--primary); }
+        .field-header-sync.abnormal .field-sync-information > svg { color: var(--neon-red); }
+        .field-sync-copy {
+          display: flex;
+          flex-direction: column;
+          min-width: 0;
+          gap: 0.08rem;
+        }
+        .field-sync-status {
+          color: var(--text-primary);
+          font-size: 0.72rem;
+          font-weight: 800;
+          line-height: 1.3;
+          white-space: normal;
+          overflow-wrap: anywhere;
+        }
+        .field-last-sync {
+          color: var(--text-secondary);
+          font-size: 0.62rem;
+          font-weight: 650;
+          line-height: 1.25;
+        }
+        .field-header-utilities {
+          display: grid;
+          grid-template-columns: auto minmax(0, 1fr) 46px;
+          align-items: center;
+          gap: 0.55rem;
+        }
+        .field-theme-switch {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(76px, 1fr));
+          gap: 0.2rem;
+          padding: 2px;
+          border: 1px solid var(--border-input);
+          border-radius: 9px;
+          background: var(--bg-input);
+        }
+        .field-theme-switch button,
+        .field-header-icon-button {
+          min-height: 44px;
+          border-radius: 7px;
+          cursor: pointer;
+          font: inherit;
+          font-weight: 850;
+        }
+        .field-theme-switch button {
+          padding: 0.5rem 0.65rem;
+          border: 0;
+          background: transparent;
+          color: var(--text-primary);
+          font-size: 0.68rem;
+          white-space: nowrap;
+        }
+        .field-theme-switch button.active {
+          color: #fff;
+          background: var(--primary);
+        }
+        .field-header-clock {
+          justify-content: flex-end;
+          gap: 0.4rem;
+          color: var(--text-secondary);
+          font-size: 0.7rem;
+          font-weight: 750;
+          white-space: nowrap;
+        }
+        .field-header-icon-button {
+          min-width: 44px;
+          padding: 0.35rem;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border: 1px solid var(--border-input);
+          background: var(--bg-input);
+          color: var(--text-primary);
+        }
+        .field-header-icon-button.sync {
+          flex: 0 0 48px;
+          min-width: 48px;
+          flex-direction: column;
+          gap: 1px;
+          color: var(--neon-green);
+          border-color: rgba(16, 185, 129, 0.32);
+        }
+        .field-header-icon-button.sync span {
+          font-size: 0.48rem;
+          line-height: 1;
+        }
+        .field-header-icon-button:disabled {
+          cursor: not-allowed;
+          opacity: 0.65;
+        }
+        .field-header-icon-button.settings {
+          color: #0096ff;
+          border-color: rgba(0, 150, 255, 0.32);
+        }
+
         .field-operation-panel {
           display: flex;
           flex-direction: column;
@@ -840,9 +1074,6 @@ const Dashboard: React.FC<DashboardProps> = ({
           font-weight: 700;
           line-height: 1.35;
         }
-        .field-checklist-status .complete {
-          color: var(--neon-green);
-        }
         .field-primary-action span {
           margin-top: 0.2rem;
           color: var(--text-secondary);
@@ -898,6 +1129,36 @@ const Dashboard: React.FC<DashboardProps> = ({
           }
         }
         @media (max-width: 600px) {
+          .field-compact-header {
+            gap: 0.45rem;
+            padding: 0.65rem;
+          }
+          .field-header-identity {
+            align-items: flex-start;
+            flex-wrap: wrap;
+          }
+          .field-header-meta {
+            flex: 1 1 100%;
+            justify-content: flex-start;
+          }
+          .field-header-utilities {
+            grid-template-columns: minmax(0, 1fr) 46px;
+            gap: 0.4rem;
+          }
+          .field-theme-switch {
+            min-width: 0;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+          .field-theme-switch button {
+            min-width: 0;
+            padding-inline: 0.35rem;
+          }
+          .field-header-clock {
+            grid-column: 1 / -1;
+            grid-row: 2;
+            justify-content: flex-start;
+            min-height: 24px;
+          }
           .field-situation {
             align-items: flex-start;
             flex-direction: column;
@@ -917,7 +1178,40 @@ const Dashboard: React.FC<DashboardProps> = ({
             width: 100%;
           }
         }
-        @media (min-width: 701px) and (orientation: landscape) and (max-height: 700px) {
+        @media (min-width: 900px) {
+          .field-compact-header {
+            display: grid;
+            grid-template-columns: minmax(180px, 0.8fr) minmax(250px, 1.15fr) minmax(290px, auto);
+            align-items: center;
+            gap: 0.65rem;
+          }
+          .field-header-identity {
+            align-items: flex-start;
+            flex-direction: column;
+            gap: 0.25rem;
+          }
+          .field-header-meta {
+            justify-content: flex-start;
+          }
+        }
+        @media (min-width: 701px) and (max-width: 899px) and (orientation: landscape) and (max-height: 700px) {
+          .field-compact-header {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            align-items: center;
+            gap: 0.55rem;
+          }
+          .field-header-identity {
+            align-items: flex-start;
+            flex-direction: column;
+            gap: 0.25rem;
+          }
+          .field-header-meta {
+            justify-content: flex-start;
+          }
+          .field-header-utilities {
+            grid-column: 1 / -1;
+          }
           .field-operation-panel {
             flex: 0 0 auto;
           }
@@ -930,6 +1224,63 @@ const Dashboard: React.FC<DashboardProps> = ({
         }
       `}} />
 
+      {appRole !== 'server' && (
+        <header className="field-compact-header" aria-label="Identidad, sincronización y utilidades">
+          <div className="field-header-identity">
+            <div className="field-header-brand">
+              <img src="/logo_horus_nuevo.png" alt="Horus Dron" />
+              <strong>HERMES II</strong>
+            </div>
+            <div className="field-header-meta">
+              <span className="field-role-chip">▲ UNIDAD</span>
+              <span className="field-version-chip">{UpdateManager.getCurrentVersion()}</span>
+              {deviceName && <span className="field-terminal-name">Terminal: {deviceName}</span>}
+            </div>
+          </div>
+
+          <div className={`field-header-sync ${fieldSyncTone}`}>
+            <div className="field-sync-information">
+              <RefreshCw size={17} className={fieldSyncTone === 'activity' ? 'spinning' : ''} />
+              <div className="field-sync-copy">
+                <span className="field-sync-status">{syncStatus || 'Estado de Central no disponible'}</span>
+                <span className="field-last-sync">Último envío: {lastSyncTimestamp || 'sin registro'}</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="field-header-icon-button sync"
+              onClick={handleForceSyncClick}
+              disabled={isSyncingForced}
+              title={lastSyncTimestamp ? `ÚLTIMO ENVÍO: ${lastSyncTimestamp}` : 'Forzar Sincronización Directa'}
+              aria-label="Sincronizar ahora"
+            >
+              <RefreshCw size={20} className={isSyncingForced ? 'spinning' : ''} />
+              <span>SYNC</span>
+            </button>
+          </div>
+
+          <div className="field-header-utilities">
+            <div className="field-theme-switch" aria-label="Modo visual">
+              <button type="button" className={currentTheme === 'hud' ? 'active' : ''} onClick={() => onChangeTheme && onChangeTheme('hud')} title="Modo Oscuro">
+                🌙 HUD
+              </button>
+              <button type="button" className={currentTheme === 'boost' ? 'active' : ''} onClick={() => onChangeTheme && onChangeTheme('boost')} title="HUD Alto Brillo">
+                ⚡ BOOST
+              </button>
+            </div>
+            <div className="field-header-clock">
+              <Clock size={15} />
+              <span>{formatDateDMY(currentTime)} · {formatTime24h(currentTime)}</span>
+            </div>
+            <button type="button" className="field-header-icon-button settings" onClick={onSettings} title="Configuración" aria-label="Configuración">
+              <Settings size={21} />
+            </button>
+          </div>
+        </header>
+      )}
+
+      {appRole === 'server' && (
+      <>
       {/* Modern Banner */}
       <div className="dashboard-banner">
         <div>
@@ -1068,16 +1419,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         </button>
       </div>
 
-      {/* Clock */}
-      {appRole !== 'server' && (
-        <div className="dashboard-clock-section">
-        <div className="dashboard-clock-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem' }}>
-          <Clock size={16} color="var(--text-secondary)" />
-          <span className="dashboard-clock-text">
-            {formatDateDMY(currentTime)} | {formatTime24h(currentTime)}
-          </span>
-        </div>
-      </div>
+      </>
       )}
 
       {/* Field: current situation, next action and secondary actions */}
@@ -1192,8 +1534,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                 <span className="field-secondary-action-title"><ShieldCheck size={17} /> Checklist</span>
                 {hasActiveShift && (
                   <span className="field-checklist-status">
-                    Vehículo: <span className={hasVehicleChecklistToday ? 'complete' : ''}>{hasVehicleChecklistToday ? '✓ Registrado' : 'Pendiente'}</span>
-                    {' · '}Dron: <span className={hasDroneChecklistToday ? 'complete' : ''}>{hasDroneChecklistToday ? '✓ Registrado' : 'Pendiente'}</span>
+                    Vehículo: <span>{hasVehicleChecklistToday ? 'Registrado' : 'Pendiente'}</span>
+                    {' · '}Dron: <span>{hasDroneChecklistToday ? 'Registrado' : 'Pendiente'}</span>
                   </span>
                 )}
               </button>
