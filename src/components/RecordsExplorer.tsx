@@ -93,23 +93,15 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
     ? props.initialDeviceId
     : null);
   const initialUnitFilter = initialContextDeviceId || (shiftDeviceIds.length === 1 ? shiftDeviceIds[0] : 'all');
-  const initialClosedShift = [...props.data.shifts]
-    .filter(shift => initialUnitFilter !== 'all' && shift.sourceDeviceId === initialUnitFilter)
-    .filter(shift => !shift.isDeleted && shift.status === 'closed')
-    .sort((a, b) => getChronologicalTime(b.timestamp) - getChronologicalTime(a.timestamp))[0];
-  const initialClosedDate = initialClosedShift ? toDateInputValue(initialClosedShift.timestamp) : '';
-
-  const [activeTable, setActiveTable] = useState<RecordType>('flights');
+  const [activeTable, setActiveTable] = useState<RecordType>('shifts');
   const [checklistSubtype, setChecklistSubtype] = useState<'vehicle' | 'drone'>('vehicle');
   const [searchTerm, setSearchTerm] = useState('');
   const [searchField, setSearchField] = useState('all');
   const [unitFilter, setUnitFilter] = useState(initialUnitFilter);
-  const [preloadedShiftKey, setPreloadedShiftKey] = useState<string | null>(() => initialClosedShift ? getExportRecordKey(initialClosedShift) : null);
-  const [clientFilter, setClientFilter] = useState(() => initialClosedShift
-    ? (initialClosedShift.client?.trim() || LEGACY_CLIENT_VALUE)
-    : 'all');
+  const [preloadedShiftKey, setPreloadedShiftKey] = useState<string | null>(null);
+  const [clientFilter, setClientFilter] = useState('all');
   const [dateMode, setDateMode] = useState<'specific' | 'range'>('specific');
-  const [specificDate, setSpecificDate] = useState(() => initialClosedDate || getTodayDateString());
+  const [specificDate, setSpecificDate] = useState(getTodayDateString);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [editingRecord, setEditingRecord] = useState<{ type: RecordType, data: any } | null>(null);
@@ -206,15 +198,15 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
     const availableDeviceIds = Array.from(new Set(props.data.shifts
       .filter(shift => !shift.isDeleted && !!shift.sourceDeviceId)
       .map(shift => shift.sourceDeviceId!)));
-    if (props.ownDeviceId) {
-      handleUnitChange(props.ownDeviceId);
-      return;
-    }
     const requestedDeviceIsValid = !!props.initialDeviceId && (
       availableDeviceIds.includes(props.initialDeviceId)
       || Array.from(props.unitsStatus?.values() || []).some(unit => unit.deviceId === props.initialDeviceId)
     );
-    handleUnitChange(requestedDeviceIsValid ? props.initialDeviceId! : (availableDeviceIds.length === 1 ? availableDeviceIds[0] : 'all'));
+    setUnitFilter(props.ownDeviceId || (requestedDeviceIsValid ? props.initialDeviceId! : (availableDeviceIds.length === 1 ? availableDeviceIds[0] : 'all')));
+    setPreloadedShiftKey(null);
+    setClientFilter('all');
+    setDateMode('specific');
+    setSpecificDate(getTodayDateString());
   }, [props.data.shifts]);
 
   const handleTableChange = (tabId: RecordType) => {
@@ -521,18 +513,15 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
     <div className="container" style={{ maxWidth: '1300px', paddingBottom: '5rem' }}>
       {/* Hide UI when printing bulk checklists */}
       <div className="records-explorer-ui">
-      {/* Header Navigation */}
-      <div className="records-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '3rem', borderBottom: '2px solid rgba(255,255,255,0.1)', paddingBottom: '2rem' }}>
-        <div style={{ display: 'flex', gap: '1rem' }}>
-          <button onClick={props.onBack} className="btn-3d" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: '#000', color: 'var(--primary)', border: '1px solid var(--primary)', padding: '1rem 2rem' }}>
-            <ArrowLeft size={20} /> VOLVER AL MENÚ
-          </button>
-          {props.isServer && <button onClick={() => setShowTrash(true)} className="btn-3d records-trash-open"><Trash2 size={20} /> PAPELERA ({activeTrash.length})</button>}
-        </div>
-        <div className="records-header-title" style={{ textAlign: 'right' }}>
-          <h2 style={{ fontSize: '2.5rem', fontWeight: 900, margin: 0, color: 'var(--text-primary)', textTransform: 'uppercase' }}>Historial Técnico</h2>
-          <p style={{ color: 'var(--primary)', fontWeight: 900, margin: 0, letterSpacing: '4px', background: '#000', display: 'inline-block', padding: '2px 10px', fontSize: '0.8rem', border: '1px solid var(--primary)' }}>HORUS DRON</p>
-        </div>
+      {/* Context navigation: the document/WebView remains the scroll owner. */}
+      <div className="records-context-bar">
+        <button onClick={props.onBack} className="records-context-back" aria-label="Volver al Dashboard">
+          <ArrowLeft size={20} /> <span>Dashboard</span>
+        </button>
+        <strong>Registros</strong>
+        {props.isServer
+          ? <button onClick={() => setShowTrash(true)} className="records-context-trash" aria-label={`Abrir Papelera, ${activeTrash.length} registros`}><Trash2 size={19} /><span>Papelera ({activeTrash.length})</span></button>
+          : <span className="records-context-spacer" aria-hidden="true" />}
       </div>
 
       {/* Table Selector Tabs */}
@@ -949,6 +938,9 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
                   {activeTable === 'shifts' && (
                     <>
                       <td style={{ padding: '1.2rem', color: 'var(--text-primary)', overflowWrap: 'anywhere' }}>
+                        <span className={`records-shift-status ${item.status === 'active' ? 'is-open' : item.status === 'closed' ? 'is-closed' : 'is-unknown'}`}>
+                          {item.status === 'active' ? 'ABIERTA' : item.status === 'closed' ? 'CERRADA' : 'ESTADO NO DISPONIBLE'}
+                        </span>
                         <strong>Cliente: {item.client || 'Sin cliente histórico'}</strong><br />{item.coordinator}
                       </td>
                       <td style={{ padding: '1.2rem', color: 'var(--text-primary)', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -1126,6 +1118,11 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
                 <div className="history-card-body">
                   {activeTable === 'shifts' && (
                     <>
+                      <div className="history-card-item records-shift-status-row">
+                        <span className={`records-shift-status ${item.status === 'active' ? 'is-open' : item.status === 'closed' ? 'is-closed' : 'is-unknown'}`}>
+                          {item.status === 'active' ? 'ABIERTA' : item.status === 'closed' ? 'CERRADA' : 'ESTADO NO DISPONIBLE'}
+                        </span>
+                      </div>
                       <div className="history-card-item">
                         <span className="history-card-label">Cliente:</span>
                         <span className="history-card-value">{item.client || 'Sin cliente histórico'}</span>
@@ -1473,6 +1470,17 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
       )}
 
       <style>{`
+        .records-context-bar { --records-global-controls-clearance:4.5rem; position:sticky; top:calc(env(safe-area-inset-top, 0px) + var(--records-global-controls-clearance)); z-index:100; min-height:52px; margin:calc(env(safe-area-inset-top, 0px) + var(--records-global-controls-clearance)) 0 1.5rem; padding:.25rem .5rem; display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); align-items:center; gap:.5rem; background:rgba(3,6,12,.94); border:1px solid var(--glass-border); border-radius:12px; box-shadow:var(--shadow-glow); }
+        .records-context-bar > strong { min-width:0; text-align:center; color:var(--text-primary); font-size:.95rem; text-transform:uppercase; letter-spacing:1px; overflow-wrap:anywhere; }
+        .records-context-back, .records-context-trash { min-width:0; min-height:48px; padding:.55rem .75rem; display:inline-flex; align-items:center; gap:.45rem; border-radius:8px; background:transparent; font:inherit; font-size:.82rem; font-weight:800; text-transform:uppercase; cursor:pointer; }
+        .records-context-back { justify-self:start; color:var(--primary); border:1px solid var(--primary); }
+        .records-context-trash { justify-self:end; color:#ff6b6b; border:1px solid #ff6b6b; }
+        .records-context-spacer { width:48px; justify-self:end; }
+        .records-shift-status { display:inline-flex; width:max-content; max-width:100%; margin:0 0 .45rem; padding:.24rem .55rem; border:1px solid currentColor; border-radius:999px; font-size:.72rem; line-height:1.2; font-weight:900; letter-spacing:.6px; }
+        .records-shift-status.is-open { color:var(--neon-green); background:rgba(0,255,136,.1); }
+        .records-shift-status.is-closed { color:var(--text-secondary); background:rgba(148,163,184,.1); }
+        .records-shift-status.is-unknown { color:var(--neon-orange); background:rgba(251,146,60,.1); }
+        .records-shift-status-row { justify-content:flex-start; }
         .records-trash-open, .records-history-action { min-height:48px; display:inline-flex; align-items:center; justify-content:center; gap:.4rem; padding:.65rem .8rem; white-space:normal; }
         .records-trash-open { background:#000; color:#ff6b6b; border:1px solid #ff6b6b; }
         .records-history-action { background:rgba(255,255,255,.05); color:var(--text-primary); border:1px solid var(--border-input); border-radius:8px; }
@@ -1491,6 +1499,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
         .records-trash-actions button, .records-conflict-actions button { min-height:48px; padding:.7rem 1rem; flex:1 1 220px; }
         .records-trash-actions .danger { color:#ff6b6b; }
         @media (max-width:600px) { .records-trash-open { width:100%; } .records-history-action { width:100%; } .records-history-modal { padding:1rem; } }
+        @media (max-width:430px) { .records-context-back span, .records-context-trash span { display:none; } .records-context-back, .records-context-trash { width:48px; padding:0; justify-content:center; } }
       `}</style>
 
 
