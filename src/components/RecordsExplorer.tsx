@@ -93,7 +93,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
     ? props.initialDeviceId
     : null);
   const initialUnitFilter = initialContextDeviceId || (shiftDeviceIds.length === 1 ? shiftDeviceIds[0] : 'all');
-  const [activeTable, setActiveTable] = useState<RecordType>('shifts');
+  const [consultationTable, setActiveTable] = useState<RecordType>('shifts');
   const [checklistSubtype, setChecklistSubtype] = useState<'vehicle' | 'drone'>('vehicle');
   const [searchTerm, setSearchTerm] = useState('');
   const [searchField, setSearchField] = useState('all');
@@ -108,9 +108,13 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
   const [endDate, setEndDate] = useState('');
   const [editingRecord, setEditingRecord] = useState<{ type: RecordType, data: any } | null>(null);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
+  const [isGeneralConsultation, setIsGeneralConsultation] = useState(false);
   const [showTrash, setShowTrash] = useState(false);
   const [historyModal, setHistoryModal] = useState<{ mode: 'original' | 'changes' | 'conflict'; item: any } | null>(null);
   const automaticInitializationApplied = useRef(props.data.shifts.length > 0);
+  const isContextualNavigation = !!selectedShiftKey;
+  const isPrimaryEntry = !isGeneralConsultation && !isContextualNavigation;
+  const activeTable: RecordType = isPrimaryEntry ? 'shifts' : consultationTable;
 
 
   // Helper maps for related entities lookup
@@ -196,7 +200,6 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
         return !!parent && getExportRecordKey(parent) === selectedFlightKey;
       })
     : [], [props.data.detections, selectedFlight, selectedFlightKey, flightMap, legacyFlightMap, legacyFlightIdMap]);
-  const isContextualNavigation = !!selectedShiftKey;
   const belongsToPreloadedShift = (item: any): boolean => {
     if (!preloadedShiftKey) return true;
     const shift = resolveShift(item);
@@ -253,6 +256,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
   };
 
   const openShift = (shift: ShiftData) => {
+    setShowMobileFilters(false);
     setSelectedShiftKey(getExportRecordKey(shift));
     setSelectedFlightKey(null);
     setActiveTable('flights');
@@ -279,6 +283,13 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
     if (selectedShiftKey) {
       setSelectedShiftKey(null);
       setActiveTable('shifts');
+      setIsGeneralConsultation(false);
+      setShowMobileFilters(false);
+      return;
+    }
+    if (isGeneralConsultation) {
+      setIsGeneralConsultation(false);
+      setShowMobileFilters(false);
       return;
     }
     props.onBack();
@@ -373,7 +384,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
 
   // Filter Logic
   const filteredData = useMemo(() => {
-    const isFilterActive = isContextualNavigation || (dateMode === 'specific' ? !!specificDate : (!!startDate && !!endDate));
+    const isFilterActive = isPrimaryEntry || isContextualNavigation || (dateMode === 'specific' ? !!specificDate : (!!startDate && !!endDate));
     if (!isFilterActive) return [];
 
     let list: any[] = [];
@@ -395,17 +406,17 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
       list = list.filter((item: DetectionData) => recordBelongsToSelectedFlight(item));
     }
 
-    const specDateObj = specificDate ? new Date(specificDate + 'T00:00:00') : null;
+    const specDateObj = isPrimaryEntry ? new Date(getTodayDateString() + 'T00:00:00') : (specificDate ? new Date(specificDate + 'T00:00:00') : null);
     const start = startDate ? new Date(startDate + 'T00:00:00') : null;
     const end = endDate ? new Date(endDate + 'T23:59:59') : null;
 
     return list.filter(item => {
       const isPreloadedJourneyScope = activeTable !== 'checklists' && !!preloadedShiftKey;
-      if (!isContextualNavigation && unitFilter !== 'all') {
+      if (!isPrimaryEntry && !isContextualNavigation && unitFilter !== 'all') {
         const itemUnit = activeTable === 'checklists' ? item.sourceDeviceId : resolveRecordUnit(item);
         if (itemUnit !== unitFilter) return false;
       }
-      if (!isContextualNavigation && activeTable !== 'checklists' && preloadedShiftKey && !belongsToPreloadedShift(item)) return false;
+      if (!isPrimaryEntry && !isContextualNavigation && activeTable !== 'checklists' && preloadedShiftKey && !belongsToPreloadedShift(item)) return false;
 
       // 1. Date Filter
       const operationalTimestamp = activeTable === 'checklists'
@@ -414,7 +425,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
       const itemDate = parseLocalTimestampToDate(operationalTimestamp);
       if (!itemDate) return false;
 
-      if (!isContextualNavigation && !isPreloadedJourneyScope && dateMode === 'specific') {
+      if (isPrimaryEntry || (!isContextualNavigation && !isPreloadedJourneyScope && dateMode === 'specific')) {
         if (!specDateObj) return false;
         const sameYear = itemDate.getFullYear() === specDateObj.getFullYear();
         const sameMonth = itemDate.getMonth() === specDateObj.getMonth();
@@ -425,14 +436,15 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
         if (itemDate < start || itemDate > end) return false;
       }
 
-      if (!isContextualNavigation && activeTable !== 'checklists' && clientFilter !== 'all') {
+      if (!isPrimaryEntry && !isContextualNavigation && activeTable !== 'checklists' && clientFilter !== 'all') {
         const client = resolveShift(item)?.client?.trim();
         if (clientFilter === LEGACY_CLIENT_VALUE ? !!client : client !== clientFilter) return false;
       }
 
       // 2. Search Term Filter
-      if (!searchTerm) return true;
-      const term = searchTerm.toLowerCase();
+      const appliedSearchTerm = isPrimaryEntry ? '' : searchTerm;
+      if (!appliedSearchTerm) return true;
+      const term = appliedSearchTerm.toLowerCase();
 
       // Retrieve related records if any
       let flight: FlightData | undefined;
@@ -494,7 +506,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
 
       return false;
     }).sort((a, b) => b.timestamp.localeCompare(a.timestamp));
-  }, [props.data, activeTable, checklistSubtype, searchTerm, effectiveSearchField, unitFilter, preloadedShiftKey, clientFilter, dateMode, specificDate, startDate, endDate, flightMap, legacyFlightMap, legacyFlightIdMap, shiftMap, legacyShiftMap, legacyShiftIdMap, selectedShiftKey, selectedFlightKey, isContextualNavigation]);
+  }, [props.data, activeTable, checklistSubtype, searchTerm, effectiveSearchField, unitFilter, preloadedShiftKey, clientFilter, dateMode, specificDate, startDate, endDate, flightMap, legacyFlightMap, legacyFlightIdMap, shiftMap, legacyShiftMap, legacyShiftIdMap, selectedShiftKey, selectedFlightKey, isContextualNavigation, isPrimaryEntry]);
 
   const getCurrentExcelScope = () => {
     if (activeTable !== 'shifts' && activeTable !== 'flights' && activeTable !== 'detections') return undefined;
@@ -584,7 +596,21 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
     setEditingRecord(null);
   };
 
-  const isFilterActive = isContextualNavigation || (dateMode === 'specific' ? !!specificDate : (!!startDate && !!endDate));
+  const isFilterActive = isPrimaryEntry || isContextualNavigation || (dateMode === 'specific' ? !!specificDate : (!!startDate && !!endDate));
+  const todayLabel = new Intl.DateTimeFormat('es-AR').format(new Date(`${getTodayDateString()}T00:00:00`));
+  const activeCategoryLabel = ({ shifts: 'Jornadas', flights: 'Vuelos', batteries: 'Baterías', detections: 'Detecciones', checklists: 'Checklist Diario' } as Record<RecordType, string>)[activeTable];
+  const dateScopeLabel = dateMode === 'specific'
+    ? (specificDate ? new Intl.DateTimeFormat('es-AR').format(new Date(`${specificDate}T00:00:00`)) : 'Sin fecha')
+    : (startDate && endDate ? `${startDate} → ${endDate}` : 'Rango incompleto');
+  const filterScopeSummary = [activeCategoryLabel, dateScopeLabel, clientFilter === 'all' ? 'Todos los clientes' : clientFilter, searchTerm ? `Búsqueda: ${searchTerm}` : ''].filter(Boolean).join(' · ');
+  const openGeneralConsultation = (revealFilters = false) => {
+    setIsGeneralConsultation(true);
+    if (revealFilters) setShowMobileFilters(true);
+  };
+  const getShiftFlightCount = (shift: ShiftData) => props.data.flights.filter(flight => {
+    const parent = resolveShiftFromFlight(flight);
+    return !!parent && getExportRecordKey(parent) === getExportRecordKey(shift);
+  }).length;
 
   const getRecordState = (item: any) => item.recordUid ? props.historicalState.get(item.recordUid) : undefined;
   const historyBadge = (item: any) => {
@@ -608,7 +634,9 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
       ? 'Jornada'
       : selectedShiftKey
         ? 'Registros'
-        : 'Dashboard';
+        : isGeneralConsultation
+          ? 'Jornadas de hoy'
+          : 'Dashboard';
   const contextTitle = selectedFlightKey && activeTable === 'batteries'
     ? 'Baterías del Vuelo'
     : selectedFlightKey && activeTable === 'detections'
@@ -618,13 +646,33 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
         : selectedShiftKey
           ? 'Vuelos de la Jornada'
           : 'Registros';
+  const renderEmptyState = () => {
+    if (isPrimaryEntry && activeTable === 'shifts') {
+      return (
+        <div className="records-today-empty">
+          <strong>No hay Jornadas registradas hoy.</strong>
+          <button type="button" onClick={() => openGeneralConsultation(true)}>Buscar otras Jornadas</button>
+        </div>
+      );
+    }
+    if (selectedFlightKey && activeTable === 'batteries') {
+      return selectedFlightBatteries.length === 0 ? 'Este Vuelo no tiene Baterías registradas.' : 'No hay Baterías que coincidan con la búsqueda.';
+    }
+    if (selectedFlightKey && activeTable === 'detections') {
+      return selectedFlightDetections.length === 0 ? 'Este Vuelo no tiene Detecciones registradas.' : 'No hay Detecciones que coincidan con la búsqueda.';
+    }
+    if (selectedShiftKey && activeTable === 'flights') {
+      return selectedShiftFlights.length === 0 ? 'Sin vuelos registrados.' : 'No hay Vuelos que coincidan con la búsqueda.';
+    }
+    return 'No se encontraron registros con los filtros aplicados.';
+  };
 
   return (
     <div className="container" style={{ maxWidth: '1300px', paddingBottom: '5rem' }}>
       {/* Hide UI when printing bulk checklists */}
       <div className="records-explorer-ui">
       {/* Context navigation: the document/WebView remains the scroll owner. */}
-      <div className="records-context-bar">
+      <div className={`records-context-bar ${isPrimaryEntry ? 'is-primary-entry' : ''}`}>
         <button onClick={handleContextBack} className="records-context-back" aria-label={`Volver a ${contextBackLabel}`}>
           <ArrowLeft size={20} /> <span>{contextBackLabel}</span>
         </button>
@@ -634,8 +682,21 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
           : <span className="records-context-spacer" aria-hidden="true" />}
       </div>
 
+      {isPrimaryEntry && (
+        <section className="records-primary-entry" aria-labelledby="records-today-title">
+          <div>
+            <span className="records-context-kicker">Registros</span>
+            <h2 id="records-today-title">Jornadas de hoy</h2>
+            <p>{todayLabel}</p>
+          </div>
+          <button type="button" className="records-secondary-action" onClick={() => openGeneralConsultation(false)}>
+            <Filter size={18} /> Consulta general / Filtros
+          </button>
+        </section>
+      )}
+
       {/* Table Selector Tabs */}
-      <div className="records-tabs" style={{ gap: '1rem', marginBottom: '1.5rem', paddingBottom: '0.5rem' }}>
+      {isGeneralConsultation && !isContextualNavigation && <div className="records-tabs records-tabs-desktop" style={{ gap: '1rem', marginBottom: '1.5rem', paddingBottom: '0.5rem' }}>
         {[
           { id: 'shifts', label: 'Jornadas', icon: LayoutDashboard },
           { id: 'flights', label: 'Vuelos', icon: Plane },
@@ -661,7 +722,20 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
             {tab.label}
           </button>
         ))}
-      </div>
+      </div>}
+
+      {isGeneralConsultation && !isContextualNavigation && (
+        <div className="records-category-mobile">
+          <label htmlFor="records-category-select">Categoría</label>
+          <select id="records-category-select" value={activeTable} onChange={event => handleTableChange(event.target.value as RecordType)}>
+            <option value="shifts">Jornadas</option>
+            <option value="flights">Vuelos</option>
+            <option value="batteries">Baterías</option>
+            <option value="detections">Detecciones</option>
+            <option value="checklists">Checklist Diario</option>
+          </select>
+        </div>
+      )}
 
       {selectedShift && !selectedFlight && (
         <section className="records-context-summary" aria-label="Jornada seleccionada">
@@ -741,19 +815,22 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
       )}
 
       {/* Mobile Filters Toggle Button */}
-      <div className="mobile-only-filters-btn" style={{ marginBottom: '1rem', display: 'none' }}>
+      {(isGeneralConsultation || isContextualNavigation) && <div className="mobile-only-filters-btn" style={{ marginBottom: '1rem' }}>
         <button 
           type="button" 
           onClick={() => setShowMobileFilters(!showMobileFilters)} 
+          aria-expanded={showMobileFilters}
+          aria-controls="records-advanced-filters"
           className="btn-3d" 
           style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', background: 'var(--bg-input)', border: '1px solid var(--primary)', color: 'var(--primary)', padding: '1rem' }}
         >
-          <Filter size={18} /> {showMobileFilters ? 'OCULTAR FILTROS Y BÚSQUEDA' : 'MOSTRAR FILTROS Y BÚSQUEDA'}
+          <Filter size={18} /> {showMobileFilters ? 'OCULTAR FILTROS' : 'BUSCAR / FILTROS'}
         </button>
-      </div>
+        {!showMobileFilters && <span className="records-filter-summary">{filterScopeSummary}</span>}
+      </div>}
 
       {/* Filters Bar */}
-      <div className={`glass filters-bar-desktop records-filters ${showMobileFilters ? 'show-mobile' : ''}`} style={{
+      {(isGeneralConsultation || isContextualNavigation) && <div id="records-advanced-filters" className={`glass filters-bar-desktop records-filters ${showMobileFilters ? 'show-mobile' : ''}`} style={{
         padding: '2rem', 
         marginBottom: '2.5rem', 
         display: 'flex', 
@@ -1027,10 +1104,10 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
             <span style={{ fontSize: '1.2rem', fontWeight: 900 }}>+</span> AGREGAR
           </button>
         </div>
-      </div>
+      </div>}
 
       {/* Records Table */}
-      <div className="glass" style={{ overflow: 'hidden', background: 'var(--card-bg)', border: '1px solid var(--glass-border)' }}>
+      <div className="glass records-results" style={{ overflow: 'hidden', background: 'var(--card-bg)', border: '1px solid var(--glass-border)' }}>
         <div className="table-responsive-wrapper">
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead>
@@ -1220,13 +1297,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
                   {filteredData.length === 0 && (
                     <tr>
                       <td colSpan={10} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                        {selectedFlightKey && activeTable === 'batteries'
-                          ? (selectedFlightBatteries.length === 0 ? 'Este Vuelo no tiene Baterías registradas.' : 'No hay Baterías que coincidan con la búsqueda.')
-                          : selectedFlightKey && activeTable === 'detections'
-                            ? (selectedFlightDetections.length === 0 ? 'Este Vuelo no tiene Detecciones registradas.' : 'No hay Detecciones que coincidan con la búsqueda.')
-                            : selectedShiftKey && activeTable === 'flights'
-                              ? (selectedShiftFlights.length === 0 ? 'Sin vuelos registrados.' : 'No hay Vuelos que coincidan con la búsqueda.')
-                              : 'No se encontraron registros con los filtros aplicados.'}
+                        {renderEmptyState()}
                       </td>
                     </tr>
                   )}
@@ -1244,13 +1315,7 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
             </div>
           ) : filteredData.length === 0 ? (
             <div style={{ padding: '3rem 1rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
-              {selectedFlightKey && activeTable === 'batteries'
-                ? (selectedFlightBatteries.length === 0 ? 'Este Vuelo no tiene Baterías registradas.' : 'No hay Baterías que coincidan con la búsqueda.')
-                : selectedFlightKey && activeTable === 'detections'
-                  ? (selectedFlightDetections.length === 0 ? 'Este Vuelo no tiene Detecciones registradas.' : 'No hay Detecciones que coincidan con la búsqueda.')
-                  : selectedShiftKey && activeTable === 'flights'
-                    ? (selectedShiftFlights.length === 0 ? 'Sin vuelos registrados.' : 'No hay Vuelos que coincidan con la búsqueda.')
-                    : 'No se encontraron registros con los filtros aplicados.'}
+              {renderEmptyState()}
             </div>
           ) : (
             filteredData.map(item => (
@@ -1297,6 +1362,10 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
                       <div className="history-card-item">
                         <span className="history-card-label">Coordinador:</span>
                         <span className="history-card-value">{item.coordinator}</span>
+                      </div>
+                      <div className="history-card-item records-shift-flight-count">
+                        <span className="history-card-label">Vuelos:</span>
+                        <strong className="history-card-value">{getShiftFlightCount(item)}</strong>
                       </div>
                       <div className="history-card-item">
                         <span className="history-card-label">Asistentes:</span>
@@ -1647,6 +1716,14 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
       )}
 
       <style>{`
+        .records-primary-entry { margin:0 0 1rem; display:flex; align-items:flex-end; justify-content:space-between; gap:1rem; }
+        .records-primary-entry h2 { margin:.15rem 0; color:var(--text-primary); font-size:clamp(1.35rem,4vw,2rem); text-transform:uppercase; }
+        .records-primary-entry p { margin:0; color:var(--text-secondary); font-weight:800; }
+        .records-secondary-action, .records-today-empty button { min-height:48px; display:inline-flex; align-items:center; justify-content:center; gap:.5rem; padding:.7rem 1rem; border:1px solid var(--primary); border-radius:8px; background:rgba(240,196,25,.08); color:var(--primary); font:inherit; font-weight:900; text-transform:uppercase; cursor:pointer; }
+        .records-category-mobile, .mobile-only-filters-btn { display:none; }
+        .records-filter-summary { display:block; margin:.5rem .25rem 0; color:var(--text-secondary); font-size:.78rem; overflow-wrap:anywhere; }
+        .records-today-empty { display:grid; justify-items:center; gap:1rem; text-transform:uppercase; }
+        .records-today-empty strong { color:var(--text-primary); }
         .records-context-bar { --records-global-controls-clearance:4.5rem; position:sticky; top:calc(env(safe-area-inset-top, 0px) + var(--records-global-controls-clearance)); z-index:100; min-height:52px; margin:calc(env(safe-area-inset-top, 0px) + var(--records-global-controls-clearance)) 0 1.5rem; padding:.25rem .5rem; display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); align-items:center; gap:.5rem; background:rgba(3,6,12,.94); border:1px solid var(--glass-border); border-radius:12px; box-shadow:var(--shadow-glow); }
         .records-context-bar > strong { min-width:0; text-align:center; color:var(--text-primary); font-size:.95rem; text-transform:uppercase; letter-spacing:1px; overflow-wrap:anywhere; }
         .records-context-back, .records-context-trash { min-width:0; min-height:48px; padding:.55rem .75rem; display:inline-flex; align-items:center; gap:.45rem; border-radius:8px; background:transparent; font:inherit; font-size:.82rem; font-weight:800; text-transform:uppercase; cursor:pointer; }
@@ -1686,7 +1763,28 @@ const RecordsExplorer: React.FC<RecordsExplorerProps> = (props) => {
         .records-trash-actions, .records-conflict-actions { display:flex; flex-wrap:wrap; gap:.75rem; }
         .records-trash-actions button, .records-conflict-actions button { min-height:48px; padding:.7rem 1rem; flex:1 1 220px; }
         .records-trash-actions .danger { color:#ff6b6b; }
-        @media (max-width:600px) { .records-trash-open { width:100%; } .records-history-action, .records-context-open { width:100%; } .records-history-modal { padding:1rem; } .records-context-summary { align-items:stretch; flex-direction:column; } .records-context-destinations { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); } .records-context-destinations button { min-width:0; padding:.55rem .35rem; } }
+        @media (max-width:600px) {
+          .records-explorer-ui { display:flex; flex-direction:column; min-width:0; }
+          .records-context-bar { --records-global-controls-clearance:4rem; margin:calc(env(safe-area-inset-top, 0px) + var(--records-global-controls-clearance)) 0 .85rem; min-height:48px; padding:0 .25rem; border-radius:8px; background:rgba(3,6,12,.985); box-shadow:none; }
+          .records-context-bar.is-primary-entry { position:relative; top:auto; margin:calc(env(safe-area-inset-top, 0px) + var(--records-global-controls-clearance)) 0 .75rem; }
+          .records-primary-entry { order:10; align-items:stretch; flex-direction:column; margin-bottom:1rem; }
+          .records-primary-entry .records-secondary-action { width:100%; }
+          .records-tabs-desktop { display:none !important; }
+          .records-category-mobile { order:20; display:grid; gap:.4rem; margin-bottom:.75rem; }
+          .records-category-mobile select { width:100%; min-height:48px; }
+          .records-results { order:30; width:100%; min-width:0; }
+          .mobile-only-filters-btn { order:40; display:block; margin-top:1rem; }
+          .filters-bar-desktop { order:50; display:none !important; padding:1rem !important; margin-bottom:1rem !important; gap:1rem !important; }
+          .filters-bar-desktop.show-mobile { display:flex !important; }
+          .records-checklist-selector { order:25; }
+          .records-trash-open { width:100%; }
+          .records-history-action, .records-context-open { width:100%; }
+          .records-history-modal { padding:1rem; }
+          .records-context-summary { align-items:stretch; flex-direction:column; }
+          .records-context-destinations { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
+          .records-context-destinations button { min-width:0; padding:.55rem .35rem; }
+        }
+        @media (max-width:360px) { .records-context-destinations { grid-template-columns:minmax(0,1fr); } }
         @media (max-width:430px) { .records-context-back span, .records-context-trash span { display:none; } .records-context-back, .records-context-trash { width:48px; padding:0; justify-content:center; } }
       `}</style>
 
